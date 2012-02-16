@@ -140,7 +140,7 @@ for k = 1:n_samp
         hold on
         plot(agcsum, 'k-')
       end
-      axis([0, CF.n_ch, 0, max(0.001, maxsum)]);
+      axis([0, CF.n_ch, 0, max(0.001, max(maxsum))]);
       drawnow
     end
   end

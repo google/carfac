@@ -17,7 +17,7 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-% Test/demo hacking for audio/hearing/filterbanks/carfac/matlab/ stuff
+% Test/demo hacking for carfac matlab stuff, two-channel (binaural) case
 
 clear variables
 
@@ -25,36 +25,36 @@ agc_plot_fig_num = 1;
 
 tic
 
-%test_signal = wavread('pbav4p-22050.wav');
-test_signal = wavread('plan-twochannel-1ms.wav')
-%test_signal = wavread('binaural.wav')
-%test_signal = test_signal(20000:2);  % trim for a faster test
+file_signal = wavread('plan.wav');
+file_signal = file_signal(9000+(1:15000));  % trim for a faster test
 
+itd_offset = 22;  % about 1 ms
+test_signal = [file_signal((itd_offset+1):end), ...
+               file_signal(1:(end-itd_offset))] / 10;
+             
 CF_struct = CARFAC_Design;  % default design
-cum_k = 0;  % not doing segments, so just count from 0
 
 % Run mono, then stereo test:
 n_mics = 2
 CF_struct = CARFAC_Init(CF_struct, n_mics);
-
-[nap, CF_struct, cum_k, nap_decim] = ...
-    CARFAC_Run(CF_struct, test_signal, cum_k, agc_plot_fig_num);
+  
+[nap, CF_struct, nap_decim] = CARFAC_Run(CF_struct, test_signal, agc_plot_fig_num);
 
 % Display results for 1 or 2 mics:
 for mic = 1:n_mics
   smooth_nap = nap_decim(:, :, mic);
   figure(mic + n_mics)  % Makes figures 2, 3, and 4
   image(63 * ((smooth_nap)' .^ 0.5))
-
+    
   colormap(1 - gray);
 end
 
 toc
 
 % Show resulting data, even though M-Lint complains:
-cum_k
 CF_struct
 CF_struct.filter_state
 CF_struct.AGC_state
 min_max = [min(nap(:)), max(nap(:))]
 min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
+

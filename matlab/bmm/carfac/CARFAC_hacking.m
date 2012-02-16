@@ -28,11 +28,11 @@ file_signal = wavread('plan.wav');
 file_signal = file_signal(9300+(1:5000));  % trim for a faster test
 
 % repeat with negated signal to compare responses:
-file_signal = [file_signal; -file_signal];
+% file_signal = [file_signal; -file_signal];
 
 % make a long test signal by repeating at different levels:
 test_signal = [];
-for dB = -60:20:40  % -80:20:60
+for dB = -40:20:0  % -60:20:40  % -80:20:60
   test_signal = [test_signal; file_signal * 10^(dB/20)];
 end
 
@@ -43,7 +43,7 @@ CF_struct = CARFAC_Design;  % default design
 
 agc_plot_fig_num = 6;
 
-for n_mics = 1  % :2
+for n_mics = 1:2
   CF_struct = CARFAC_Init(CF_struct, n_mics);
 
   [nap, CF_struct, nap_decim] = CARFAC_Run(CF_struct, ...
@@ -51,7 +51,9 @@ for n_mics = 1  % :2
 
 %   nap = deskew(nap);  % deskew doesn't make much difference
 
-  MultiScaleSmooth(nap_decim, 10);
+  if n_mics == 1  % because this hack doesn't work for binarual yet
+    MultiScaleSmooth(nap_decim, 10);
+  end
 
 %   nap_decim = nap;
 %   nap_decim = smooth1d(nap_decim, 1);

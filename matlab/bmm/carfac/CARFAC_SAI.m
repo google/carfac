@@ -17,54 +17,68 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [CF, sai] = CARFAC_SAI(CF, k, n_mics, naps, sai)
-% function sai = CARFAC_SAI(CF_struct, n_mics, naps, sai)
+function [sai_frame, sai_state, naps] = CARFAC_SAI(naps, k, sai_state, SAI_params)
+% function sai = CARFAC_SAI(naps, k, sai_state, SAI_params)
 %
-% Calculate the Stabilized Auditory Image from naps
+% Calculate the Stabilized Auditory Image from naps; 
+% I think this is a binaural SAI by Steven Ness
+%
+% k seems to be a time index; it's an incremental update of the images...
+% but this doesn't sound like a proper incremental approach...
 %
 
-  threshold_alpha = CF.sai_params.threshold_alpha;
-  threshold_jump = CF.sai_params.threshold_jump_factor;
-  threshold_offset = CF.sai_params.threshold_jump_offset;
+[n_samp, n_ch, n_mics] = size(naps);
 
-  sai2 = reshape(sai,CF.sai_params.sai_width * CF.n_ch,n_mics);
-  naps2 = reshape(naps,CF.n_samp * CF.n_ch,n_mics);
+if nargin < 4
+  SAI_params = struct( ...
+    'frame_jump', 200, ...
+    'sai_width', 500, ...
+    'threshold_alpha', 0.99, ...
+    'threshold_jump_factor', 1.2, ...
+    'threshold_jump_offset', 0.1};
+end
 
-  for mic = 1:n_mics
-    data = naps(k, :, mic)';
-    above_threshold = (CF.sai_state(mic).lastdata > ...
-                       CF.sai_state(mic).thresholds) & ...
-                      (CF.sai_state(mic).lastdata > data);
-    CF.sai_state(mic).thresholds(above_threshold) = ...
-        data(above_threshold) * threshold_jump + threshold_offset;
-    CF.sai_state(mic).thresholds(~above_threshold) = ...
-        CF.sai_state(mic).thresholds(~above_threshold) * threshold_alpha;
-    CF.sai_state(mic).lastdata = data;
+threshold_alpha = SAI_params.threshold_alpha;
+threshold_jump = SAI_params.threshold_jump_factor;
+threshold_offset = SAI_params.threshold_jump_offset;
 
-    % Update SAI image with strobe data.
-    othermic = 3 - mic;
+sai2 = reshape(sai_state.sai, SAI_params.sai_width * n_ch, n_mics);
+naps2 = reshape(naps, n_samp * n_ch, n_mics);
 
-    % Channels that are above the threhsold
-    above_ch = find(above_threshold);
+for mic = 1:n_mics
+  data = naps(k, :, mic)';
+  above_threshold = (sai_state(mic).lastdata > ...
+    sai_state(mic).thresholds) & ...
+    (sai_state(mic).lastdata > data);
+  sai_state(mic).thresholds(above_threshold) = ...
+    data(above_threshold) * threshold_jump + threshold_offset;
+  sai_state(mic).thresholds(~above_threshold) = ...
+    sai_state(mic).thresholds(~above_threshold) * threshold_alpha;
+  sai_state(mic).lastdata = data;
+  
+  % Update SAI image with strobe data.
+  othermic = 3 - mic;
+  
+  % Channels that are above the threhsold
+  above_ch = find(above_threshold);
+  
+  % If we are above the threshold, set the trigger index and reset the
+  % sai_index
+  sai_state(mic).trigger_index(above_ch) = k;
+  sai_state(mic).sai_index(above_ch) = 1;
+  
+  % Copy the right data from the nap to the sai
+  chans = (1:n_ch)';
+  fromindices = sai_state(mic).trigger_index() + (chans - 1) * n_samp;
+  toindices = min((sai_state(mic).sai_index() + (chans - 1) * sai_params.sai_width), sai_params.sai_width * n_ch);
+  sai2(toindices,mic) = naps2(fromindices, othermic);
+  
+  sai_state(mic).trigger_index(:) = sai_state(mic).trigger_index(:) + 1;
+  sai_state(mic).sai_index(:) = sai_state(mic).sai_index(:) + 1;
+end
 
-    % If we are above the threshold, set the trigger index and reset the
-    % sai_index
-    CF.sai_state(mic).trigger_index(above_ch) = k;
-    CF.sai_state(mic).sai_index(above_ch) = 1;
 
-    % Copy the right data from the nap to the sai
-    chans = (1:CF.n_ch)';
-    fromindices = CF.sai_state(mic).trigger_index() + (chans - 1) * CF.n_samp;
-    toindices = min((CF.sai_state(mic).sai_index() + (chans - 1) * ...
-                     CF.sai_params.sai_width), ...
-                     CF.sai_params.sai_width * CF.n_ch);
-    sai2(toindices,mic) = naps2(fromindices,othermic);
+sai_frame = reshape(sai2,sai_params.sai_width,n_ch,n_mics);
+sai_state.sai = sai;  % probably this is not exactly what we want to store as state...
 
-    CF.sai_state(mic).trigger_index(:) = CF.sai_state(mic).trigger_index(:) + 1;
-    CF.sai_state(mic).sai_index(:) = CF.sai_state(mic).sai_index(:) + 1;
-
-  end
-
-  sai = reshape(sai2,CF.sai_params.sai_width,CF.n_ch,n_mics);
-  naps = reshape(naps2,CF.n_samp, CF.n_ch,n_mics);
 
