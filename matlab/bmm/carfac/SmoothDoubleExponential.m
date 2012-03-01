@@ -62,3 +62,4 @@ else
     signal_vecs(index, :) = state;
   end
 end
+

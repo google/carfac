@@ -1,5 +1,5 @@
 % Copyright 2012, Google, Inc.
-% Author: Richard F. Lyon
+% Author Richard F. Lyon
 %
 % This Matlab file is part of an implementation of Lyon's cochlear model:
 % "Cascade of Asymmetric Resonators with Fast-Acting Compression"
@@ -19,8 +19,8 @@
 
 function [naps, CF, decim_naps] = CARFAC_Run ...
   (CF, input_waves, AGC_plot_fig_num)
-% function [naps, CF, CF.cum_k, decim_naps] = CARFAC_Run ...
-%    (CF, input_waves, CF.cum_k, AGC_plot_fig_num)
+% function [naps, CF, decim_naps] = CARFAC_Run ...
+%   (CF, input_waves, AGC_plot_fig_num)
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input to make one or more neural activity patterns (naps).
 %
@@ -58,91 +58,89 @@ if n_mics ~= CF.n_mics
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
 
-% pull coeffs out of struct first, into local vars for convenience
-decim = CF.AGC_params.decimation;
+% fastest decimated rate determines some interp needed:
+decim1 = CF.AGC_params.decimation(1);
 
 naps = zeros(n_samp, n_ch, n_mics);
+decim_k = 0;
+k_NAP_decim = 0;
+NAP_decim = 8;
 if nargout > 2
   % make decimated detect output:
-  decim_naps = zeros(ceil(n_samp/decim), CF.n_ch, CF.n_mics);
+  decim_naps = zeros(ceil(n_samp/NAP_decim), CF.n_ch, CF.n_mics);
 else
   decim_naps = [];
 end
 
-decim_k = 0;
 
-sum_abs_response = 0;
+k_AGC = 0;
+AGC_plot_decim = 16;  % how often to plot AGC state; TODO: use segments
 
+
+detects = zeros(n_ch, n_mics);
 for k = 1:n_samp
-  CF.k_mod_decim = mod(CF.k_mod_decim + 1, decim);  % global time phase
+  CF.k_mod_decim = mod(CF.k_mod_decim + 1, decim1);  % global time phase
+  k_NAP_decim = mod(k_NAP_decim + 1, NAP_decim);  % phase of decimated nap
   % at each time step, possibly handle multiple channels
   for mic = 1:n_mics
     [filters_out, CF.filter_state(mic)] = CARFAC_FilterStep( ...
       input_waves(k, mic), CF.filter_coeffs, CF.filter_state(mic));
-
+    
     % update IHC state & output on every time step, too
     [ihc_out, CF.IHC_state(mic)] = CARFAC_IHCStep( ...
       filters_out, CF.IHC_coeffs, CF.IHC_state(mic));
-
-%     sum_abs_response = sum_abs_response + abs(filters_out);
-
+    
+    detects(:, mic) = ihc_out;  % for input to AGC, and out to SAI
+    
     naps(k, :, mic) = ihc_out;  % output to neural activity pattern
+    
   end
-
-  % conditionally update all the AGC stages and channels now:
-  if CF.k_mod_decim == 0
-    % just for the plotting option:
-    decim_k = decim_k + 1;   % index of decimated signal for display
-    if ~isempty(decim_naps)
-      for mic = 1:n_mics
-        % this is HWR out of filters, not IHCs
-        avg_detect = CF.filter_state(mic).detect_accum / decim;
-        % This HACK is the IHC version:
-        avg_detect = CF.IHC_state(mic).ihc_accum / decim;  % for cochleagram
-        decim_naps(decim_k, :, mic) = avg_detect;  % for cochleagram
-%         decim_naps(decim_k, :, mic) = sum_abs_response / decim;  % HACK for mechanical out ABS
-%         sum_abs_response(:) = 0;
-      end
-    end
-
-    % get the avg_detects to connect filter_state to AGC_state:
-    avg_detects = zeros(n_ch, n_mics);
+  if ~isempty(decim_naps) && (k_NAP_decim == 0)
+    decim_k = decim_k + 1;   % index of decimated NAP
     for mic = 1:n_mics
-%       % mechanical response from filter output through HWR as AGC in:
-%       avg_detects(:, mic) = CF.filter_state(mic).detect_accum / decim;
-      CF.filter_state(mic).detect_accum(:) = 0;  % zero the detect accumulator
-      % New HACK, IHC output relative to rest as input to AGC:
-      avg_detects(:, mic) = CF.IHC_state(mic).ihc_accum / decim;
-      CF.IHC_state(mic).ihc_accum(:) = 0;  % zero the detect accumulator
+      decim_naps(decim_k, :, mic) = CF.IHC_state(mic).ihc_accum / ...
+        NAP_decim;  % for cochleagram
+      CF.IHC_state(mic).ihc_accum = zeros(n_ch,1);
     end
-
-    % run the AGC update step:
-    CF.AGC_state = CARFAC_AGCStep(CF.AGC_coeffs, avg_detects, CF.AGC_state);
-
-    % connect the feedback from AGC_state to filter_state:
+  end
+  % run the AGC update step, taking input from IHC_state, decimating
+  % internally, all mics at once due to mixing across them:
+  [CF.AGC_state, updated] = ...
+    CARFAC_AGCStep(CF.AGC_coeffs, detects, CF.AGC_state);
+  
+  % connect the feedback from AGC_state to filter_state when it updates
+  if updated
     for mic = 1:n_mics
-      new_damping = CF.AGC_state(mic).sum_AGC;
-%       max_damping = 0.15;  % HACK
-%       new_damping = min(new_damping, max_damping);
+      new_damping = CF.AGC_state(mic).AGC_memory(:, 1);  % stage 1 result
       % set the delta needed to get to new_damping:
+      % TODO: update this to use da and dc instead of dr maybe?
       CF.filter_state(mic).dzB_memory = ...
         (new_damping - CF.filter_state(mic).zB_memory) ...
-          / decim;
-    end
-
-    if AGC_plot_fig_num
-      figure(AGC_plot_fig_num); hold off
-      maxsum = 0;
-      for mic = 1:n_mics
-        plot(CF.AGC_state(mic).AGC_memory)
-        agcsum = sum(CF.AGC_state(mic).AGC_memory, 2);
-        maxsum(mic) = max(maxsum, max(agcsum));
-        hold on
-        plot(agcsum, 'k-')
-      end
-      axis([0, CF.n_ch, 0, max(0.001, max(maxsum))]);
-      drawnow
+        / decim1;
     end
   end
+  
+  k_AGC = mod(k_AGC + 1, AGC_plot_decim);
+  if AGC_plot_fig_num && k_AGC == 0
+    figure(AGC_plot_fig_num); hold off; clf
+    set(gca, 'Position', [.25, .25, .5, .5])
+    
+    maxsum = 0;
+    for mic = 1:n_mics
+      plot(CF.AGC_state(mic).AGC_memory(:, 1), 'k-', 'LineWidth', 1)
+      maxes(mic) = max(CF.AGC_state(mic).AGC_memory(:));
+      hold on
+      stage1 = 4; % as opposed to stage
+      for stage = 1:3;
+        plot(2^(stage1-1) * (CF.AGC_state(mic).AGC_memory(:, stage) - ...
+          2 * CF.AGC_state(mic).AGC_memory(:, stage+1)));
+      end
+      stage = 4;
+      plot(2^(stage1-1) * CF.AGC_state(mic).AGC_memory(:, stage));
+    end
+    axis([0, CF.n_ch+1, -0.01, max(maxes) + 0.01]);
+    drawnow
+  end
+  
 end
 

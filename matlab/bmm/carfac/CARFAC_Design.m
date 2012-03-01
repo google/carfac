@@ -51,14 +51,14 @@ if nargin < 6
   else
     if one_cap
       CF_IHC_params = struct( ...
-        'just_hwr', 0, ...        % not just a simple HWR
+        'just_hwr', just_hwr, ...        % not just a simple HWR
         'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
         'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
         'tau_out', 0.0005, ...    % depletion tau is pretty fast
         'tau_in', 0.010 );        % recovery tau is slower
     else
       CF_IHC_params = struct( ...
-        'just_hwr', 0, ...        % not just a simple HWR
+        'just_hwr', just_hwr, ...        % not just a simple HWR
         'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
         'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
         'tau1_out', 0.020, ...    % depletion tau is pretty fast
@@ -83,16 +83,19 @@ if nargin < 3
     'n_stages', 4, ...
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
-    'decimation', 16, ...  % how often to update the AGC states
-    'AGC1_scales', [1, 2, 3, 4]*1, ...   % in units of channels
-    'AGC2_scales', [1, 2, 3, 4]*1.25, ... % spread more toward base
+    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
+    'AGC1_scales', [1, 2, 4, 8]*1, ...   % in units of channels
+    'AGC2_scales', [1, 2, 4, 8]*1.5, ... % spread more toward base
     'detect_scale', 0.15, ...  % the desired damping range
-    'AGC_mix_coeff', 0.25);
+    'AGC_mix_coeff', 0.5);
 end
 
 if nargin < 2
   CF_filter_params = struct( ...
-    'velocity_scale', 0.2, ...  % for the cubic nonlinearity
+    'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
+    'v_offset', 0.01, ...  % offset gives a quadratic part
+    'v2_corner', 0.2, ...  % corner for essential nonlin
+    'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
     'min_zeta', 0.12, ...
     'first_pole_theta', 0.78*pi, ...
     'zero_ratio', sqrt(2), ...
@@ -147,7 +150,11 @@ n_ch = length(pole_freqs);
 
 % the filter design coeffs:
 
-filter_coeffs = struct('velocity_scale', filter_params.velocity_scale);
+filter_coeffs = struct('velocity_scale', filter_params.velocity_scale, ...
+  'v_offset', filter_params.v_offset, ...
+  'v2_corner', filter_params.v2_corner, ...
+  'v_damp_max', filter_params.v_damp_max ...
+  );
 
 filter_coeffs.r_coeffs = zeros(n_ch, 1);
 filter_coeffs.a_coeffs = zeros(n_ch, 1);
@@ -187,9 +194,7 @@ filter_coeffs.g_coeffs = 1 ./ (1 + h .* r2 .* sin(theta) ./ ...
 %% the AGC design coeffs:
 function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs)
 
-AGC_coeffs = struct('AGC_stage_gain', AGC_params.AGC_stage_gain, ...
-  'AGC_mix_coeff', AGC_params.AGC_mix_coeff);
-
+AGC_coeffs = struct('AGC_stage_gain', AGC_params.AGC_stage_gain);
 
 % AGC1 pass is smoothing from base toward apex;
 % AGC2 pass is back, which is done first now
@@ -198,23 +203,95 @@ AGC2_scales = AGC_params.AGC2_scales;
 
 n_AGC_stages = AGC_params.n_stages;
 AGC_coeffs.AGC_epsilon = zeros(1, n_AGC_stages);  % the 1/(tau*fs) roughly
-decim = AGC_params.decimation;
-gain = 0;
+decim = 1;
+AGC_coeffs.decimation = AGC_params.decimation;
+
+total_DC_gain = 0;
 for stage = 1:n_AGC_stages
   tau = AGC_params.time_constants(stage);
+  decim = decim * AGC_params.decimation(stage);
   % epsilon is how much new input to take at each update step:
   AGC_coeffs.AGC_epsilon(stage) = 1 - exp(-decim / (tau * fs));
   % and these are the smoothing scales and poles for decimated rate:
-  ntimes = tau * (fs / decim);  % effective number of smoothings
+  
+  n_iterations = 1;  % how many times to apply smoothing filter in a stage
+  % effective number of smoothings in a time constant:
+  ntimes = n_iterations * tau * (fs / decim);  
   % divide the spatial variance by effective number of smoothings:
-  t = (AGC1_scales(stage)^2) / ntimes;  % adjust scale for diffusion
-  AGC_coeffs.AGC1_polez(stage) = 1 + 1/t - sqrt((1+1/t)^2 - 1);
-  t = (AGC2_scales(stage)^2) / ntimes;  % adjust scale for diffusion
-  AGC_coeffs.AGC2_polez(stage) = 1 + 1/t - sqrt((1+1/t)^2 - 1);
-  gain = gain + AGC_params.AGC_stage_gain^(stage-1);
+  % t is the variance of the distribution (impulse response width squared)
+  t1 = (AGC1_scales(stage)^2) / ntimes;
+  t2 = (AGC2_scales(stage)^2) / ntimes;
+  % the back-and-forth IIR method coefficients:
+  polez1 = 1 + 1/t1 - sqrt((1+1/t1)^2 - 1);
+  polez2 = 1 + 1/t2 - sqrt((1+1/t2)^2 - 1);
+  AGC_coeffs.AGC_polez1(stage) = polez1;
+  AGC_coeffs.AGC_polez2(stage) = polez2;
+  
+  % above method has spatial "delay" near sqrt(t2) - sqrt(t1) per time,
+  % or net delay that is not independent of ntimes.  A problem???
+  
+  % try a 3-tap FIR as an alternative:
+  n_taps = 3;
+  % from geometric distribution mean and variance from wikipedia:
+  delay = polez2/(1-polez2) - polez1/(1-polez1);
+  total_delay = delay * ntimes
+  spread_sq = polez1/(1-polez1)^2 + polez2/(1-polez2)^2;
+  total_spread = sqrt(spread_sq * ntimes)
+  
+  delay1 = delay;  % keep this as 1-iteration delay reference...
+  a = (spread_sq + delay*delay - delay) / 2;
+  b = (spread_sq + delay*delay + delay) / 2;
+  AGC_spatial_FIR = [a, 1 - a - b, b];  % stored as 5 taps
+  done = AGC_spatial_FIR(2) > 0.1;  % not OK if center tap is too low
+  % if 1 iteration is not good with 3 taps go to 5 taps, then more
+  % iterations if needed, and then fall back to double-exponential IIR:
+  while ~done % smoothing condition, middle value
+    if n_taps == 3
+      % first time through, go wider but stick to 1 iteration
+      n_taps = 5;
+      n_iterations = 1;
+    else
+      % already at 5 taps, so just increase iterations
+      n_iterations = n_iterations + 1;  % number of times to apply spatial
+    end
+    ntimes = n_iterations * tau * (fs / decim);  % effective number of smoothings
+    % divide the spatial variance by effective number of smoothings:
+    % t is the variance of the distribution (impulse response width squared)
+    t1 = (AGC1_scales(stage)^2) / ntimes;
+    t2 = (AGC2_scales(stage)^2) / ntimes;
+    spread_sq = t1 + t2;
+    delay = delay1 / n_iterations;  %  maybe better than sqrt(t2) - sqrt(t1);
+    % 5-tap design duplicates the a and b coeffs; stores just 3 coeffs:
+    % a and b from their sum and diff as before: (sum \pm diff) / 2:
+    a = ((spread_sq + delay*delay)*2/5 - delay*2/3) / 2;
+    b = ((spread_sq + delay*delay)*2/5 + delay*2/3) / 2;
+    AGC_spatial_FIR = [a/2, 1 - a - b, b/2];  % implicit dup of a and b
+    done = AGC_spatial_FIR(2) > 0.1;
+  end
+  % store the resulting FIR design in coeffs:
+  AGC_coeffs.AGC_spatial_iterations(stage) = n_iterations;
+  AGC_coeffs.AGC_spatial_FIR(:,stage) = AGC_spatial_FIR;
+  AGC_coeffs.AGC_n_taps(stage) = n_taps;
+  
+  total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
+  
+  % TODO (dicklyon) -- is this what we want?
+  if stage == 1
+    AGC_coeffs.AGC_mix_coeffs(stage) = 0;
+  else
+    AGC_coeffs.AGC_mix_coeffs(stage) = AGC_params.AGC_mix_coeff / ...
+      (tau * (fs / decim));
+  end
 end
 
-AGC_coeffs.AGC_gain = gain;
+AGC_coeffs.AGC_spatial_FIR
+AGC_coeffs.AGC_spatial_iterations
+AGC_coeffs.AGC_n_taps
+AGC_coeffs.AGC_polez1
+AGC_coeffs.AGC_polez2
+
+AGC_coeffs.AGC_gain = total_DC_gain;
+
 
 %% the IHC design coeffs:
 function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs)
@@ -276,6 +353,7 @@ end
 % default design result, running this function with no args, should look
 % like this, before CARFAC_Init puts state storage into it:
 %
+%
 % CF = CARFAC_Design
 % CF.filter_params
 % CF.AGC_params
@@ -296,6 +374,9 @@ end
 %            n_mics: 0
 % ans =
 %       velocity_scale: 0.2000
+%             v_offset: 0.0100
+%            v2_corner: 0.2000
+%           v_damp_max: 0.0100
 %             min_zeta: 0.1200
 %     first_pole_theta: 2.4504
 %           zero_ratio: 1.4142
@@ -305,27 +386,33 @@ end
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
-%         decimation: 16
-%        AGC1_scales: [1 2 3 4]
-%        AGC2_scales: [1.2500 2.5000 3.7500 5]
+%         decimation: [8 2 2 2]
+%        AGC1_scales: [1 2 4 8]
+%        AGC2_scales: [1.5000 3 6 12]
 %       detect_scale: 0.1500
-%      AGC_mix_coeff: 0.2500
+%      AGC_mix_coeff: 0.3500
 % ans =
 %     velocity_scale: 0.2000
+%           v_offset: 0.0100
+%          v2_corner: 0.2000
+%         v_damp_max: 0.0100
 %           r_coeffs: [96x1 double]
 %           a_coeffs: [96x1 double]
 %           c_coeffs: [96x1 double]
 %           h_coeffs: [96x1 double]
 %           g_coeffs: [96x1 double]
 % ans =
-%     AGC_stage_gain: 2
-%      AGC_mix_coeff: 0.2500
-%        AGC_epsilon: [0.3043 0.0867 0.0224 0.0057]
-%         AGC1_polez: [0.1356 0.1356 0.0854 0.0417]
-%         AGC2_polez: [0.1872 0.1872 0.1227 0.0623]
-%           AGC_gain: 15
-%       detect_scale: 0.0630
+%             AGC_stage_gain: 2
+%                AGC_epsilon: [0.1659 0.0867 0.0443 0.0224]
+%                 decimation: [8 2 2 2]
+%     AGC_spatial_iterations: [1 1 2 3]
+%            AGC_spatial_FIR: [3x4 double]
+%                 AGC_n_taps: [3 5 5 5]
+%             AGC_mix_coeffs: [0 0.0317 0.0159 0.0079]
+%                   AGC_gain: 15
+%               detect_scale: 0.0664
 % ans =
+%              just_hwr: 0
 %             lpf_coeff: 0.4327
 %             out1_rate: 0.0023
 %              in1_rate: 0.0023
@@ -336,7 +423,7 @@ end
 %              rest_cap: 0
 %             rest_cap1: 0.9635
 %             rest_cap2: 0.9269
-%     saturation_output: 0.1587
+%     saturation_output: 0.1507
 
 
 

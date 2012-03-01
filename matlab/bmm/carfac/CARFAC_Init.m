@@ -49,33 +49,37 @@ n_AGC_stages = length(AGC_time_constants);
 
 CF_struct.n_mics = n_mics;
 CF_struct.k_mod_decim = 0;  % time index phase, cumulative over segments
+n_ch = CF_struct.n_ch;
+
+% keep all the decimator phase info in mic 1 state only:
+CF_struct.AGC_state(1).decim_phase = zeros(n_AGC_stages, 1);  % ints
 
 % This zeroing grows the struct array as needed:
 for mic = 1:n_mics
-  CF_struct.filter_state(mic).z1_memory = zeros(CF_struct.n_ch, 1);
-  CF_struct.filter_state(mic).z2_memory = zeros(CF_struct.n_ch, 1);
-  CF_struct.filter_state(mic).zA_memory = zeros(CF_struct.n_ch, 1);  % cubic loop
-  CF_struct.filter_state(mic).zB_memory = zeros(CF_struct.n_ch, 1);  % AGC interp
-  CF_struct.filter_state(mic).dzB_memory = zeros(CF_struct.n_ch, 1);  % AGC incr
-  CF_struct.filter_state(mic).zY_memory = zeros(CF_struct.n_ch, 1);
-  CF_struct.filter_state(mic).detect_accum = zeros(CF_struct.n_ch, 1);
+  CF_struct.filter_state(mic).z1_memory = zeros(n_ch, 1);
+  CF_struct.filter_state(mic).z2_memory = zeros(n_ch, 1);
+  CF_struct.filter_state(mic).zA_memory = zeros(n_ch, 1);  % cubic loop
+  CF_struct.filter_state(mic).zB_memory = zeros(n_ch, 1);  % AGC interp
+  CF_struct.filter_state(mic).dzB_memory = zeros(n_ch, 1);  % AGC incr
+  CF_struct.filter_state(mic).zY_memory = zeros(n_ch, 1);
+  CF_struct.filter_state(mic).detect_accum = zeros(n_ch, 1);
   % AGC loop filters' state:
-  CF_struct.AGC_state(mic).AGC_memory = zeros(CF_struct.n_ch, n_AGC_stages);  % HACK init
-  CF_struct.AGC_state(mic).AGC_sum = zeros(CF_struct.n_ch, 1);
+  CF_struct.AGC_state(mic).AGC_memory = zeros(n_ch, n_AGC_stages);  % HACK init
+  CF_struct.AGC_state(mic).input_accum = zeros(n_ch, n_AGC_stages);  % HACK init
   % IHC state:
   if CF_struct.IHC_coeffs.just_hwr
-    CF_struct.IHC_state(mic).ihc_accum = zeros(CF_struct.n_ch, 1);
+    CF_struct.IHC_state(mic).ihc_accum = zeros(n_ch, 1);
   else
     CF_struct.IHC_state(mic).cap_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap * ones(CF_struct.n_ch, 1);
+      CF_struct.IHC_coeffs.rest_cap * ones(n_ch, 1);
     CF_struct.IHC_state(mic).cap1_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap1 * ones(CF_struct.n_ch, 1);
+      CF_struct.IHC_coeffs.rest_cap1 * ones(n_ch, 1);
     CF_struct.IHC_state(mic).cap2_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap2 * ones(CF_struct.n_ch, 1);
+      CF_struct.IHC_coeffs.rest_cap2 * ones(n_ch, 1);
     CF_struct.IHC_state(mic).lpf1_state = ...
-      CF_struct.IHC_coeffs.rest_output * zeros(CF_struct.n_ch, 1);
+      CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
     CF_struct.IHC_state(mic).lpf2_state = ...
-      CF_struct.IHC_coeffs.rest_output * zeros(CF_struct.n_ch, 1);
-    CF_struct.IHC_state(mic).ihc_accum = zeros(CF_struct.n_ch, 1);
+      CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
+    CF_struct.IHC_state(mic).ihc_accum = zeros(n_ch, 1);
   end
 end

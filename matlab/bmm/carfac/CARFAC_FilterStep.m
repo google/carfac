@@ -29,6 +29,10 @@ inputs = [x_in; state.zY_memory(1:(end-1))];
 zA = state.zA_memory;
 zB = state.zB_memory + state.dzB_memory; % AGC interpolation
 r0 = filter_coeffs.r_coeffs;
+v_offset  = filter_coeffs.v_offset;
+v2_corner = filter_coeffs.v2_corner;
+v_damp_max = filter_coeffs.v_damp_max;
+
 r = r0 - filter_coeffs.c_coeffs .* (zA + zB);
 
 % now reduce state by r and rotate with the fixed cos/sin coeffs:
@@ -39,10 +43,9 @@ z2 = r .* (filter_coeffs.c_coeffs .* state.z1_memory + ...
   filter_coeffs.a_coeffs .* state.z2_memory);
 
 % update the "velocity" for cubic nonlinearity, into zA:
-zA = (((state.z2_memory - z2) .* filter_coeffs.velocity_scale) - 0.2) .^ 2;
-
-velocity_damp_max = 1/16;
-zA = velocity_damp_max * zA ./ (1 + zA);  % soft max at velocity_damp_max
+zA = (((state.z2_memory - z2) .* filter_coeffs.velocity_scale) + ...
+  v_offset) .^ 2;
+zA = v_damp_max * zA ./ (v2_corner + zA);  % make it more like an "essential" nonlinearity
 
 % Get outputs from inputs and new z2 values:
 zY = filter_coeffs.g_coeffs .* (inputs + filter_coeffs.h_coeffs .* z2);

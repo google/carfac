@@ -51,10 +51,10 @@ for scale_no = 1:n_scales
   end
 
   figure(scale_no + fig_offset1)
-  imagesc(smoothed')
+  imagesc(squeeze(smoothed(:,:,1))')
 
   figure(scale_no + fig_offset2)
-  plot(mean(smoothed, 2));
+  plot(squeeze(mean(smoothed, 2)));
 
   drawnow
   pause(1)

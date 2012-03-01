@@ -27,11 +27,11 @@ just_hwr = coeffs.just_hwr;
 
 if just_hwr
   ihc_out = max(0, filters_out);
-  state.ihc_accum = state.ihc_accum + max(0, ihc_out);
+  state.ihc_accum = state.ihc_accum + ihc_out;
 else
   one_cap = coeffs.one_cap;
 
-  detect = CARFAC_Detect(filters_out/2);  % detect with HWR or so
+  detect = CARFAC_Detect(filters_out);  % detect with HWR or so
 
   if one_cap
     ihc_out = detect .* state.cap_voltage;
@@ -56,7 +56,7 @@ else
   state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
     (state.lpf1_state - state.lpf2_state);
 
-  ihc_out = state.lpf2_state;
+  ihc_out = state.lpf2_state - coeffs.rest_output;
 
-  state.ihc_accum = state.ihc_accum + max(0, ihc_out - coeffs.rest_output);
+  state.ihc_accum = state.ihc_accum + max(0, ihc_out);
 end

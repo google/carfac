@@ -17,66 +17,99 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function state = CARFAC_AGCStep(AGC_coeffs, avg_detects, state)
-% function state = CARFAC_AGCStep(AGC_coeffs, avg_detects, state)
+function [state, updated] = CARFAC_AGCStep(AGC_coeffs, detects, state)
+% function [state, updated] = CARFAC_AGCStep(AGC_coeffs, detects, state)
 %
 % one time step (at decimated low AGC rate) of the AGC state update
 
-n_AGC_stages = length(AGC_coeffs.AGC_epsilon);
 n_mics = length(state);
-n_ch = size(state(1).AGC_sum, 1);  % number of channels
+[n_ch, n_AGC_stages] = size(state(1).AGC_memory);  % number of channels
 
 optimize_for_mono = n_mics == 1;  % mono optimization
-if ~optimize_for_mono
-  stage_sum = zeros(n_ch, 1);
+
+stage = 1;
+ins = AGC_coeffs.detect_scale * detects;
+[state, updated] = CARFAC_AGC_Recurse(AGC_coeffs, ins, n_AGC_stages, ...
+  n_mics, n_ch, optimize_for_mono, stage, state);
+
+
+
+
+
+function [state, updated] = CARFAC_AGC_Recurse(coeffs, ins, n_stages, ...
+  n_mics, n_ch, mono, stage, state)
+% function [state, updated = CARFAC_AGC_Recurse(coeffs, ins, n_stages, ...
+%   n_mics, n_ch, mono, stage, state)
+
+decim = coeffs.decimation(stage);  % decim phase for this stage
+decim_phase = mod(state(1).decim_phase(stage) + 1, decim);
+state(1).decim_phase(stage) = decim_phase;
+
+% accumulate input for this stage from detect or previous stage:
+for mic = 1:n_mics
+  state(mic).input_accum(:, stage) = ...
+    state(mic).input_accum(:, stage) + ins(:, mic);
 end
 
-for stage = 1:n_AGC_stages
-  if ~optimize_for_mono  % skip if mono
-    if stage > 1
-      prev_stage_mean = stage_sum / n_mics;
-    end
-    stage_sum(:) = 0;  % sum accumulating over mics at this stage
-  end
-  epsilon = AGC_coeffs.AGC_epsilon(stage);  % for this stage's LPF pole
-  polez1 = AGC_coeffs.AGC1_polez(stage);
-  polez2 = AGC_coeffs.AGC2_polez(stage);
+% nothing else to do if it's not the right decim_phase
+if decim_phase == 0
+  % do lots of work, at decimated rate
+  
+  % decimated inputs for this stage, and to be decimated more for next:
   for mic = 1:n_mics
-    if stage == 1
-      AGC_in = AGC_coeffs.detect_scale * avg_detects(:,mic);
-      AGC_in = max(0, AGC_in);  % don't let neg inputs in
-    else
-      % prev. stage mixed with prev_stage_sum
-      if optimize_for_mono
-        % Mono optimization ignores AGC_mix_coeff,
-        % assuming all(prev_stage_mean == AGC_memory(:, stage - 1));
-        % but we also don't even allocate or compute the sum or mean.
-        AGC_in = AGC_coeffs.AGC_stage_gain * ...
-          state(mic).AGC_memory(:, stage - 1);
+    ins(:,mic) = state(mic).input_accum(:, stage) / decim;
+    state(mic).input_accum(:, stage) = 0;  % reset accumulator
+  end
+  
+  if stage < n_stages  % recurse to evaluate next stage(s)
+    state = CARFAC_AGC_Recurse(coeffs, ins, n_stages, ...
+      n_mics, n_ch, mono, stage+1, state);
+  end
+  
+  epsilon = coeffs.AGC_epsilon(stage);  % for this stage's LPF pole
+  stage_gain = coeffs.AGC_stage_gain;
+  
+  for mic = 1:n_mics
+    AGC_in = ins(:,mic);  % the newly decimated input for this mic
+    
+%     AGC_in = max(0, AGC_in);  % don't let neg inputs in
+    
+    %  add the latest output (state) of next stage...
+    if stage < n_stages
+      AGC_in = AGC_in + stage_gain * state(mic).AGC_memory(:, stage+1);
+    end
+    
+    AGC_stage_state = state(mic).AGC_memory(:, stage);
+    % first-order recursive smoothing filter update, in time:
+    AGC_stage_state = AGC_stage_state + ...
+                        epsilon * (AGC_in - AGC_stage_state);
+    % spatial smooth:
+    AGC_stage_state = ...
+                  CARFAC_Spatial_Smooth(coeffs, stage, AGC_stage_state);
+    % and store the state back (in C++, do it all in place?)
+    state(mic).AGC_memory(:, stage) = AGC_stage_state;
+    
+    if ~mono
+      if mic == 1
+        this_stage_sum =  AGC_stage_state;
       else
-        AGC_in = AGC_coeffs.AGC_stage_gain * ...
-          (AGC_coeffs.AGC_mix_coeff * prev_stage_mean + ...
-            (1 - AGC_coeffs.AGC_mix_coeff) * ...
-              state(mic).AGC_memory(:, stage - 1));
+        this_stage_sum = this_stage_sum + AGC_stage_state;
       end
     end
-    AGC_stage = state(mic).AGC_memory(:, stage);
-    % first-order recursive smooting filter update:
-    AGC_stage = AGC_stage + epsilon * (AGC_in - AGC_stage);
-
-    % spatially spread it; using diffusion coeffs like in smooth1d
-    AGC_stage = SmoothDoubleExponential(AGC_stage, polez1, polez2);
-
-    state(mic).AGC_memory(:, stage) = AGC_stage;
-    if stage == 1
-      state(mic).sum_AGC = AGC_stage;
-    else
-      state(mic).sum_AGC = state(mic).sum_AGC + AGC_stage;
-    end
-    if ~optimize_for_mono
-      stage_sum = stage_sum + AGC_stage;
+  end
+  if ~mono
+    mix_coeff = coeffs.AGC_mix_coeffs(stage);
+    if mix_coeff > 0
+      this_stage_mean = this_stage_sum / n_mics;
+      for mic = 1:n_mics
+        state(mic).AGC_memory(:, stage) = ...
+          state(mic).AGC_memory(:, stage) + ...
+            mix_coeff * ...
+              (this_stage_mean - state(mic).AGC_memory(:, stage));
+      end
     end
   end
+  updated = 1;  % bool to say we have new state
+else
+  updated = 0;
 end
-
-
