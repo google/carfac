@@ -208,22 +208,21 @@ AGC_coeffs.decimation = AGC_params.decimation;
 
 total_DC_gain = 0;
 for stage = 1:n_AGC_stages
-  tau = AGC_params.time_constants(stage);
-  decim = decim * AGC_params.decimation(stage);
+  tau = AGC_params.time_constants(stage);  % time constant in seconds
+  decim = decim * AGC_params.decimation(stage);  % net decim to this stage
   % epsilon is how much new input to take at each update step:
   AGC_coeffs.AGC_epsilon(stage) = 1 - exp(-decim / (tau * fs));
-  % and these are the smoothing scales and poles for decimated rate:
-  
-  n_iterations = 1;  % how many times to apply smoothing filter in a stage
   % effective number of smoothings in a time constant:
-  ntimes = n_iterations * tau * (fs / decim);
+  ntimes = tau * (fs / decim);  % typically 5 to 50
   
   % decide on target spread (variance) and delay (mean) of impulse
   % response as a distribution to be convolved ntimes:
+  % TODO (dicklyon): specify spread and delay instead of scales???
   delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
   spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
   
-  % get pole positions to better match intended spread and delay:
+  % get pole positions to better match intended spread and delay of 
+  % [[geometric distribution]] in each direction (see wikipedia)
   u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
   p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
   dp = delay * (1 - 2*p +p^2)/2;
@@ -232,48 +231,41 @@ for stage = 1:n_AGC_stages
   AGC_coeffs.AGC_polez1(stage) = polez1;
   AGC_coeffs.AGC_polez2(stage) = polez2;
   
-  % from [[Geometric distribution]] mean and variance from wikipedia, 
-  % to verify that we got what we intended, very nearly, and make the
-  % FIR version to match the poles version:
-  %   delay = polez2/(1-polez2) - polez1/(1-polez1);
-  %   spread_sq = polez1/(1-polez1)^2 + polez2/(1-polez2)^2;
-  
-  % try a 3-tap FIR as an alternative:
-  n_taps = 3;
-  a = (spread_sq + delay*delay - delay) / 2;
-  b = (spread_sq + delay*delay + delay) / 2;
-  AGC_spatial_FIR = [a, 1 - a - b, b];  % stored as 5 taps
-  done = AGC_spatial_FIR(2) > 0.1;  % not OK if center tap is too low
-  % if 1 iteration is not good with 3 taps go to 5 taps, then more
-  % iterations if needed, and maybe fall back to double-exponential IIR:
-  spread_sq1 = spread_sq;  % keep this as 1-iteration spread reference...
-  delay1 = delay;  % keep this as 1-iteration delay reference...
-  while ~done % smoothing condition, middle value
-    if n_taps == 3
-      % first time through, go wider but stick to 1 iteration
-      n_taps = 5;
-      n_iterations = 1;
-    else
-      % already at 5 taps, so just increase iterations
-      n_iterations = n_iterations + 1;  % number of times to apply spatial
+  % try a 3- or 5-tap FIR as an alternative to the double exponential:
+  n_taps = 0;
+  FIR_OK = 0;
+  n_iterations = 1;
+  while ~FIR_OK
+    switch n_taps
+      case 0
+        % first attempt a 3-point FIR to apply once:
+        n_taps = 3;
+      case 3
+        % second time through, go wider but stick to 1 iteration
+        n_taps = 5;
+      case 5
+        % apply FIR multiple times instead of going wider:
+        n_iterations = n_iterations + 1;
+        if n_iterations > 16
+          error('Too many n_iterations in CARFAC_DesignAGC');
+        end
+      otherwise
+        % to do other n_taps would need changes in CARFAC_Spatial_Smooth
+        % and in Design_FIR_coeffs
+        error('Bad n_taps in CARFAC_DesignAGC');
     end
-    spread_sq = spread_sq1 / n_iterations; 
-    delay = delay1 / n_iterations;
-    % 5-tap design duplicates the a and b coeffs; stores just 3 coeffs:
-    % a and b from their sum and diff as before: (sum \pm diff) / 2:
-    a = ((spread_sq + delay*delay)*2/5 - delay*2/3) / 2;
-    b = ((spread_sq + delay*delay)*2/5 + delay*2/3) / 2;
-    AGC_spatial_FIR = [a/2, 1 - a - b, b/2];  % implicit dup of a and b
-    done = AGC_spatial_FIR(2) > 0.1;
+    [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
+      n_taps, spread_sq, delay, n_iterations);
   end
-  % store the resulting FIR design in coeffs:
+  % when FIR_OK, store the resulting FIR design in coeffs:
   AGC_coeffs.AGC_spatial_iterations(stage) = n_iterations;
   AGC_coeffs.AGC_spatial_FIR(:,stage) = AGC_spatial_FIR;
   AGC_coeffs.AGC_n_taps(stage) = n_taps;
   
+  % accumulate DC gains from all the stages, accounting for stage_gain:
   total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
   
-  % TODO (dicklyon) -- is this what we want?
+  % TODO (dicklyon) -- is this the best binaural mixing plan?
   if stage == 1
     AGC_coeffs.AGC_mix_coeffs(stage) = 0;
   else
@@ -284,9 +276,35 @@ end
 
 AGC_coeffs.AGC_gain = total_DC_gain;
 
-% print some results
-AGC_coeffs
-AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+% % print some results
+% AGC_coeffs
+% AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+
+
+%%
+function [FIR, OK] = Design_FIR_coeffs(n_taps, var, mn, n_iter)
+% function [FIR, OK] = Design_FIR_coeffs(n_taps, spread_sq, delay, n_iter)
+
+% reduce mean and variance of smoothing distribution by n_iterations:
+mn = mn / n_iter;
+var = var / n_iter;
+switch n_taps
+  case 3
+    % based on solving to match mean and variance of [a, 1-a-b, b]:
+    a = (var + mn*mn - mn) / 2;
+    b = (var + mn*mn + mn) / 2;
+    FIR = [a, 1 - a - b, b];
+    OK = FIR(2) >= 0.2;
+  case 5
+    % based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
+    a = ((var + mn*mn)*2/5 - mn*2/3) / 2;
+    b = ((var + mn*mn)*2/5 + mn*2/3) / 2;
+    % first and last coeffs are implicitly duplicated to make 5-point FIR:
+    FIR = [a/2, 1 - a - b, b/2];
+    OK = FIR(2) >= 0.1;
+  otherwise
+    error('Bad n_taps in AGC_spatial_FIR');
+end
 
 
 %% the IHC design coeffs:
@@ -420,6 +438,5 @@ end
 %             rest_cap1: 0.9635
 %             rest_cap2: 0.9269
 %     saturation_output: 0.1507
-
 
 
