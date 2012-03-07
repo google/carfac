@@ -84,8 +84,8 @@ if nargin < 3
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
     'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', [1, 2, 4, 8]*1, ...   % in units of channels
-    'AGC2_scales', [1, 2, 4, 8]*1.5, ... % spread more toward base
+    'AGC1_scales', [1, 2, 4, 6]*1, ...   % in units of channels
+    'AGC2_scales', [1, 2, 4, 6]*1.5, ... % spread more toward base
     'detect_scale', 0.15, ...  % the desired damping range
     'AGC_mix_coeff', 0.5);
 end
@@ -186,9 +186,9 @@ filter_coeffs.c_coeffs = sin(theta);
 h = sin(theta) .* f;
 filter_coeffs.h_coeffs = h;
 
-r2 = r;  % aim for unity DC gain at min damping, here; or could try r^2
-filter_coeffs.g_coeffs = 1 ./ (1 + h .* r2 .* sin(theta) ./ ...
-  (1 - 2 * r2 .* cos(theta) + r2 .^ 2));
+% unity gain at min damping, radius r:
+filter_coeffs.g_coeffs = (1 - 2*r.*cos(theta) + r.^2) ./ ...
+  (1 - 2*r .* cos(theta) + h .* r .* sin(theta) + r.^2);
 
 
 %% the AGC design coeffs:
@@ -216,35 +216,38 @@ for stage = 1:n_AGC_stages
   
   n_iterations = 1;  % how many times to apply smoothing filter in a stage
   % effective number of smoothings in a time constant:
-  ntimes = n_iterations * tau * (fs / decim);  
-  % divide the spatial variance by effective number of smoothings:
-  % t is the variance of the distribution (impulse response width squared)
-  t1 = (AGC1_scales(stage)^2) / ntimes;
-  t2 = (AGC2_scales(stage)^2) / ntimes;
-  % the back-and-forth IIR method coefficients:
-  polez1 = 1 + 1/t1 - sqrt((1+1/t1)^2 - 1);
-  polez2 = 1 + 1/t2 - sqrt((1+1/t2)^2 - 1);
+  ntimes = n_iterations * tau * (fs / decim);
+  
+  % decide on target spread (variance) and delay (mean) of impulse
+  % response as a distribution to be convolved ntimes:
+  delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
+  spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
+  
+  % get pole positions to better match intended spread and delay:
+  u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
+  p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
+  dp = delay * (1 - 2*p +p^2)/2;
+  polez1 = p - dp;
+  polez2 = p + dp;
   AGC_coeffs.AGC_polez1(stage) = polez1;
   AGC_coeffs.AGC_polez2(stage) = polez2;
   
-  % above method has spatial "delay" near sqrt(t2) - sqrt(t1) per time,
-  % or net delay that is not independent of ntimes.  A problem???
+  % from [[Geometric distribution]] mean and variance from wikipedia, 
+  % to verify that we got what we intended, very nearly, and make the
+  % FIR version to match the poles version:
+  %   delay = polez2/(1-polez2) - polez1/(1-polez1);
+  %   spread_sq = polez1/(1-polez1)^2 + polez2/(1-polez2)^2;
   
   % try a 3-tap FIR as an alternative:
   n_taps = 3;
-  % from geometric distribution mean and variance from wikipedia:
-  delay = polez2/(1-polez2) - polez1/(1-polez1);
-  total_delay = delay * ntimes
-  spread_sq = polez1/(1-polez1)^2 + polez2/(1-polez2)^2;
-  total_spread = sqrt(spread_sq * ntimes)
-  
-  delay1 = delay;  % keep this as 1-iteration delay reference...
   a = (spread_sq + delay*delay - delay) / 2;
   b = (spread_sq + delay*delay + delay) / 2;
   AGC_spatial_FIR = [a, 1 - a - b, b];  % stored as 5 taps
   done = AGC_spatial_FIR(2) > 0.1;  % not OK if center tap is too low
   % if 1 iteration is not good with 3 taps go to 5 taps, then more
-  % iterations if needed, and then fall back to double-exponential IIR:
+  % iterations if needed, and maybe fall back to double-exponential IIR:
+  spread_sq1 = spread_sq;  % keep this as 1-iteration spread reference...
+  delay1 = delay;  % keep this as 1-iteration delay reference...
   while ~done % smoothing condition, middle value
     if n_taps == 3
       % first time through, go wider but stick to 1 iteration
@@ -254,13 +257,8 @@ for stage = 1:n_AGC_stages
       % already at 5 taps, so just increase iterations
       n_iterations = n_iterations + 1;  % number of times to apply spatial
     end
-    ntimes = n_iterations * tau * (fs / decim);  % effective number of smoothings
-    % divide the spatial variance by effective number of smoothings:
-    % t is the variance of the distribution (impulse response width squared)
-    t1 = (AGC1_scales(stage)^2) / ntimes;
-    t2 = (AGC2_scales(stage)^2) / ntimes;
-    spread_sq = t1 + t2;
-    delay = delay1 / n_iterations;  %  maybe better than sqrt(t2) - sqrt(t1);
+    spread_sq = spread_sq1 / n_iterations; 
+    delay = delay1 / n_iterations;
     % 5-tap design duplicates the a and b coeffs; stores just 3 coeffs:
     % a and b from their sum and diff as before: (sum \pm diff) / 2:
     a = ((spread_sq + delay*delay)*2/5 - delay*2/3) / 2;
@@ -284,13 +282,11 @@ for stage = 1:n_AGC_stages
   end
 end
 
-AGC_coeffs.AGC_spatial_FIR
-AGC_coeffs.AGC_spatial_iterations
-AGC_coeffs.AGC_n_taps
-AGC_coeffs.AGC_polez1
-AGC_coeffs.AGC_polez2
-
 AGC_coeffs.AGC_gain = total_DC_gain;
+
+% print some results
+AGC_coeffs
+AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
 
 
 %% the IHC design coeffs:
