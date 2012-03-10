@@ -130,13 +130,12 @@ for k = 1:n_samp
       plot(CF.AGC_state(mic).AGC_memory(:, 1), 'k-', 'LineWidth', 1)
       maxes(mic) = max(CF.AGC_state(mic).AGC_memory(:));
       hold on
-      stage1 = 4; % as opposed to stage
       for stage = 1:3;
-        plot(2^(stage1-1) * (CF.AGC_state(mic).AGC_memory(:, stage) - ...
+        plot(2^(stage-1) * (CF.AGC_state(mic).AGC_memory(:, stage) - ...
           2 * CF.AGC_state(mic).AGC_memory(:, stage+1)));
       end
       stage = 4;
-      plot(2^(stage1-1) * CF.AGC_state(mic).AGC_memory(:, stage));
+      plot(2^(stage-1) * CF.AGC_state(mic).AGC_memory(:, stage));
     end
     axis([0, CF.n_ch+1, -0.01, max(maxes) + 0.01]);
     drawnow

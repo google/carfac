@@ -18,11 +18,11 @@
 % limitations under the License.
 
 function [complex_transfns_freqs, ...
-  stage_numerators, stage_denominators] = ...
-  CARFAC_Transfer_Functions(CF, freqs, to_channels, from_channels)
+  stage_numerators, stage_denominators] = CARFAC_Transfer_Functions( ...
+  CF, freqs, to_channels, from_channels)
 % function [complex_transfns_freqs, ...
-%   stage_z_numerators, stage_z_denominators] = ...
-%   CARFAC_Transfer_Functions(CF, freqs, to_channels, from_channels)
+%   stage_numerators, stage_denominators] = CARFAC_Transfer_Functions( ...
+%   CF, freqs, to_channels, from_channels)
 % Return transfer functions as polynomials in z (nums & denoms);
 % And evaluate them at freqs if it's given, to selected output,
 %   optionally from selected starting points (from 0, input, by default).
@@ -63,7 +63,7 @@ if nargin >= 2
     from_channels = 0;  % tranfuns from input, called channel 0.
   end
   if length(from_channels) == 1
-    from_channels = from_channels * ones(length(to_channels));
+    from_channels = from_channels * ones(1,length(to_channels));
   end
   % Default to cum gain of 1 (log is 0), from input channel 0:
   from_cum = zeros(length(to_channels), length(z_row));
@@ -88,24 +88,35 @@ gains = (numerators * zz) ./ (denominators * zz);
 
 
 function [stage_numerators, stage_denominators] = ...
-  CARFAC_Rational_Functions(CF, chans)
+  CARFAC_Rational_Functions(CF)
 % function [stage_z_numerators, stage_z_denominators] = ...
 %   CARFAC_Rational_Functions(CF, chans)
 % Return transfer functions of all stages as rational functions.
 
-if nargin < 2
-  n_ch = CF.n_ch;
-  chans = 1:n_ch;
-else
-  n_ch = length(chans);
-end
+n_ch = CF.n_ch;
 coeffs = CF.filter_coeffs;
-r = coeffs.r_coeffs(chans);
-a = coeffs.a_coeffs(chans) .* r;
-c = coeffs.c_coeffs(chans) .* r;
+min_zeta = CF.filter_params.min_zeta;
+
+a0 = coeffs.a_coeffs;
+c0 = coeffs.c_coeffs;
+
+% get r, adapted if we have state:
+r =  coeffs.r_coeffs;
+if isfield(CF, 'filter_state')
+  state = CF.filter_state;
+  zB = state.zB_memory; % current extra damping
+  r = r - c0 .* zB;
+else
+  zB = 0;
+end
+
+a = a0 .* r;
+c = c0 .* r;
 r2 = r .* r;
-h = coeffs.h_coeffs(chans);
-g = coeffs.g_coeffs(chans);
+h = coeffs.h_coeffs;
+g0 = coeffs.g_coeffs;
+g = g0 .* (1 + coeffs.gr_coeffs .* (1 - r).^2);
+
 stage_denominators = [ones(n_ch, 1), -2 * a, r2];
 stage_numerators = [g .* ones(n_ch, 1), g .* (-2 * a + h .* c), g .* r2];
 

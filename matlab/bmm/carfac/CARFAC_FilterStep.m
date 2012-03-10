@@ -33,7 +33,8 @@ v_offset  = filter_coeffs.v_offset;
 v2_corner = filter_coeffs.v2_corner;
 v_damp_max = filter_coeffs.v_damp_max;
 
-r = r0 - filter_coeffs.c_coeffs .* (zA + zB);
+% zB and zA are "extra damping", and multiply c or sin(theta):
+r = r0 - filter_coeffs.c_coeffs .* (zA + zB); 
 
 % now reduce state by r and rotate with the fixed cos/sin coeffs:
 z1 = r .* (filter_coeffs.a_coeffs .* state.z1_memory - ...
@@ -47,8 +48,12 @@ zA = (((state.z2_memory - z2) .* filter_coeffs.velocity_scale) + ...
   v_offset) .^ 2;
 zA = v_damp_max * zA ./ (v2_corner + zA);  % make it more like an "essential" nonlinearity
 
+% Adjust gain for r variation:
+g = filter_coeffs.g_coeffs;
+g = g .* (1 + filter_coeffs.gr_coeffs .* (1 - r).^2);
+
 % Get outputs from inputs and new z2 values:
-zY = filter_coeffs.g_coeffs .* (inputs + filter_coeffs.h_coeffs .* z2);
+zY = g .* (inputs + filter_coeffs.h_coeffs .* z2);
 
 % put new state back in place of old
 state.z1_memory = z1;
@@ -57,7 +62,7 @@ state.zA_memory = zA;
 state.zB_memory = zB;
 state.zY_memory = zY;
 
-% accum the straight hwr version for the sake of AGC range:
-hwr_detect = max(0, zY);  % detect with HWR
-state.detect_accum = state.detect_accum + hwr_detect;
+% % accum the straight hwr version for the sake of AGC range:
+% hwr_detect = max(0, zY);  % detect with HWR
+% state.detect_accum = state.detect_accum + hwr_detect;
 

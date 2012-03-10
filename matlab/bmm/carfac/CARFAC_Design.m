@@ -97,10 +97,10 @@ if nargin < 2
     'v2_corner', 0.2, ...  % corner for essential nonlin
     'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
     'min_zeta', 0.12, ...
-    'first_pole_theta', 0.78*pi, ...
-    'zero_ratio', sqrt(2), ...
-    'ERB_per_step', 0.3333, ... % assume G&M's ERB formula
-    'min_pole_Hz', 40 );
+    'first_pole_theta', 0.85*pi, ...
+    'zero_ratio', sqrt(2), ... % how far zero is above pole
+    'ERB_per_step', 0.5, ... % assume G&M's ERB formula
+    'min_pole_Hz', 30 );
 end
 
 if nargin < 1
@@ -126,8 +126,11 @@ for ch = 1:n_ch
 end
 % now we have n_ch, the number of channels, and pole_freqs array
 
+max_channels_per_octave = log(2) / log(pole_freqs(1)/pole_freqs(2));
+
 CF = struct( ...
   'fs', fs, ...
+  'max_channels_per_octave', max_channels_per_octave, ...
   'filter_params', CF_filter_params, ...
   'AGC_params', CF_AGC_params, ...
   'IHC_params', CF_IHC_params, ...
@@ -175,7 +178,8 @@ theta = pole_freqs .* (2 * pi / fs);
 % different possible interpretations for min-damping r:
 % r = exp(-theta * CF_filter_params.min_zeta).
 % Using sin gives somewhat higher Q at highest thetas.
-r = (1 - sin(theta) * filter_params.min_zeta);
+ff = 5;  % fudge factor for theta distortion; at least 1.0
+r = (1 - ff*sin(theta/ff) * filter_params.min_zeta);
 filter_coeffs.r_coeffs = r;
 
 % undamped coupled-form coefficients:
@@ -186,10 +190,16 @@ filter_coeffs.c_coeffs = sin(theta);
 h = sin(theta) .* f;
 filter_coeffs.h_coeffs = h;
 
-% unity gain at min damping, radius r:
-filter_coeffs.g_coeffs = (1 - 2*r.*cos(theta) + r.^2) ./ ...
+% % unity gain at min damping, radius r:
+g = (1 - 2*r.*cos(theta) + r.^2) ./ ...
   (1 - 2*r .* cos(theta) + h .* r .* sin(theta) + r.^2);
+% or assume r is 1, for the zero-damping gain g0:
+g0 = (2 - 2*cos(theta)) ./ ...
+  (2 - 2 * cos(theta) + h .* sin(theta));
 
+filter_coeffs.g_coeffs = g0;
+% make coeffs that can correct g0 to make g based on (1 - r).^2:
+filter_coeffs.gr_coeffs = ((g ./ g0) - 1) ./ ((1 - r).^2);
 
 %% the AGC design coeffs:
 function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs)

@@ -52,7 +52,7 @@ for n_mics = 1:2
 %   nap = deskew(nap);  % deskew doesn't make much difference
 
   if n_mics == 1  % because this hack doesn't work for binarual yet
-    MultiScaleSmooth(nap_decim, 10);
+    MultiScaleSmooth(nap_decim, 4);
   end
 
 %   nap_decim = nap;
