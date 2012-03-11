@@ -1,12 +1,15 @@
 # Carfac.py - Cochlear filter model based on Dick Lyons work.  This material taken from his Hearing book (to be published)
-# Author: Al Strelzoff
+# Author: Al Strelzoff: strelz@mit.edu
 
-from numpy import cos, sin, tan, sinh, arctan, pi, e, real,imag,arccos,arcsin,arctan2,log10,log
+# The point of this file is to extract some of the formulas from the book and practice with them so as to better understand the filters.
+# The file has been written and tested for python 2.7
 
-from pylab import figure, clf, plot,loglog, xlabel, ylabel, xlim, ylim, title, grid, axes, axis, show
+from numpy import cos, sin, pi, e, real,imag,arctan2
+
+
+from pylab import figure, plot,loglog, title, axis, show
 
 fs = 22050.0            # sampling rate
-Nyq = fs/2.0            # nyquist frequency
 
 
 # given a frequency f, return the ERB
@@ -43,7 +46,7 @@ print('num channels',n_ch)
 fscale = []
 erbs = []
 
-figure(0)
+figure(1)
 for i in range(n_ch):
     
     f = pole_freqs[i]        # the frequencies from the list
@@ -68,6 +71,7 @@ title('ERB scale')
 
 # This filter class includes some methods useful only in design.  They will not be used in run time implementation.
 #  From figure 14.3 in Dick Lyon's book.
+#  When translating to C++, this class will become a struct, and all the methods will be moved outside.
 
 
 #########################################################The Carfac filter class#################################################################################
@@ -84,17 +88,15 @@ class carfac():
         self.frequency = f
        
         theta = 2.0 * pi * f/fs
-       
         r =  1.0 - sin(theta) * min_zeta
-        
-        
         a = r * cos(theta)
         c = r * sin(theta)
-        
+        h = sin(theta)
+        g = (1.0 - 2.0 * a + r ** 2)/(1.0 - 2.0 * a + h * c + r ** 2)
       
-        h = c
+       
         
-        g = 1.0/(1.0 + h * r * sin(theta) / (1.0 - 2.0 * r * cos(theta) + r ** 2))
+        self.gh = g*h       # no need to repeat in real time
         
         # make all parameters properties of the class 
         self.a = a
@@ -118,33 +120,31 @@ class carfac():
         # the total  frequency magnitude of this filter including all the filters in front of this one
         self.HT = []       # this list will be filled by multiplying all the H's ahead of it together with its own (H)
         
-     
-       
         
-         
     
     # execute one clock tick.  Take in one input and output one result. Execution semantics taken from fig. 14.3
     #  This execution model is not tested in this file.  Here for reference.  See the file Exec.py for testing this execution model.  This is the main run time method.
     def input(self,X):
 
         # recover the class definitions of these variables.  These statements below take up zero time at execution since they are just compiler declarations.
-        
+        # computation below is organized as some loads, followed by 3 2x2 multiply accumulates
+        #  Note: this function is not exercised in this file and is here only for reference
         
         a = self.a
         c = self.c
-        h = self.h
         g = self.g
+        gh = self.gh
         z1 = self.z1                    # z1 is the lower storage in fig. 14.3
         z2 = self.z2
         
         # calculate what the next value of z1 will be, but don't overwrite current value yet.   
-        next_z1 = (a * z1) - (c * z2)   # Note: view this as next_z1 = a*z1 + (-c*z2) so that it is a 2 element multiply accumulate
+        next_z1 = (a * z1) + (c * z2)   # Note:  it is a 2 element multiply accumulate. compute first so as not to have to do twice.
         # the output Y
-        Y = g * (X + h * next_z1)       # Note: reorganize this as Y = g*X + (g*h) * next_z1     g*h is a precomputed constant so then the form is a 2 element multiply accumulate.
+        Y = g * X + gh * next_z1       # Note: organized as a 2 element multiply accumulate.
         
         #stores
-        z2 = (a * z2) + (c * z1)        #Note: this is a 2 element multiply accumulate
-        z1 = next_z1
+        self.z2 = X + (a * z2) - (c * z1)        #Note: this is a 2 element multiply accumulate
+        self.z1 = next_z1
         
         return Y                        # The output
     
@@ -158,13 +158,8 @@ class carfac():
         h = self.h
         r = self.r
         z = e ** (complex(0,w))         # w is in radians so this is z = exp(jw)
-        return g * (1.0 + (h*c*z)/(z**2 - 2.0*a*z + r**2 ))     # from page ?? of Lyon's book.   
+        return g * (1.0 + (h*c*z)/(z**2 - 2.0*a*z + r**2 ))      
         
-        
-    # Note: to get the complex frequency response of this filter at frequency w, get Hw(w) and then compute arctan2(-imag(Hw(w))/-real(Hw(w)) + pi
-      
-    
-    
     
     
 ######################################################End of Carfac filter class########################################################################
@@ -184,11 +179,10 @@ for i in range(n_ch):
 # sweep parameters
 steps = 1000
 
-sum = []    # array to hold the magnitude sum
-for i in range(steps): sum.append( 0.0 )
+figure(2)   
+title('CarFac individual filter frequency response')
+# note:  the  scales are linear, not logrithmic as in the book
 
-figure(1)   
-title('CarFac  frequency response')
 
 for i in range(n_ch):
     filter = Filters[i]
@@ -198,27 +192,20 @@ for i in range(n_ch):
     # calculate the frequency magnitude by stepping the frequency in radians
     for j in range(steps):
         
-        w = pi * float(j)/steps
+        w = pi * float(j)/steps     
         u.append(w)
         mag = filter.Hw(w)      # freq mag at freq w
         filter.H.append(mag)        # save for later use
         filter.HT.append(mag)       # will be total response of cascade to this point after we do the multiplication in a step below
-        v.append(real(mag))           # y plotting axis
-        sum[j]+= mag    
+        v.append(abs(mag))           # y plotting axis
         
       
     plot(u,v)
-    
 
-
-figure(2)
-title('Summed frequency magnitudes')
-for i in range(steps): sum[i] = abs(sum[i])/n_ch
-plot(u,sum)
 
 # calculate the phase response of the same group of  filters
 figure(3)
-title('Filter Phase')
+title('Carfac individual filter Phase lag')
 
 
 for i in range(n_ch):
@@ -227,26 +214,23 @@ for i in range(n_ch):
     u = []
     v = []
     for j in range(steps):
-        x = float(j)/Nyq
+        x = pi * float(j)/steps
         
         u.append(x)
        
         mag = filter.H[j]
-        phase = arctan2(-imag(mag),-real(mag)) + pi     # this formula used to avoid wrap around
+        phase = arctan2(-imag(mag),-real(mag))  - pi    # this formula used to avoid wrap around 
        
         v.append(phase)           # y plotting axis 
      
     plot(u,v)
-
+    axis([0.0,pi,-3.0,0.05])
     
     
-# calulate and plot cascaded frequency response and summed magnitude    
-sum = []    # array to hold the magnitude sum
-for i in range(steps): sum.append( 0.0 )
-
+# calulate and plot cascaded frequency response    
 
 figure(4)   
-title('CarFac Cascaded  frequency response')
+title('CarFac cascaded filter frequency response')
 
 
 for i in range(n_ch-1):
@@ -258,47 +242,59 @@ for i in range(n_ch-1):
     u = []
     v = []
     for j in range(steps):
-        u.append(float(j)/Nyq)
+        w = pi * float(j)/steps    
+        u.append(w)
         mag = filter.HT[j] * next.HT[j]
-        filter.HT[j] = mag
-        v.append(real(mag))
-        sum[j]+= mag    
+        next.HT[j] = mag
+        v.append(abs(mag))
 
       
     plot(u,v)
    
   
 
-figure(5)
-title('Summed cascaded frequency magnitudes')
-for i in range(steps): sum[i] = abs(sum[i])/n_ch
-plot(u,sum)
-
 # calculate and plot the phase responses of the cascaded filters
 
-figure(6)
-title('Filter cascaded Phase')
+figure(5)
+title('Carfac cascaded filter Phase lag')
 
 
 for i in range(n_ch):
+
     filter = Filters[i]
     
 
     u = []
-    v = []
+    v = []          # store list of phases
+    w = []          # second copy of phases needed for phase unwrapping
     for j in range(steps):
-        x = float(j)/Nyq
+        x = pi * float(j)/steps
         
         u.append(x)
         mag = filter.HT[j]
-        phase = arctan2(-imag(mag),-real(mag)) + pi
-          
-        v.append(phase)           # y plotting axis 
+        a = imag(mag)
+        b = real(mag)
+        phase = arctan2(a,b) 
         
+        v.append(phase)  
+        w.append(phase)
         
+    # unwrap the phase
 
-      
-    plot(u,v)
 
+    for i in range(1,len(v)):
+        diff = v[i]-v[i-1]
+        if diff > pi:
+            for j in range(i,len(w)):
+                w[j] -= 2.0 * pi
+        elif diff < -pi:
+            for j in range(i,len(w)):
+                w[j] += 2.0 * pi
+                
+        else: continue
+   
+     
+    plot(u,w)
+    axis([0.0,pi,-25.0,0.05])
 show()
     
