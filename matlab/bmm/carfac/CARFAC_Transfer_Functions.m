@@ -97,25 +97,25 @@ n_ch = CF.n_ch;
 coeffs = CF.filter_coeffs;
 min_zeta = CF.filter_params.min_zeta;
 
-a0 = coeffs.a_coeffs;
-c0 = coeffs.c_coeffs;
+a0 = coeffs.a0_coeffs;
+c0 = coeffs.c0_coeffs;
+zr = coeffs.zr_coeffs;
 
 % get r, adapted if we have state:
-r =  coeffs.r_coeffs;
+r =  coeffs.r1_coeffs;
 if isfield(CF, 'filter_state')
   state = CF.filter_state;
   zB = state.zB_memory; % current extra damping
-  r = r - c0 .* zB;
+  r = r - zr .* zB;
 else
   zB = 0;
 end
 
+g = CARFAC_Stage_g(coeffs, zB);
 a = a0 .* r;
 c = c0 .* r;
 r2 = r .* r;
 h = coeffs.h_coeffs;
-g0 = coeffs.g_coeffs;
-g = g0 .* (1 + coeffs.gr_coeffs .* (1 - r).^2);
 
 stage_denominators = [ones(n_ch, 1), -2 * a, r2];
 stage_numerators = [g .* ones(n_ch, 1), g .* (-2 * a + h .* c), g .* r2];

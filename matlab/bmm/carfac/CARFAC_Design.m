@@ -96,9 +96,10 @@ if nargin < 2
     'v_offset', 0.01, ...  % offset gives a quadratic part
     'v2_corner', 0.2, ...  % corner for essential nonlin
     'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
-    'min_zeta', 0.12, ...
+    'min_zeta', 0.10, ...
     'first_pole_theta', 0.85*pi, ...
     'zero_ratio', sqrt(2), ... % how far zero is above pole
+    'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
     'ERB_per_step', 0.5, ... % assume G&M's ERB formula
     'min_pole_Hz', 30 );
 end
@@ -159,11 +160,11 @@ filter_coeffs = struct('velocity_scale', filter_params.velocity_scale, ...
   'v_damp_max', filter_params.v_damp_max ...
   );
 
-filter_coeffs.r_coeffs = zeros(n_ch, 1);
-filter_coeffs.a_coeffs = zeros(n_ch, 1);
-filter_coeffs.c_coeffs = zeros(n_ch, 1);
+filter_coeffs.r1_coeffs = zeros(n_ch, 1);
+filter_coeffs.a0_coeffs = zeros(n_ch, 1);
+filter_coeffs.c0_coeffs = zeros(n_ch, 1);
 filter_coeffs.h_coeffs = zeros(n_ch, 1);
-filter_coeffs.g_coeffs = zeros(n_ch, 1);
+filter_coeffs.g0_coeffs = zeros(n_ch, 1);
 
 % zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
 % and that a is here 1 / (1+f) where h = f*c.
@@ -175,31 +176,35 @@ f = filter_params.zero_ratio^2 - 1;  % nominally 1 for half-octave
 % which mostly depend on the pole angle theta:
 theta = pole_freqs .* (2 * pi / fs);
 
+c0 = sin(theta);
+a0 = cos(theta);
+
 % different possible interpretations for min-damping r:
 % r = exp(-theta * CF_filter_params.min_zeta).
-% Using sin gives somewhat higher Q at highest thetas.
-ff = 5;  % fudge factor for theta distortion; at least 1.0
-r = (1 - ff*sin(theta/ff) * filter_params.min_zeta);
-filter_coeffs.r_coeffs = r;
+% Compress theta to give somewhat higher Q at highest thetas:
+ff = filter_params.high_f_damping_compression;  % 0 to 1; typ. 0.5
+x = theta/pi;
+zr_coeffs = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
+%                       and when ff is 1 it goes to zero at theta = pi.
+filter_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
+
+r = (1 - zr_coeffs * filter_params.min_zeta);
+filter_coeffs.r1_coeffs = r;
 
 % undamped coupled-form coefficients:
-filter_coeffs.a_coeffs = cos(theta);
-filter_coeffs.c_coeffs = sin(theta);
+filter_coeffs.a0_coeffs = a0;
+filter_coeffs.c0_coeffs = c0;
 
 % the zeros follow via the h_coeffs
-h = sin(theta) .* f;
+h = c0 .* f;
 filter_coeffs.h_coeffs = h;
 
-% % unity gain at min damping, radius r:
-g = (1 - 2*r.*cos(theta) + r.^2) ./ ...
-  (1 - 2*r .* cos(theta) + h .* r .* sin(theta) + r.^2);
-% or assume r is 1, for the zero-damping gain g0:
-g0 = (2 - 2*cos(theta)) ./ ...
-  (2 - 2 * cos(theta) + h .* sin(theta));
+% for unity gain at min damping, radius r; only used in CARFAC_Init:
+extra_damping = zeros(size(r));
+% this function needs to take filter_coeffs even if we haven't finished
+% constucting it by putting in the g0_coeffs:
+filter_coeffs.g0_coeffs = CARFAC_Stage_g(filter_coeffs, extra_damping);
 
-filter_coeffs.g_coeffs = g0;
-% make coeffs that can correct g0 to make g based on (1 - r).^2:
-filter_coeffs.gr_coeffs = ((g ./ g0) - 1) ./ ((1 - r).^2);
 
 %% the AGC design coeffs:
 function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs)
@@ -385,57 +390,62 @@ end
 % CF.AGC_coeffs
 % CF.IHC_coeffs
 %
-% CF =
-%                fs: 22050
-%     filter_params: [1x1 struct]
-%        AGC_params: [1x1 struct]
-%        IHC_params: [1x1 struct]
-%              n_ch: 96
-%        pole_freqs: [96x1 double]
-%     filter_coeffs: [1x1 struct]
-%        AGC_coeffs: [1x1 struct]
-%        IHC_coeffs: [1x1 struct]
-%            n_mics: 0
-% ans =
-%       velocity_scale: 0.2000
-%             v_offset: 0.0100
-%            v2_corner: 0.2000
-%           v_damp_max: 0.0100
-%             min_zeta: 0.1200
-%     first_pole_theta: 2.4504
-%           zero_ratio: 1.4142
-%         ERB_per_step: 0.3333
-%          min_pole_Hz: 40
-% ans =
+% CF = 
+%                          fs: 22050
+%     max_channels_per_octave: 12.1873
+%               filter_params: [1x1 struct]
+%                  AGC_params: [1x1 struct]
+%                  IHC_params: [1x1 struct]
+%                        n_ch: 66
+%                  pole_freqs: [66x1 double]
+%               filter_coeffs: [1x1 struct]
+%                  AGC_coeffs: [1x1 struct]
+%                  IHC_coeffs: [1x1 struct]
+%                      n_mics: 0
+% ans = 
+%                 velocity_scale: 0.2000
+%                       v_offset: 0.0100
+%                      v2_corner: 0.2000
+%                     v_damp_max: 0.0100
+%                       min_zeta: 0.1200
+%               first_pole_theta: 2.6704
+%                     zero_ratio: 1.4142
+%     high_f_damping_compression: 0.5000
+%                   ERB_per_step: 0.5000
+%                    min_pole_Hz: 30
+% ans = 
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
 %         decimation: [8 2 2 2]
-%        AGC1_scales: [1 2 4 8]
-%        AGC2_scales: [1.5000 3 6 12]
+%        AGC1_scales: [1 2 4 6]
+%        AGC2_scales: [1.5000 3 6 9]
 %       detect_scale: 0.1500
-%      AGC_mix_coeff: 0.3500
-% ans =
+%      AGC_mix_coeff: 0.5000
+% ans = 
 %     velocity_scale: 0.2000
 %           v_offset: 0.0100
 %          v2_corner: 0.2000
 %         v_damp_max: 0.0100
-%           r_coeffs: [96x1 double]
-%           a_coeffs: [96x1 double]
-%           c_coeffs: [96x1 double]
-%           h_coeffs: [96x1 double]
-%           g_coeffs: [96x1 double]
-% ans =
+%          r1_coeffs: [66x1 double]
+%          a0_coeffs: [66x1 double]
+%          c0_coeffs: [66x1 double]
+%           h_coeffs: [66x1 double]
+%          g0_coeffs: [66x1 double]
+%          zr_coeffs: [66x1 double]
+% ans = 
 %             AGC_stage_gain: 2
 %                AGC_epsilon: [0.1659 0.0867 0.0443 0.0224]
 %                 decimation: [8 2 2 2]
-%     AGC_spatial_iterations: [1 1 2 3]
+%                 AGC_polez1: [0.1627 0.2713 0.3944 0.4194]
+%                 AGC_polez2: [0.2219 0.3165 0.4260 0.4414]
+%     AGC_spatial_iterations: [1 1 2 2]
 %            AGC_spatial_FIR: [3x4 double]
 %                 AGC_n_taps: [3 5 5 5]
-%             AGC_mix_coeffs: [0 0.0317 0.0159 0.0079]
+%             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
 %                   AGC_gain: 15
 %               detect_scale: 0.0664
-% ans =
+% ans = 
 %              just_hwr: 0
 %             lpf_coeff: 0.4327
 %             out1_rate: 0.0023
@@ -448,5 +458,4 @@ end
 %             rest_cap1: 0.9635
 %             rest_cap2: 0.9269
 %     saturation_output: 0.1507
-
 

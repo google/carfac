@@ -36,9 +36,12 @@ if n_mics ~= CF.n_mics
 end
 
 for mic = 1:CF.n_mics
-  % for the state of the AGC interpolator:
+  % Set the state of damping, and prevent interpolation from there:
   CF.filter_state(mic).zB_memory(:) = extra_damping;  % interpolator state
   CF.filter_state(mic).dzB_memory(:) = 0;  % interpolator slope
+  CF.filter_state(mic).g_memory = CARFAC_Stage_g( ...
+    CF.filter_coeffs(mic), extra_damping);
+  CF.filter_state(mic).dg_memory(:) = 0;  % interpolator slope
 end
 
 naps = zeros(n_samp, n_ch, n_mics);

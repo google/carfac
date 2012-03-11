@@ -58,9 +58,6 @@ if n_mics ~= CF.n_mics
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
 
-% fastest decimated rate determines some interp needed:
-decim1 = CF.AGC_params.decimation(1);
-
 naps = zeros(n_samp, n_ch, n_mics);
 decim_k = 0;
 k_NAP_decim = 0;
@@ -79,7 +76,7 @@ AGC_plot_decim = 16;  % how often to plot AGC state; TODO: use segments
 
 detects = zeros(n_ch, n_mics);
 for k = 1:n_samp
-  CF.k_mod_decim = mod(CF.k_mod_decim + 1, decim1);  % global time phase
+%   CF.k_mod_decim = mod(CF.k_mod_decim + 1, decim1);  % global time phase
   k_NAP_decim = mod(k_NAP_decim + 1, NAP_decim);  % phase of decimated nap
   % at each time step, possibly handle multiple channels
   for mic = 1:n_mics
@@ -110,14 +107,7 @@ for k = 1:n_samp
   
   % connect the feedback from AGC_state to filter_state when it updates
   if updated
-    for mic = 1:n_mics
-      new_damping = CF.AGC_state(mic).AGC_memory(:, 1);  % stage 1 result
-      % set the delta needed to get to new_damping:
-      % TODO: update this to use da and dc instead of dr maybe?
-      CF.filter_state(mic).dzB_memory = ...
-        (new_damping - CF.filter_state(mic).zB_memory) ...
-        / decim1;
-    end
+    CF = CARFAC_Close_AGC_Loop(CF);
   end
   
   k_AGC = mod(k_AGC + 1, AGC_plot_decim);

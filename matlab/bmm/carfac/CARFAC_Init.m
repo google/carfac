@@ -48,7 +48,6 @@ AGC_time_constants = CF_struct.AGC_params.time_constants;
 n_AGC_stages = length(AGC_time_constants);
 
 CF_struct.n_mics = n_mics;
-CF_struct.k_mod_decim = 0;  % time index phase, cumulative over segments
 n_ch = CF_struct.n_ch;
 
 % keep all the decimator phase info in mic 1 state only:
@@ -63,6 +62,9 @@ for mic = 1:n_mics
   CF_struct.filter_state(mic).dzB_memory = zeros(n_ch, 1);  % AGC incr
   CF_struct.filter_state(mic).zY_memory = zeros(n_ch, 1);
   CF_struct.filter_state(mic).detect_accum = zeros(n_ch, 1);
+  CF_struct.filter_state(mic).g_memory = ...
+    CF_struct.filter_coeffs(mic).g0_coeffs;  % initial g for min_zeta
+  CF_struct.filter_state(mic).dg_memory = zeros(n_ch, 1);    % g interp
   % AGC loop filters' state:
   CF_struct.AGC_state(mic).AGC_memory = zeros(n_ch, n_AGC_stages);  % HACK init
   CF_struct.AGC_state(mic).input_accum = zeros(n_ch, n_AGC_stages);  % HACK init
