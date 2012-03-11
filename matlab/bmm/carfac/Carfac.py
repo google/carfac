@@ -4,7 +4,7 @@
 # The point of this file is to extract some of the formulas from the book and practice with them so as to better understand the filters.
 # The file has been written and tested for python 2.7
 
-from numpy import cos, sin, pi, e, real,imag,arctan2
+from numpy import cos, sin, pi, e, real,imag,arctan2,log10
 
 
 from pylab import figure, plot,loglog, title, axis, show
@@ -163,7 +163,8 @@ class carfac():
     
     
 ######################################################End of Carfac filter class########################################################################
-    
+
+
 # instantiate the filters
 
 # n_ch is the number of filters as determined above
@@ -258,7 +259,6 @@ for i in range(n_ch-1):
 figure(5)
 title('Carfac cascaded filter Phase lag')
 
-
 for i in range(n_ch):
 
     filter = Filters[i]
@@ -292,9 +292,71 @@ for i in range(n_ch):
                 w[j] += 2.0 * pi
                 
         else: continue
-   
+    
+    # convert delay to cycles    
+    for i in range(len(w)):
+        w[i] /= 2.0 * pi
+         
      
     plot(u,w)
-    axis([0.0,pi,-25.0,0.05])
+    axis([0.0,pi,-5.0,0.05])
+    
+# calculate group delay as cascaded lag/filter center frequency
+    
+figure(6)
+title('Carfac group delay')
+
+for i in range(n_ch):
+
+    filter = Filters[i]
+    
+
+    u = []
+    v = []          # store list of phases
+    w = []          # second copy of phases needed for phase unwrapping
+    for j in range(1,steps):
+        x = pi * float(j)/steps
+        
+        u.append(x)
+        mag = filter.HT[j]
+        a = imag(mag)
+        b = real(mag)
+        phase = arctan2(a,b) 
+        
+        v.append(phase)  
+        w.append(phase)
+        
+   
+    for i in range(1,len(v)):
+        diff = v[i]-v[i-1]
+        if diff > pi:
+            for j in range(i,len(w)):
+                w[j] -= 2.0 * pi
+        elif diff < -pi:
+            for j in range(i,len(w)):
+                w[j] += 2.0 * pi
+                
+        else: continue
+    
+    # calculate the group delay from: GroupDelay(n)=-[((ph(n+1)-ph(n-1))/(w(n+1)-w(n-1))]/2pi # w in radians
+    # or gd[n] = - ((delta ph)/(delta w))/2pi
+    # delta ph = w[n+1] - w[n-1]
+    # delta w = pi* fs/steps        # we divide up the frequency range fs into fractions of pi radians.
+    # gd[n] = - steps(w[n+1] - w[n-1])/fs
+    
+    A = -(float(steps))/(2 *fs)     # note.  could have calculated this once outside the filter loop
+    
+    # gd[n] = A *(w[n+1] - w[n-1])
+    
+    gd = []             # in radians
+    gd.append(0.0)      # pad to equalize size of u array, end points are then meaningless
+    for n in range(1,len(w)-1):
+        gd.append(A * (w[n+1] - w[n-1]))
+         
+    gd.append(0.0)
+    
+    plot(u,gd)
+    axis([0.1,pi,-0.01,0.05])
+
 show()
     
