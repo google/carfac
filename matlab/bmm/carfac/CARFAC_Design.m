@@ -96,7 +96,7 @@ if nargin < 2
     'v_offset', 0.01, ...  % offset gives a quadratic part
     'v2_corner', 0.2, ...  % corner for essential nonlin
     'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
-    'min_zeta', 0.10, ...
+    'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
     'first_pole_theta', 0.85*pi, ...
     'zero_ratio', sqrt(2), ... % how far zero is above pole
     'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
@@ -188,8 +188,12 @@ zr_coeffs = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
 %                       and when ff is 1 it goes to zero at theta = pi.
 filter_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
 
-r = (1 - zr_coeffs * filter_params.min_zeta);
-filter_coeffs.r1_coeffs = r;
+min_zeta = filter_params.min_zeta;
+% increase the min damping where channels are spaced out more:
+min_zeta = min_zeta + 0.25*(ERB_Hz(pole_freqs) ./ pole_freqs - min_zeta);
+r1 = (1 - zr_coeffs .* min_zeta);  % "1" for the min-damping condition
+
+filter_coeffs.r1_coeffs = r1;
 
 % undamped coupled-form coefficients:
 filter_coeffs.a0_coeffs = a0;
@@ -200,7 +204,7 @@ h = c0 .* f;
 filter_coeffs.h_coeffs = h;
 
 % for unity gain at min damping, radius r; only used in CARFAC_Init:
-extra_damping = zeros(size(r));
+extra_damping = zeros(size(r1));
 % this function needs to take filter_coeffs even if we haven't finished
 % constucting it by putting in the g0_coeffs:
 filter_coeffs.g0_coeffs = CARFAC_Stage_g(filter_coeffs, extra_damping);
@@ -407,7 +411,7 @@ end
 %                       v_offset: 0.0100
 %                      v2_corner: 0.2000
 %                     v_damp_max: 0.0100
-%                       min_zeta: 0.1200
+%                       min_zeta: 0.1000
 %               first_pole_theta: 2.6704
 %                     zero_ratio: 1.4142
 %     high_f_damping_compression: 0.5000
