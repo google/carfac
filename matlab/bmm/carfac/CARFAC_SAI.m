@@ -20,6 +20,8 @@
 function [sai_frame, sai_state, naps] = CARFAC_SAI(naps, k, sai_state, SAI_params)
 % function sai = CARFAC_SAI(naps, k, sai_state, SAI_params)
 %
+% ...work in progress...
+%
 % Calculate the Stabilized Auditory Image from naps; 
 % I think this is a binaural SAI by Steven Ness
 %
@@ -27,7 +29,7 @@ function [sai_frame, sai_state, naps] = CARFAC_SAI(naps, k, sai_state, SAI_param
 % but this doesn't sound like a proper incremental approach...
 %
 
-[n_samp, n_ch, n_mics] = size(naps);
+[n_samp, n_ch, n_ears] = size(naps);
 
 if nargin < 4
   SAI_params = struct( ...
@@ -42,43 +44,43 @@ threshold_alpha = SAI_params.threshold_alpha;
 threshold_jump = SAI_params.threshold_jump_factor;
 threshold_offset = SAI_params.threshold_jump_offset;
 
-sai2 = reshape(sai_state.sai, SAI_params.sai_width * n_ch, n_mics);
-naps2 = reshape(naps, n_samp * n_ch, n_mics);
+sai2 = reshape(sai_state.sai, SAI_params.sai_width * n_ch, n_ears);
+naps2 = reshape(naps, n_samp * n_ch, n_ears);
 
-for mic = 1:n_mics
-  data = naps(k, :, mic)';
-  above_threshold = (sai_state(mic).lastdata > ...
-    sai_state(mic).thresholds) & ...
-    (sai_state(mic).lastdata > data);
-  sai_state(mic).thresholds(above_threshold) = ...
+for ear = 1:n_ears
+  data = naps(k, :, ear)';
+  above_threshold = (sai_state(ear).lastdata > ...
+    sai_state(ear).thresholds) & ...
+    (sai_state(ear).lastdata > data);
+  sai_state(ear).thresholds(above_threshold) = ...
     data(above_threshold) * threshold_jump + threshold_offset;
-  sai_state(mic).thresholds(~above_threshold) = ...
-    sai_state(mic).thresholds(~above_threshold) * threshold_alpha;
-  sai_state(mic).lastdata = data;
+  sai_state(ear).thresholds(~above_threshold) = ...
+    sai_state(ear).thresholds(~above_threshold) * threshold_alpha;
+  sai_state(ear).lastdata = data;
   
   % Update SAI image with strobe data.
-  othermic = 3 - mic;
+  otherear = 3 - ear;
   
   % Channels that are above the threhsold
   above_ch = find(above_threshold);
   
   % If we are above the threshold, set the trigger index and reset the
   % sai_index
-  sai_state(mic).trigger_index(above_ch) = k;
-  sai_state(mic).sai_index(above_ch) = 1;
+  sai_state(ear).trigger_index(above_ch) = k;
+  sai_state(ear).sai_index(above_ch) = 1;
   
   % Copy the right data from the nap to the sai
   chans = (1:n_ch)';
-  fromindices = sai_state(mic).trigger_index() + (chans - 1) * n_samp;
-  toindices = min((sai_state(mic).sai_index() + (chans - 1) * sai_params.sai_width), sai_params.sai_width * n_ch);
-  sai2(toindices,mic) = naps2(fromindices, othermic);
+  fromindices = sai_state(ear).trigger_index() + (chans - 1) * n_samp;
+  toindices = min((sai_state(ear).sai_index() + (chans - 1) * sai_params.sai_width), sai_params.sai_width * n_ch);
+  sai2(toindices,ear) = naps2(fromindices, otherear);
   
-  sai_state(mic).trigger_index(:) = sai_state(mic).trigger_index(:) + 1;
-  sai_state(mic).sai_index(:) = sai_state(mic).sai_index(:) + 1;
+  sai_state(ear).trigger_index(:) = sai_state(ear).trigger_index(:) + 1;
+  sai_state(ear).sai_index(:) = sai_state(ear).sai_index(:) + 1;
 end
 
 
-sai_frame = reshape(sai2,sai_params.sai_width,n_ch,n_mics);
+sai_frame = reshape(sai2,sai_params.sai_width,n_ch,n_ears);
 sai_state.sai = sai;  % probably this is not exactly what we want to store as state...
 
 
