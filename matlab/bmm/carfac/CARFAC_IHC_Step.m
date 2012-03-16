@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [ihc_out, state] = CARFAC_IHCStep(filters_out, coeffs, state);
-% function [ihc_out, state] = CARFAC_IHCStep(filters_out, coeffs, state);
+function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
+% function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
 %
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.

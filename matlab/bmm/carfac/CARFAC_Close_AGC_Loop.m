@@ -23,13 +23,13 @@ function CF = CARFAC_Close_AGC_Loop(CF)
 % fastest decimated rate determines interp needed:
 decim1 = CF.AGC_params.decimation(1);
 
-for mic = 1:CF.n_mics
-  extra_damping = CF.AGC_state(mic).AGC_memory(:, 1);  % stage 1 result
+for ear = 1:CF.n_ears
+  extra_damping = CF.AGC_state(ear).AGC_memory(:, 1);  % stage 1 result
   % Update the target stage gain for the new damping:
-  new_g = CARFAC_Stage_g(CF.filter_coeffs(mic), extra_damping);
+  new_g = CARFAC_Stage_g(CF.CAR_coeffs, extra_damping);
   % set the deltas needed to get to the new damping:
-  CF.filter_state(mic).dzB_memory = ...
-    (extra_damping - CF.filter_state(mic).zB_memory) / decim1;
-  CF.filter_state(mic).dg_memory = ...
-    (new_g - CF.filter_state(mic).g_memory) / decim1;
+  CF.CAR_state(ear).dzB_memory = ...
+    (extra_damping - CF.CAR_state(ear).zB_memory) / decim1;
+  CF.CAR_state(ear).dg_memory = ...
+    (new_g - CF.CAR_state(ear).g_memory) / decim1;
 end

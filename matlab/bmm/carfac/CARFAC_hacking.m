@@ -43,29 +43,25 @@ CF_struct = CARFAC_Design;  % default design
 
 agc_plot_fig_num = 6;
 
-for n_mics = 1:2
-  CF_struct = CARFAC_Init(CF_struct, n_mics);
+for n_ears = 1:2
+  CF_struct = CARFAC_Init(CF_struct, n_ears);
 
-  [nap, CF_struct, nap_decim] = CARFAC_Run(CF_struct, ...
-    test_signal, agc_plot_fig_num);
+  [CF_struct, nap_decim, nap] = CARFAC_Run(CF_struct, test_signal, ...
+    agc_plot_fig_num);
 
 %   nap = deskew(nap);  % deskew doesn't make much difference
 
-  if n_mics == 1  % because this hack doesn't work for binarual yet
+  if n_ears == 1  % because this hack doesn't work for binarual yet
     MultiScaleSmooth(nap_decim, 4);
   end
 
-%   nap_decim = nap;
-%   nap_decim = smooth1d(nap_decim, 1);
-%   nap_decim = nap_decim(1:8:size(nap_decim, 1), :);
-
-  % Display results for 1 or 2 mics:
-  for mic = 1:n_mics
-    smooth_nap = nap_decim(:, :, mic);
-    if n_mics == 1
+  % Display results for 1 or 2 ears:
+  for ear = 1:n_ears
+    smooth_nap = nap_decim(:, :, ear);
+    if n_ears == 1
       mono_max = max(smooth_nap(:));
     end
-    figure(3 + mic + n_mics)  % Makes figures 5, ...
+    figure(3 + ear + n_ears)  % Makes figures 5, ...
     image(63 * ((max(0, smooth_nap)/mono_max)' .^ 0.5))
     title('smooth nap from nap decim')
     colormap(1 - gray);
@@ -73,10 +69,8 @@ for n_mics = 1:2
 
   % Show resulting data, even though M-Lint complains:
   CF_struct
-  CF_struct.k_mod_decim
-  CF_struct.filter_state
+  CF_struct.CAR_state
   CF_struct.AGC_state
-  min_max = [min(nap(:)), max(nap(:))]
   min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
 
   % For the 2-channel pass, add a silent second channel:

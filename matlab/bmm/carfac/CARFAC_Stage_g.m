@@ -17,15 +17,14 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function g = CARFAC_Stage_g(filter_coeffs, extra_damping)
-% function g = CARFAC_Stage_g(filter_coeffs, extra_damping)
+function g = CARFAC_Stage_g(CAR_coeffs, extra_damping)
+% function g = CARFAC_Stage_g(CAR_coeffs, extra_damping)
 % Return the stage gain g needed to get unity gain at DC
 
-r1 = filter_coeffs.r1_coeffs;  % not zero damping, but min damping
-a0 = filter_coeffs.a0_coeffs;
-c0 = filter_coeffs.c0_coeffs;
-h  = filter_coeffs.h_coeffs;
-zr = filter_coeffs.zr_coeffs;
+r1 = CAR_coeffs.r1_coeffs;  % not zero damping, but min damping
+a0 = CAR_coeffs.a0_coeffs;
+c0 = CAR_coeffs.c0_coeffs;
+h  = CAR_coeffs.h_coeffs;
+zr = CAR_coeffs.zr_coeffs;
 r  = r1 - zr.*extra_damping;  % HACK??? or use sin(ff*theta) instead of c?
 g  = (1 - 2*r.*a0 + r.^2) ./ (1 - 2*r.*a0 + h.*r.*c0 + r.^2);
-

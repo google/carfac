@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [zY, state] = CARFAC_FilterStep(x_in, filter_coeffs, state)
-% function [zY, state] = CARFAC_FilterStep(x_in, filter_coeffs, state)
+function [zY, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
+% function [zY, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
 %
 % One sample-time update step for the filter part of the CARFAC.
 
@@ -27,29 +27,29 @@ function [zY, state] = CARFAC_FilterStep(x_in, filter_coeffs, state)
 % Local nonlinearity zA and AGC feedback zB reduce pole radius:
 zA = state.zA_memory;
 zB = state.zB_memory + state.dzB_memory; % AGC interpolation
-r1 = filter_coeffs.r1_coeffs;
+r1 = CAR_coeffs.r1_coeffs;
 g = state.g_memory + state.dg_memory;  % interp g
-v_offset  = filter_coeffs.v_offset;
-v2_corner = filter_coeffs.v2_corner;
-v_damp_max = filter_coeffs.v_damp_max;
+v_offset  = CAR_coeffs.v_offset;
+v2_corner = CAR_coeffs.v2_corner;
+v_damp_max = CAR_coeffs.v_damp_max;
 
 % zB and zA are "extra damping", and multiply zr (compressed theta):
-r = r1 - filter_coeffs.zr_coeffs .* (zA + zB); 
+r = r1 - CAR_coeffs.zr_coeffs .* (zA + zB); 
 
 % now reduce state by r and rotate with the fixed cos/sin coeffs:
-z1 = r .* (filter_coeffs.a0_coeffs .* state.z1_memory - ...
-  filter_coeffs.c0_coeffs .* state.z2_memory);
+z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
+  CAR_coeffs.c0_coeffs .* state.z2_memory);
 % z1 = z1 + inputs;
-z2 = r .* (filter_coeffs.c0_coeffs .* state.z1_memory + ...
-  filter_coeffs.a0_coeffs .* state.z2_memory);
+z2 = r .* (CAR_coeffs.c0_coeffs .* state.z1_memory + ...
+  CAR_coeffs.a0_coeffs .* state.z2_memory);
 
 % update the "velocity" for cubic nonlinearity, into zA:
-zA = (((state.z2_memory - z2) .* filter_coeffs.velocity_scale) + ...
+zA = (((state.z2_memory - z2) .* CAR_coeffs.velocity_scale) + ...
   v_offset) .^ 2;
 % soft saturation to make it more like an "essential" nonlinearity:
 zA = v_damp_max * zA ./ (v2_corner + zA);
 
-zY = filter_coeffs.h_coeffs .* z2;  % partial output
+zY = CAR_coeffs.h_coeffs .* z2;  % partial output
 
 % Ripple input-output path, instead of parallel, to avoid delay...
 % this is the only part that doesn't get computed "in parallel":

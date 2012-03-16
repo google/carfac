@@ -17,9 +17,9 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF = CARFAC_Design(fs, CF_filter_params, ...
+function CF = CARFAC_Design(fs, CF_CAR_params, ...
   CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
-% function CF = CARFAC_Design(fs, CF_filter_params, ...
+% function CF = CARFAC_Design(fs, CF_CAR_params, ...
 %   CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
 %
 % This function designs the CARFAC (Cascade of Asymmetric Resonators with
@@ -27,7 +27,7 @@ function CF = CARFAC_Design(fs, CF_filter_params, ...
 % computes all the filter coefficients needed to run it.
 %
 % fs is sample rate (per second)
-% CF_filter_params bundles all the pole-zero filter cascade parameters
+% CF_CAR_params bundles all the pole-zero filter cascade parameters
 % CF_AGC_params bundles all the automatic gain control parameters
 % CF_IHC_params bundles all the inner hair cell parameters
 %
@@ -91,7 +91,7 @@ if nargin < 3
 end
 
 if nargin < 2
-  CF_filter_params = struct( ...
+  CF_CAR_params = struct( ...
     'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
     'v_offset', 0.01, ...  % offset gives a quadratic part
     'v2_corner', 0.2, ...  % corner for essential nonlin
@@ -109,20 +109,20 @@ if nargin < 1
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
-pole_Hz = CF_filter_params.first_pole_theta * fs / (2*pi);
+pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
 n_ch = 0;
-while pole_Hz > CF_filter_params.min_pole_Hz
+while pole_Hz > CF_CAR_params.min_pole_Hz
   n_ch = n_ch + 1;
-  pole_Hz = pole_Hz - CF_filter_params.ERB_per_step * ...
+  pole_Hz = pole_Hz - CF_CAR_params.ERB_per_step * ...
     ERB_Hz(pole_Hz, ERB_break_freq, ERB_Q);
 end
 % Now we have n_ch, the number of channels, so can make the array
 % and compute all the frequencies again to put into it:
 pole_freqs = zeros(n_ch, 1);
-pole_Hz = CF_filter_params.first_pole_theta * fs / (2*pi);
+pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
 for ch = 1:n_ch
   pole_freqs(ch) = pole_Hz;
-  pole_Hz = pole_Hz - CF_filter_params.ERB_per_step * ...
+  pole_Hz = pole_Hz - CF_CAR_params.ERB_per_step * ...
     ERB_Hz(pole_Hz, ERB_break_freq, ERB_Q);
 end
 % now we have n_ch, the number of channels, and pole_freqs array
@@ -132,45 +132,48 @@ max_channels_per_octave = log(2) / log(pole_freqs(1)/pole_freqs(2));
 CF = struct( ...
   'fs', fs, ...
   'max_channels_per_octave', max_channels_per_octave, ...
-  'filter_params', CF_filter_params, ...
+  'CAR_params', CF_CAR_params, ...
   'AGC_params', CF_AGC_params, ...
   'IHC_params', CF_IHC_params, ...
   'n_ch', n_ch, ...
   'pole_freqs', pole_freqs, ...
-  'filter_coeffs', CARFAC_DesignFilters(CF_filter_params, fs, pole_freqs), ...
-  'AGC_coeffs', CARFAC_DesignAGC(CF_AGC_params, fs), ...
-  'IHC_coeffs', CARFAC_DesignIHC(CF_IHC_params, fs), ...
-  'n_mics', 0 );
+  'CAR_coeffs', CARFAC_DesignFilters(CF_CAR_params, fs, pole_freqs), ...
+  'AGC_coeffs', CARFAC_DesignAGC(CF_AGC_params, fs, n_ch), ...
+  'IHC_coeffs', CARFAC_DesignIHC(CF_IHC_params, fs, n_ch), ...
+  'n_ears', 0 );
 
 % adjust the AGC_coeffs to account for IHC saturation level to get right
 % damping change as specified in CF.AGC_params.detect_scale
 CF.AGC_coeffs.detect_scale = CF.AGC_params.detect_scale / ...
   (CF.IHC_coeffs.saturation_output * CF.AGC_coeffs.AGC_gain);
 
+
 %% Design the filter coeffs:
-function filter_coeffs = CARFAC_DesignFilters(filter_params, fs, pole_freqs)
+function CAR_coeffs = CARFAC_DesignFilters(CAR_params, fs, pole_freqs)
 
 n_ch = length(pole_freqs);
 
 % the filter design coeffs:
 
-filter_coeffs = struct('velocity_scale', filter_params.velocity_scale, ...
-  'v_offset', filter_params.v_offset, ...
-  'v2_corner', filter_params.v2_corner, ...
-  'v_damp_max', filter_params.v_damp_max ...
+CAR_coeffs = struct( ...
+  'n_ch', n_ch, ...
+  'velocity_scale', CAR_params.velocity_scale, ...
+  'v_offset', CAR_params.v_offset, ...
+  'v2_corner', CAR_params.v2_corner, ...
+  'v_damp_max', CAR_params.v_damp_max ...
   );
 
-filter_coeffs.r1_coeffs = zeros(n_ch, 1);
-filter_coeffs.a0_coeffs = zeros(n_ch, 1);
-filter_coeffs.c0_coeffs = zeros(n_ch, 1);
-filter_coeffs.h_coeffs = zeros(n_ch, 1);
-filter_coeffs.g0_coeffs = zeros(n_ch, 1);
+CAR_coeffs.r1_coeffs = zeros(n_ch, 1);
+CAR_coeffs.a0_coeffs = zeros(n_ch, 1);
+CAR_coeffs.c0_coeffs = zeros(n_ch, 1);
+CAR_coeffs.h_coeffs = zeros(n_ch, 1);
+CAR_coeffs.g0_coeffs = zeros(n_ch, 1);
 
 % zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
 % and that a is here 1 / (1+f) where h = f*c.
 % solve for f:  1/zero_ratio^2 = 1 / (1+f)
 % zero_ratio^2 = 1+f => f = zero_ratio^2 - 1
-f = filter_params.zero_ratio^2 - 1;  % nominally 1 for half-octave
+f = CAR_params.zero_ratio^2 - 1;  % nominally 1 for half-octave
 
 % Make pole positions, s and c coeffs, h and g coeffs, etc.,
 % which mostly depend on the pole angle theta:
@@ -180,47 +183,50 @@ c0 = sin(theta);
 a0 = cos(theta);
 
 % different possible interpretations for min-damping r:
-% r = exp(-theta * CF_filter_params.min_zeta).
+% r = exp(-theta * CF_CAR_params.min_zeta).
 % Compress theta to give somewhat higher Q at highest thetas:
-ff = filter_params.high_f_damping_compression;  % 0 to 1; typ. 0.5
+ff = CAR_params.high_f_damping_compression;  % 0 to 1; typ. 0.5
 x = theta/pi;
 zr_coeffs = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
 %                       and when ff is 1 it goes to zero at theta = pi.
-filter_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
+CAR_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
 
-min_zeta = filter_params.min_zeta;
+min_zeta = CAR_params.min_zeta;
 % increase the min damping where channels are spaced out more:
 min_zeta = min_zeta + 0.25*(ERB_Hz(pole_freqs) ./ pole_freqs - min_zeta);
 r1 = (1 - zr_coeffs .* min_zeta);  % "1" for the min-damping condition
 
-filter_coeffs.r1_coeffs = r1;
+CAR_coeffs.r1_coeffs = r1;
 
 % undamped coupled-form coefficients:
-filter_coeffs.a0_coeffs = a0;
-filter_coeffs.c0_coeffs = c0;
+CAR_coeffs.a0_coeffs = a0;
+CAR_coeffs.c0_coeffs = c0;
 
 % the zeros follow via the h_coeffs
 h = c0 .* f;
-filter_coeffs.h_coeffs = h;
+CAR_coeffs.h_coeffs = h;
 
 % for unity gain at min damping, radius r; only used in CARFAC_Init:
 extra_damping = zeros(size(r1));
-% this function needs to take filter_coeffs even if we haven't finished
+% this function needs to take CAR_coeffs even if we haven't finished
 % constucting it by putting in the g0_coeffs:
-filter_coeffs.g0_coeffs = CARFAC_Stage_g(filter_coeffs, extra_damping);
+CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, extra_damping);
 
 
 %% the AGC design coeffs:
-function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs)
+function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs, n_ch)
 
-AGC_coeffs = struct('AGC_stage_gain', AGC_params.AGC_stage_gain);
+n_AGC_stages = AGC_params.n_stages;
+AGC_coeffs = struct( ...
+  'n_ch', n_ch, ...
+  'n_AGC_stages', n_AGC_stages, ...
+  'AGC_stage_gain', AGC_params.AGC_stage_gain);
 
 % AGC1 pass is smoothing from base toward apex;
 % AGC2 pass is back, which is done first now
 AGC1_scales = AGC_params.AGC1_scales;
 AGC2_scales = AGC_params.AGC2_scales;
 
-n_AGC_stages = AGC_params.n_stages;
 AGC_coeffs.AGC_epsilon = zeros(1, n_AGC_stages);  % the 1/(tau*fs) roughly
 decim = 1;
 AGC_coeffs.decimation = AGC_params.decimation;
@@ -327,14 +333,15 @@ end
 
 
 %% the IHC design coeffs:
-function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs)
+function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
   IHC_coeffs = struct('just_hwr', 1);
   IHC_coeffs.saturation_output = 10;  % HACK: assume some max out
 else
   if IHC_params.one_cap
-    IHC_coeffs = struct(...
+    IHC_coeffs = struct( ...
+      'n_ch', n_ch, ...
       'just_hwr', 0, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
       'out_rate', 1 / (IHC_params.tau_out * fs), ...
@@ -342,6 +349,7 @@ else
       'one_cap', IHC_params.one_cap);
   else
     IHC_coeffs = struct(...
+      'n_ch', n_ch, ...
       'just_hwr', 0, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
       'out1_rate', 1 / (IHC_params.tau1_out * fs), ...
@@ -361,9 +369,9 @@ else
     'lpf2_state', 0, ...
     'ihc_accum', 0);
   
-  IHC_in = 0;
-  for k = 1:30000
-    [IHC_out, IHC_state] = CARFAC_IHCStep(IHC_in, IHC_coeffs, IHC_state);
+  IHC_in = 0;  % the get the IHC output rest level
+  for k = 1:20000
+    [IHC_out, IHC_state] = CARFAC_IHC_Step(IHC_in, IHC_coeffs, IHC_state);
   end
   
   IHC_coeffs.rest_output = IHC_out;
@@ -373,8 +381,8 @@ else
   
   LARGE = 2;
   IHC_in = LARGE;  % "Large" saturating input to IHC; make it alternate
-  for k = 1:30000
-    [IHC_out, IHC_state] = CARFAC_IHCStep(IHC_in, IHC_coeffs, IHC_state);
+  for k = 1:20000
+    [IHC_out, IHC_state] = CARFAC_IHC_Step(IHC_in, IHC_coeffs, IHC_state);
     prev_IHC_out = IHC_out;
     IHC_in = -IHC_in;
   end
@@ -388,24 +396,24 @@ end
 %
 %
 % CF = CARFAC_Design
-% CF.filter_params
+% CF.CAR_params
 % CF.AGC_params
-% CF.filter_coeffs
+% CF.CAR_coeffs
 % CF.AGC_coeffs
 % CF.IHC_coeffs
 %
 % CF = 
 %                          fs: 22050
 %     max_channels_per_octave: 12.1873
-%               filter_params: [1x1 struct]
+%               CAR_params: [1x1 struct]
 %                  AGC_params: [1x1 struct]
 %                  IHC_params: [1x1 struct]
 %                        n_ch: 66
 %                  pole_freqs: [66x1 double]
-%               filter_coeffs: [1x1 struct]
+%               CAR_coeffs: [1x1 struct]
 %                  AGC_coeffs: [1x1 struct]
 %                  IHC_coeffs: [1x1 struct]
-%                      n_mics: 0
+%                      n_ears: 0
 % ans = 
 %                 velocity_scale: 0.2000
 %                       v_offset: 0.0100

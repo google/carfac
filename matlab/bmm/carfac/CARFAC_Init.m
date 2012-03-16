@@ -17,10 +17,10 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF_struct = CARFAC_Init(CF_struct, n_mics)
-% function CF_struct = CARFAC_Init(CF_struct, n_mics)
+function CF_struct = CARFAC_Init(CF_struct, n_ears)
+% function CF_struct = CARFAC_Init(CF_struct, n_ears)
 %
-% Initialize state for n_mics channels (default 1).
+% Initialize state for n_ears channels (default 1).
 % This allocates and zeros all the state vector storage in the CF_struct.
 
 % TODO (dicklyon): Review whether storing state in the same struct as
@@ -28,60 +28,99 @@ function CF_struct = CARFAC_Init(CF_struct, n_mics)
 % level of object.  I like fewer structs and class types.
 
 if nargin < 2
-  n_mics = 1;  % monaural
+  n_ears = 1;  % monaural
 end
 
 % % this is probably what I'd do in the C++ version:
-% if CF_struct.n_mics ~= n_mics;
+% if CF_struct.n_ears ~= n_ears;
 %   % free the state and make new number of channels
-%   % make a struct arrray, one element per mic channel, numbered:
-%   for k = 1:n_mics
-%     CF_struct.state(k)  = struct('mic_number', k);
+%   % make a struct arrray, one element per ear channel, numbered:
+%   for k = 1:n_ears
+%     CF_struct.state(k)  = struct('ear_number', k);
 %   end
 % end
 % But this code doesn't work because I don't understand struct arrays.
 
-% For now I don't ever free anything if n_mics is reduced;
-% so be sure to respect n_mics, not the size of the state struct array.
+% For now I don't ever free anything if n_ears is reduced;
+% so be sure to respect n_ears, not the size of the state struct array.
 
-AGC_time_constants = CF_struct.AGC_params.time_constants;
-n_AGC_stages = length(AGC_time_constants);
+CF_struct.n_ears = n_ears;
 
-CF_struct.n_mics = n_mics;
-n_ch = CF_struct.n_ch;
-
-% keep all the decimator phase info in mic 1 state only:
-CF_struct.AGC_state(1).decim_phase = zeros(n_AGC_stages, 1);  % ints
-
-% This zeroing grows the struct array as needed:
-for mic = 1:n_mics
-  CF_struct.filter_state(mic).z1_memory = zeros(n_ch, 1);
-  CF_struct.filter_state(mic).z2_memory = zeros(n_ch, 1);
-  CF_struct.filter_state(mic).zA_memory = zeros(n_ch, 1);  % cubic loop
-  CF_struct.filter_state(mic).zB_memory = zeros(n_ch, 1);  % AGC interp
-  CF_struct.filter_state(mic).dzB_memory = zeros(n_ch, 1);  % AGC incr
-  CF_struct.filter_state(mic).zY_memory = zeros(n_ch, 1);
-  CF_struct.filter_state(mic).detect_accum = zeros(n_ch, 1);
-  CF_struct.filter_state(mic).g_memory = ...
-    CF_struct.filter_coeffs(mic).g0_coeffs;  % initial g for min_zeta
-  CF_struct.filter_state(mic).dg_memory = zeros(n_ch, 1);    % g interp
-  % AGC loop filters' state:
-  CF_struct.AGC_state(mic).AGC_memory = zeros(n_ch, n_AGC_stages);  % HACK init
-  CF_struct.AGC_state(mic).input_accum = zeros(n_ch, n_AGC_stages);  % HACK init
-  % IHC state:
-  if CF_struct.IHC_coeffs.just_hwr
-    CF_struct.IHC_state(mic).ihc_accum = zeros(n_ch, 1);
-  else
-    CF_struct.IHC_state(mic).cap_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap * ones(n_ch, 1);
-    CF_struct.IHC_state(mic).cap1_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap1 * ones(n_ch, 1);
-    CF_struct.IHC_state(mic).cap2_voltage = ...
-      CF_struct.IHC_coeffs.rest_cap2 * ones(n_ch, 1);
-    CF_struct.IHC_state(mic).lpf1_state = ...
-      CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
-    CF_struct.IHC_state(mic).lpf2_state = ...
-      CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
-    CF_struct.IHC_state(mic).ihc_accum = zeros(n_ch, 1);
-  end
+% These inits grow the struct arrays as needed:
+for ear = 1:n_ears
+  % for now there's only one coeffs, not one per ear
+  CF_struct.CAR_state(ear) = CAR_Init_State(CF_struct.CAR_coeffs);
+  CF_struct.IHC_state(ear) = IHC_Init_State(CF_struct.IHC_coeffs);
+  CF_struct.AGC_state(ear) = AGC_Init_State(CF_struct.AGC_coeffs);
 end
+
+% for ear = 1:n_ears
+%   CF_struct.CAR_state(ear).z1_memory = zeros(n_ch, 1);
+%   CF_struct.CAR_state(ear).z2_memory = zeros(n_ch, 1);
+%   CF_struct.CAR_state(ear).zA_memory = zeros(n_ch, 1);  % cubic loop
+%   CF_struct.CAR_state(ear).zB_memory = zeros(n_ch, 1);  % AGC interp
+%   CF_struct.CAR_state(ear).dzB_memory = zeros(n_ch, 1);  % AGC incr
+%   CF_struct.CAR_state(ear).zY_memory = zeros(n_ch, 1);
+%   CF_struct.CAR_state(ear).detect_accum = zeros(n_ch, 1);
+%   CF_struct.CAR_state(ear).g_memory = ...
+%     CF_struct.CAR_coeffs(ear).g0_coeffs;  % initial g for min_zeta
+%   CF_struct.CAR_state(ear).dg_memory = zeros(n_ch, 1);    % g interp
+%   % AGC loop filters' state:
+%   CF_struct.AGC_state(ear).AGC_memory = zeros(n_ch, n_AGC_stages);  % HACK init
+%   CF_struct.AGC_state(ear).input_accum = zeros(n_ch, n_AGC_stages);  % HACK init
+%   % IHC state:
+%   if CF_struct.IHC_coeffs.just_hwr
+%     CF_struct.IHC_state(ear).ihc_accum = zeros(n_ch, 1);
+%   else
+%     CF_struct.IHC_state(ear).cap_voltage = ...
+%       CF_struct.IHC_coeffs.rest_cap * ones(n_ch, 1);
+%     CF_struct.IHC_state(ear).cap1_voltage = ...
+%       CF_struct.IHC_coeffs.rest_cap1 * ones(n_ch, 1);
+%     CF_struct.IHC_state(ear).cap2_voltage = ...
+%       CF_struct.IHC_coeffs.rest_cap2 * ones(n_ch, 1);
+%     CF_struct.IHC_state(ear).lpf1_state = ...
+%       CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
+%     CF_struct.IHC_state(ear).lpf2_state = ...
+%       CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
+%     CF_struct.IHC_state(ear).ihc_accum = zeros(n_ch, 1);
+%   end
+% end
+
+
+function state = CAR_Init_State(coeffs)
+n_ch = coeffs.n_ch;
+state = struct( ...
+  'z1_memory', zeros(n_ch, 1), ...
+  'z2_memory', zeros(n_ch, 1), ...
+  'zA_memory', zeros(n_ch, 1), ...
+  'zB_memory', zeros(n_ch, 1), ...
+  'dzB_memory', zeros(n_ch, 1), ...
+  'zY_memory', zeros(n_ch, 1), ...
+  'detect_accum', zeros(n_ch, 1), ...
+  'g_memory', coeffs.g0_coeffs, ...
+  'dg_memory', zeros(n_ch, 1) ...
+  );
+
+
+function state = AGC_Init_State(coeffs)
+n_ch = coeffs.n_ch;
+n_AGC_stages = coeffs.n_AGC_stages;
+state = struct( ...
+  'AGC_memory', zeros(n_ch, n_AGC_stages), ...
+  'input_accum', zeros(n_ch, n_AGC_stages), ...
+  'decim_phase', zeros(n_AGC_stages, 1) ... % integer decimator phase
+  );
+
+
+function state = IHC_Init_State(coeffs)
+n_ch = coeffs.n_ch;
+state = struct( ...
+  'ihc_accum', zeros(n_ch, 1), ...
+  'cap_voltage', coeffs.rest_cap * ones(n_ch, 1), ...
+  'cap1_voltage', coeffs.rest_cap1 * ones(n_ch, 1), ...
+  'cap2_voltage', coeffs.rest_cap2* ones(n_ch, 1), ...
+  'lpf1_state', coeffs.rest_output * ones(n_ch, 1), ...
+  'lpf2_state', coeffs.rest_output * ones(n_ch, 1) ...
+  );
+
+  

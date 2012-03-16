@@ -102,8 +102,8 @@ function [stage_numerators, stage_denominators] = ...
 % Return transfer functions of all stages as rational functions.
 
 n_ch = CF.n_ch;
-coeffs = CF.filter_coeffs;
-min_zeta = CF.filter_params.min_zeta;
+coeffs = CF.CAR_coeffs;
+min_zeta = CF.CAR_params.min_zeta;
 
 a0 = coeffs.a0_coeffs;
 c0 = coeffs.c0_coeffs;
@@ -111,8 +111,8 @@ zr = coeffs.zr_coeffs;
 
 % get r, adapted if we have state:
 r =  coeffs.r1_coeffs;
-if isfield(CF, 'filter_state')
-  state = CF.filter_state;
+if isfield(CF, 'CAR_state')
+  state = CF.CAR_state;
   zB = state.zB_memory; % current extra damping
   r = r - zr .* zB;
 else
