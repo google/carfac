@@ -28,7 +28,7 @@ function CF_struct = CARFAC_Init(CF_struct, n_ears)
 % level of object.  I like fewer structs and class types.
 
 if nargin < 2
-  n_ears = 1;  % monaural
+  n_ears = 1;  % monaural default
 end
 
 % % this is probably what I'd do in the C++ version:
@@ -54,38 +54,6 @@ for ear = 1:n_ears
   CF_struct.AGC_state(ear) = AGC_Init_State(CF_struct.AGC_coeffs);
 end
 
-% for ear = 1:n_ears
-%   CF_struct.CAR_state(ear).z1_memory = zeros(n_ch, 1);
-%   CF_struct.CAR_state(ear).z2_memory = zeros(n_ch, 1);
-%   CF_struct.CAR_state(ear).zA_memory = zeros(n_ch, 1);  % cubic loop
-%   CF_struct.CAR_state(ear).zB_memory = zeros(n_ch, 1);  % AGC interp
-%   CF_struct.CAR_state(ear).dzB_memory = zeros(n_ch, 1);  % AGC incr
-%   CF_struct.CAR_state(ear).zY_memory = zeros(n_ch, 1);
-%   CF_struct.CAR_state(ear).detect_accum = zeros(n_ch, 1);
-%   CF_struct.CAR_state(ear).g_memory = ...
-%     CF_struct.CAR_coeffs(ear).g0_coeffs;  % initial g for min_zeta
-%   CF_struct.CAR_state(ear).dg_memory = zeros(n_ch, 1);    % g interp
-%   % AGC loop filters' state:
-%   CF_struct.AGC_state(ear).AGC_memory = zeros(n_ch, n_AGC_stages);  % HACK init
-%   CF_struct.AGC_state(ear).input_accum = zeros(n_ch, n_AGC_stages);  % HACK init
-%   % IHC state:
-%   if CF_struct.IHC_coeffs.just_hwr
-%     CF_struct.IHC_state(ear).ihc_accum = zeros(n_ch, 1);
-%   else
-%     CF_struct.IHC_state(ear).cap_voltage = ...
-%       CF_struct.IHC_coeffs.rest_cap * ones(n_ch, 1);
-%     CF_struct.IHC_state(ear).cap1_voltage = ...
-%       CF_struct.IHC_coeffs.rest_cap1 * ones(n_ch, 1);
-%     CF_struct.IHC_state(ear).cap2_voltage = ...
-%       CF_struct.IHC_coeffs.rest_cap2 * ones(n_ch, 1);
-%     CF_struct.IHC_state(ear).lpf1_state = ...
-%       CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
-%     CF_struct.IHC_state(ear).lpf2_state = ...
-%       CF_struct.IHC_coeffs.rest_output * zeros(n_ch, 1);
-%     CF_struct.IHC_state(ear).ihc_accum = zeros(n_ch, 1);
-%   end
-% end
-
 
 function state = CAR_Init_State(coeffs)
 n_ch = coeffs.n_ch;
@@ -96,7 +64,6 @@ state = struct( ...
   'zB_memory', zeros(n_ch, 1), ...
   'dzB_memory', zeros(n_ch, 1), ...
   'zY_memory', zeros(n_ch, 1), ...
-  'detect_accum', zeros(n_ch, 1), ...
   'g_memory', coeffs.g0_coeffs, ...
   'dg_memory', zeros(n_ch, 1) ...
   );

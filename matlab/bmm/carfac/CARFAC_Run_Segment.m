@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [naps, CF] = CARFAC_Run_Segment(CF, input_waves)
-% function [naps, CF, decim_naps] = CARFAC_Run_Segment(CF, input_waves)
+function [naps, CF, BM] = CARFAC_Run_Segment(CF, input_waves, open_loop)
+% function [naps, CF, BM] = CARFAC_Run_Segment(CF, input_waves, open_loop)
 % 
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input segment to make one or more neural activity patterns (naps);
@@ -31,7 +31,7 @@ function [naps, CF] = CARFAC_Run_Segment(CF, input_waves)
 %
 % naps has a row per time sample, a column per filterbank channel, and
 % a layer per audio channel if more than 1.
-% decim_naps is like naps but time-decimated by the int CF.decimation.
+% BM is basilar membrane motion (filter outputs before detection).
 %
 % the input_waves are assumed to be sampled at the same rate as the
 % CARFAC is designed for; a resampling may be needed before calling this.
@@ -45,6 +45,16 @@ function [naps, CF] = CARFAC_Run_Segment(CF, input_waves)
 % CF = CARFAC_Design(fs, CF_CAR_params, CF_AGC_params, n_ears)
 % transfns = CARFAC_Transfer_Functions(CF, to_chans, from_chans)
 
+if nargin < 3
+  open_loop = 0;
+end
+
+if nargout > 2
+  do_BM = 1;
+else
+  do_BM = 0;
+end
+
 [n_samp, n_ears] = size(input_waves);
 
 if n_ears ~= CF.n_ears
@@ -53,6 +63,9 @@ end
 
 n_ch = CF.n_ch;
 naps = zeros(n_samp, n_ch, n_ears);  % allocate space for result
+if do_BM
+  BM = zeros(n_samp, n_ch, n_ears);
+end
 
 detects = zeros(n_ch, n_ears);
 for k = 1:n_samp
@@ -67,6 +80,9 @@ for k = 1:n_samp
     
     detects(:, ear) = ihc_out;  % for input to AGC, and out to SAI
     naps(k, :, ear) = ihc_out;  % output to neural activity pattern  
+    if do_BM
+      BM(k, :, ear) = car_out;
+    end
   end
   % run the AGC update step, taking input from IHC_state, 
   % decimating internally, all ears at once due to mixing across them:
@@ -74,7 +90,7 @@ for k = 1:n_samp
     CF.AGC_coeffs, detects, CF.AGC_state);
   
   % connect the feedback from AGC_state to CAR_state when it updates
-  if updated
+  if updated & ~open_loop
     CF = CARFAC_Close_AGC_Loop(CF);
   end
 end

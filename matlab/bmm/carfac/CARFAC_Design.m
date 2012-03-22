@@ -74,7 +74,8 @@ if nargin < 5
   % ERB = 24.7 * (1 + 4.37 * CF_Hz / 1000);
   ERB_Q = 1000/(24.7*4.37);  % 9.2645
   if nargin < 4
-    ERB_break_freq = 1000/4.37;  % 228.833
+%     ERB_break_freq = 1000/4.37;  % 228.833 G&M
+    ERB_break_freq = 165.3;  % Greenwood map's break freq.
   end
 end
 
@@ -84,9 +85,9 @@ if nargin < 3
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
     'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', [1, 2, 4, 6]*1, ...   % in units of channels
-    'AGC2_scales', [1, 2, 4, 6]*1.5, ... % spread more toward base
-    'detect_scale', 0.15, ...  % the desired damping range
+    'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
+    'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
+    'detect_scale', 0.25, ...  % the desired damping range
     'AGC_mix_coeff', 0.5);
 end
 
@@ -285,7 +286,7 @@ for stage = 1:n_AGC_stages
   % when FIR_OK, store the resulting FIR design in coeffs:
   AGC_coeffs.AGC_spatial_iterations(stage) = n_iterations;
   AGC_coeffs.AGC_spatial_FIR(:,stage) = AGC_spatial_FIR;
-  AGC_coeffs.AGC_n_taps(stage) = n_taps;
+  AGC_coeffs.AGC_spatial_n_taps(stage) = n_taps;
   
   % accumulate DC gains from all the stages, accounting for stage_gain:
   total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
@@ -302,8 +303,10 @@ end
 AGC_coeffs.AGC_gain = total_DC_gain;
 
 % % print some results
-% AGC_coeffs
-% AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+AGC_coeffs
+AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+AGC_spatial_iterations = AGC_coeffs.AGC_spatial_iterations
+AGC_spatial_n_taps = AGC_coeffs.AGC_spatial_n_taps
 
 
 %%
@@ -453,7 +456,7 @@ end
 %                 AGC_polez2: [0.2219 0.3165 0.4260 0.4414]
 %     AGC_spatial_iterations: [1 1 2 2]
 %            AGC_spatial_FIR: [3x4 double]
-%                 AGC_n_taps: [3 5 5 5]
+%         AGC_spatial_n_taps: [3 5 5 5]
 %             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
 %                   AGC_gain: 15
 %               detect_scale: 0.0664

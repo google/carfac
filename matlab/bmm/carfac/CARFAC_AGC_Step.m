@@ -71,9 +71,7 @@ if decim_phase == 0
   
   for ear = 1:n_ears
     AGC_in = ins(:,ear);  % the newly decimated input for this ear
-    
-%     AGC_in = max(0, AGC_in);  % don't let neg inputs in
-    
+        
     %  add the latest output (state) of next stage...
     if stage < n_stages
       AGC_in = AGC_in + stage_gain * state(ear).AGC_memory(:, stage+1);

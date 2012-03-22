@@ -49,7 +49,7 @@ naps = zeros(n_samp, n_ch, n_ears);
 for k = 1:n_samp
   % at each time step, possibly handle multiple channels
   for ear = 1:n_ears
-    [filters_out, CF.CAR_state(ear)] = CARFAC_FilterStep( ...
+    [filters_out, CF.CAR_state(ear)] = CARFAC_CAR_Step( ...
       input_waves(k, ear), CF.CAR_coeffs, CF.CAR_state(ear));
     naps(k, :, ear) = filters_out;  % linear
   end

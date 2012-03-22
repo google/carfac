@@ -61,10 +61,3 @@ for scale_no = 1:n_scales
 
 end
 
-
-function waves = deskew(waves)
-
-for col = 1:size(waves, 2)
-  waves(1:(end-col+1), col) = waves(col:end, col);
-end
-

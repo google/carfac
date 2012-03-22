@@ -17,43 +17,21 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [CF, decim_naps, naps, BM] = CARFAC_Run ...
+function [CF, decim_naps, naps] = CARFAC_Run_Open_Loop ...
   (CF, input_waves, AGC_plot_fig_num)
-% function [CF, decim_naps, naps] = CARFAC_Run ...
+% function [CF, decim_naps, naps] = CARFAC_Run_Open_Loop ...
 %   (CF, input_waves, AGC_plot_fig_num)
-% This function runs the CARFAC; that is, filters a 1 or more channel
-% sound input to make one or more neural activity patterns (naps).
 %
-% The CF struct holds the filterbank design and state; if you want to
-% break the input up into segments, you need to use the updated CF
-% to keep the state between segments.
-%
-% input_waves is a column vector if there's just one audio channel;
-% more generally, it has a row per time sample, a column per audio channel.
-%
-% naps has a row per time sample, a column per filterbank channel, and
-% a layer per audio channel if more than 1.
-% decim_naps is like naps but time-decimated by the int CF.decimation.
-%
-% the input_waves are assumed to be sampled at the same rate as the
-% CARFAC is designed for; a resampling may be needed before calling this.
-%
-% The function works as an outer iteration on time, updating all the
-% filters and AGC states concurrently, so that the different channels can
-% interact easily.  The inner loops are over filterbank channels, and
-% this level should be kept efficient.
+% Freeze the damping by disabling AGC feedback, and run so we can
+% see what the filters and AGC do in that frozen state.  And zap the
+% stage gain in the AGC so we can see the state filters without combining
+% them.
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
 
 if nargin < 3
   AGC_plot_fig_num = 0;
-end
-
-if nargout > 3
-  BM = zeros(n_samp, n_ch, n_ears);
-else
-  BM = [];
 end
 
 if n_ears ~= CF.n_ears
@@ -63,7 +41,7 @@ end
 
 naps = zeros(n_samp, n_ch, n_ears);
 
-seglen = 256;
+seglen = 16;
 n_segs = ceil(n_samp / seglen);
 
 if nargout > 1
@@ -80,6 +58,16 @@ else
   naps = [];
 end
 
+% zero the deltas:
+for ear = 1:CF.n_ears
+  CF.CAR_state(ear).dzB_memory = 0;
+  CF.CAR_state(ear).dg_memory = 0;
+end
+open_loop = 1;
+CF.AGC_coeffs.AGC_stage_gain = 0;  % HACK to see the stages separately
+
+smoothed_state = 0;
+
 for seg_num = 1:n_segs
   if seg_num == n_segs
     % The last segement may be short of seglen, but do it anyway:
@@ -88,18 +76,8 @@ for seg_num = 1:n_segs
     k_range = seglen*(seg_num - 1) + (1:seglen);
   end
   % Process a segment to get a slice of decim_naps, and plot AGC state:
-  if ~isempty(BM)
-    [seg_naps, CF, seg_BM] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
-  else
-    [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
-  end
-  
-  if ~isempty(BM)
-    for ear = 1:n_ears
-      % Accumulate segment BM to make full BM
-      BM(k_range, :, ear) = seg_BM(:, :, ear);
-    end
-  end
+  [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :), ...
+    open_loop);
   
   if ~isempty(naps)
     for ear = 1:n_ears
@@ -118,25 +96,23 @@ for seg_num = 1:n_segs
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
     set(gca, 'Position', [.25, .25, .5, .5])
-    
-    for ear = 1:n_ears
-      plot(CF.AGC_state(ear).AGC_memory(:, 1), 'k-', 'LineWidth', 1)
-      maxes(ear) = max(CF.AGC_state(ear).AGC_memory(:));
-      hold on
-      for stage = 1:3;
-        plot(2^(stage-1) * (CF.AGC_state(ear).AGC_memory(:, stage) - ...
-          2 * CF.AGC_state(ear).AGC_memory(:, stage+1)));
-        plot(2^(stage-1) * (CF.AGC_state(ear).AGC_memory(:, stage) - ...
-          0 * CF.AGC_state(ear).AGC_memory(:, stage+1)), 'r--');
+    smoothed_state = (3*smoothed_state + CF.AGC_state(1).AGC_memory) / 4;
+    for ear = 1
+      total_state = 0;
+      for stage = 1:4;
+        weighted_state = smoothed_state(:, stage) * 2^(stage-1);
+        plot(weighted_state, 'k-', 'LineWidth', 0.4);
+        hold on
+        total_state = total_state + weighted_state;
       end
-      stage = 4;
-      plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage));
-      plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage), 'r--');
+      maxes(ear) = max(total_state);
+      plot(total_state, 'k-', 'LineWidth', 1.1)
     end
+    
     axis([0, CF.n_ch+1, 0.0, max(maxes) * 1.01 + 0.002]);
     drawnow
   end
-
+  
 end
 
 

@@ -27,7 +27,7 @@ use_FIR = n_iterations < 4;  % or whatever condition we want to try
 
 if use_FIR
   FIR_coeffs = coeffs.AGC_spatial_FIR(:,stage);
-  switch coeffs.AGC_n_taps(stage)
+  switch coeffs.AGC_spatial_n_taps(stage)
     case 3
       for iter = 1:n_iterations
         stage_state = ...
@@ -45,10 +45,10 @@ if use_FIR
           stage_state([3:end, end, end-1], :));
       end
     otherwise
-      error('Bad n_taps in CARFAC_Spatial_Smooth');
+      error('Bad AGC_spatial_n_taps in CARFAC_Spatial_Smooth');
   end
 else
-  % use IIR method, back-and-forth firt-order smoothers:
+  % use IIR method, back-and-forth first-order smoothers:
   stage_state = SmoothDoubleExponential(stage_state, ...
     coeffs.AGC_polez1(stage), coeffs.AGC_polez2(stage));
 end

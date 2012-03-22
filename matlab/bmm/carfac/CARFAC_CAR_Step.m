@@ -71,7 +71,3 @@ state.zB_memory = zB;
 state.zY_memory = zY;
 state.g_memory = g;
 
-% accum the straight hwr version in case someone wants it:
-hwr_detect = max(0, zY);  % detect with HWR
-state.detect_accum = state.detect_accum + hwr_detect;
-
