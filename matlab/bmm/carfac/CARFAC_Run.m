@@ -117,21 +117,12 @@ for seg_num = 1:n_segs
   
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
-    set(gca, 'Position', [.25, .25, .5, .5])
-    
     for ear = 1:n_ears
-      plot(CF.AGC_state(ear).AGC_memory(:, 1), 'k-', 'LineWidth', 1)
       maxes(ear) = max(CF.AGC_state(ear).AGC_memory(:));
       hold on
-      for stage = 1:3;
-        plot(2^(stage-1) * (CF.AGC_state(ear).AGC_memory(:, stage) - ...
-          2 * CF.AGC_state(ear).AGC_memory(:, stage+1)));
-        plot(2^(stage-1) * (CF.AGC_state(ear).AGC_memory(:, stage) - ...
-          0 * CF.AGC_state(ear).AGC_memory(:, stage+1)), 'r--');
+      for stage = 1:4;
+        plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage));
       end
-      stage = 4;
-      plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage));
-      plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage), 'r--');
     end
     axis([0, CF.n_ch+1, 0.0, max(maxes) * 1.01 + 0.002]);
     drawnow
