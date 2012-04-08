@@ -17,8 +17,7 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF = CARFAC_Design(fs, CF_CAR_params, ...
-  CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
+function CF = CARFAC_Design(fs, CF_CAR_params, CF_AGC_params, CF_IHC_params)
 % function CF = CARFAC_Design(fs, CF_CAR_params, ...
 %   CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
 %
@@ -42,7 +41,7 @@ function CF = CARFAC_Design(fs, CF_CAR_params, ...
 % All args are defaultable; for sample/default args see the code; they
 % make 96 channels at default fs = 22050, 114 channels at 44100.
 
-if nargin < 6
+if nargin < 4
   % HACK: these constant control the defaults
   one_cap = 0;         % bool; 0 for new two-cap hack
   just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
@@ -69,16 +68,6 @@ if nargin < 6
   end
 end
 
-if nargin < 5
-  %	Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  % ERB = 24.7 * (1 + 4.37 * CF_Hz / 1000);
-  ERB_Q = 1000/(24.7*4.37);  % 9.2645
-  if nargin < 4
-%     ERB_break_freq = 1000/4.37;  % 228.833 G&M
-    ERB_break_freq = 165.3;  % Greenwood map's break freq.
-  end
-end
-
 if nargin < 3
   CF_AGC_params = struct( ...
     'n_stages', 4, ...
@@ -102,7 +91,9 @@ if nargin < 2
     'zero_ratio', sqrt(2), ... % how far zero is above pole
     'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
     'ERB_per_step', 0.5, ... % assume G&M's ERB formula
-    'min_pole_Hz', 30 );
+    'min_pole_Hz', 30, ...
+    'ERB_break_freq', 165.3, ...  % Greenwood map's break freq.
+    'ERB_Q', 1000/(24.7*4.37));  % Glasberg and Moore's high-cf ratio
 end
 
 if nargin < 1
@@ -115,7 +106,7 @@ n_ch = 0;
 while pole_Hz > CF_CAR_params.min_pole_Hz
   n_ch = n_ch + 1;
   pole_Hz = pole_Hz - CF_CAR_params.ERB_per_step * ...
-    ERB_Hz(pole_Hz, ERB_break_freq, ERB_Q);
+    ERB_Hz(pole_Hz, CF_CAR_params.ERB_break_freq, CF_CAR_params.ERB_Q);
 end
 % Now we have n_ch, the number of channels, so can make the array
 % and compute all the frequencies again to put into it:
@@ -124,7 +115,7 @@ pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
 for ch = 1:n_ch
   pole_freqs(ch) = pole_Hz;
   pole_Hz = pole_Hz - CF_CAR_params.ERB_per_step * ...
-    ERB_Hz(pole_Hz, ERB_break_freq, ERB_Q);
+    ERB_Hz(pole_Hz, CF_CAR_params.ERB_break_freq, CF_CAR_params.ERB_Q);
 end
 % now we have n_ch, the number of channels, and pole_freqs array
 
@@ -194,7 +185,9 @@ CAR_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
 
 min_zeta = CAR_params.min_zeta;
 % increase the min damping where channels are spaced out more:
-min_zeta = min_zeta + 0.25*(ERB_Hz(pole_freqs) ./ pole_freqs - min_zeta);
+
+min_zeta = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
+  CAR_params.ERB_break_freq, CAR_params.ERB_Q) ./ pole_freqs - min_zeta);
 r1 = (1 - zr_coeffs .* min_zeta);  % "1" for the min-damping condition
 
 CAR_coeffs.r1_coeffs = r1;

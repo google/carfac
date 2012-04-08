@@ -31,6 +31,10 @@ CF.CAR_coeffs.v_damp_max = 0.00;  % make it linear for now
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
 
+if nargin < 3
+  extra_damping = 0;
+end
+
 if n_ears ~= CF.n_ears
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
