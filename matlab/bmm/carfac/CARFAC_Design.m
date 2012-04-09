@@ -60,9 +60,9 @@ if nargin < 4
         'just_hwr', just_hwr, ...        % not just a simple HWR
         'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
         'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
-        'tau1_out', 0.020, ...    % depletion tau is pretty fast
+        'tau1_out', 0.010, ...    % depletion tau is pretty fast
         'tau1_in', 0.020, ...     % recovery tau is slower
-        'tau2_out', 0.005, ...   % depletion tau is pretty fast
+        'tau2_out', 0.0025, ...   % depletion tau is pretty fast
         'tau2_in', 0.005 );        % recovery tau is slower
     end
   end
@@ -134,10 +134,6 @@ CF = struct( ...
   'IHC_coeffs', CARFAC_DesignIHC(CF_IHC_params, fs, n_ch), ...
   'n_ears', 0 );
 
-% adjust the AGC_coeffs to account for IHC saturation level to get right
-% damping change as specified in CF.AGC_params.detect_scale
-CF.AGC_coeffs.detect_scale = CF.AGC_params.detect_scale / ...
-  (CF.IHC_coeffs.saturation_output * CF.AGC_coeffs.AGC_gain);
 
 
 %% Design the filter coeffs:
@@ -295,6 +291,10 @@ end
 
 AGC_coeffs.AGC_gain = total_DC_gain;
 
+% adjust the detect_scale by the total DC gain of the AGC filters:
+AGC_coeffs.detect_scale = AGC_params.detect_scale / total_DC_gain;
+
+
 % % print some results
 AGC_coeffs
 AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
@@ -333,57 +333,68 @@ function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
   IHC_coeffs = struct('just_hwr', 1);
-  IHC_coeffs.saturation_output = 10;  % HACK: assume some max out
+  saturation_output = 10;  % HACK: assume some max out
 else
   if IHC_params.one_cap
+    ro = 1 / CARFAC_Detect(2);  % output resistance
+    c = IHC_params.tau_out / ro;
+    ri = IHC_params.tau_in / c;
+    % to get steady-state average, double ro for 50% duty cycle
+    saturation_output = 1 / (2*ro + ri);
+    % also consider the zero-signal equilibrium:
+    r0 = 1 / CARFAC_Detect(0);
+    current = 1 / (ri + r0);
+    cap_voltage = 1 - current * ri;
+      IHC_coeffs.rest_output = IHC_out;
     IHC_coeffs = struct( ...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
-      'out_rate', 1 / (IHC_params.tau_out * fs), ...
+      'out_rate', ro / (IHC_params.tau_out * fs), ...
       'in_rate', 1 / (IHC_params.tau_in * fs), ...
-      'one_cap', IHC_params.one_cap);
-  else
+      'one_cap', IHC_params.one_cap, ...
+      'output_gain', 1/ (saturation_output - current), ...
+      'rest_output', current / (saturation_output - current), ...
+      'rest_cap', cap_voltage);
+    % one-channel state for testing/verification:
+    IHC_state = struct( ...
+      'cap_voltage', IHC_coeffs.rest_cap, ...
+      'lpf1_state', 0, ...
+      'lpf2_state', 0, ...
+      'ihc_accum', 0);  else
+    ro = 1 / CARFAC_Detect(2);  % output resistance
+    c2 = IHC_params.tau2_out / ro;
+    r2 = IHC_params.tau2_in / c2;
+    c1 = IHC_params.tau1_out / r2;
+    r1 = IHC_params.tau1_in / c1;
+    % to get steady-state average, double ro for 50% duty cycle
+    saturation_output = 1 / (2*ro + r2 + r1);
+    % also consider the zero-signal equilibrium:
+    r0 = 1 / CARFAC_Detect(0);
+    current = 1 / (r1 + r2 + r0);
+    cap1_voltage = 1 - current * r1;
+    cap2_voltage = cap1_voltage - current * r2;
     IHC_coeffs = struct(...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
       'out1_rate', 1 / (IHC_params.tau1_out * fs), ...
       'in1_rate', 1 / (IHC_params.tau1_in * fs), ...
-      'out2_rate', 1 / (IHC_params.tau2_out * fs), ...
+      'out2_rate', ro / (IHC_params.tau2_out * fs), ...
       'in2_rate', 1 / (IHC_params.tau2_in * fs), ...
-      'one_cap', IHC_params.one_cap);
+      'one_cap', IHC_params.one_cap, ...
+      'output_gain', 1/ (saturation_output - current), ...
+      'rest_output', current / (saturation_output - current), ...
+      'rest_cap2', cap2_voltage, ...
+      'rest_cap1', cap1_voltage);
+    % one-channel state for testing/verification:
+    IHC_state = struct( ...
+      'cap1_voltage', IHC_coeffs.rest_cap1, ...
+      'cap2_voltage', IHC_coeffs.rest_cap2, ...
+      'lpf1_state', 0, ...
+      'lpf2_state', 0, ...
+      'ihc_accum', 0);
   end
-  
-  % run one channel to convergence to get rest state:
-  IHC_coeffs.rest_output = 0;
-  IHC_state = struct( ...
-    'cap_voltage', 0, ...
-    'cap1_voltage', 0, ...
-    'cap2_voltage', 0, ...
-    'lpf1_state', 0, ...
-    'lpf2_state', 0, ...
-    'ihc_accum', 0);
-  
-  IHC_in = 0;  % the get the IHC output rest level
-  for k = 1:20000
-    [IHC_out, IHC_state] = CARFAC_IHC_Step(IHC_in, IHC_coeffs, IHC_state);
-  end
-  
-  IHC_coeffs.rest_output = IHC_out;
-  IHC_coeffs.rest_cap = IHC_state.cap_voltage;
-  IHC_coeffs.rest_cap1 = IHC_state.cap1_voltage;
-  IHC_coeffs.rest_cap2 = IHC_state.cap2_voltage;
-  
-  LARGE = 2;
-  IHC_in = LARGE;  % "Large" saturating input to IHC; make it alternate
-  for k = 1:20000
-    [IHC_out, IHC_state] = CARFAC_IHC_Step(IHC_in, IHC_coeffs, IHC_state);
-    prev_IHC_out = IHC_out;
-    IHC_in = -IHC_in;
-  end
-  
-  IHC_coeffs.saturation_output = (IHC_out + prev_IHC_out) / 2;
 end
 
 %%
@@ -397,16 +408,15 @@ end
 % CF.CAR_coeffs
 % CF.AGC_coeffs
 % CF.IHC_coeffs
-%
 % CF = 
 %                          fs: 22050
-%     max_channels_per_octave: 12.1873
-%               CAR_params: [1x1 struct]
+%     max_channels_per_octave: 12.2709
+%                  CAR_params: [1x1 struct]
 %                  AGC_params: [1x1 struct]
 %                  IHC_params: [1x1 struct]
-%                        n_ch: 66
-%                  pole_freqs: [66x1 double]
-%               CAR_coeffs: [1x1 struct]
+%                        n_ch: 71
+%                  pole_freqs: [71x1 double]
+%                  CAR_coeffs: [1x1 struct]
 %                  AGC_coeffs: [1x1 struct]
 %                  IHC_coeffs: [1x1 struct]
 %                      n_ears: 0
@@ -421,49 +431,53 @@ end
 %     high_f_damping_compression: 0.5000
 %                   ERB_per_step: 0.5000
 %                    min_pole_Hz: 30
+%                 ERB_break_freq: 165.3000
+%                          ERB_Q: 9.2645
 % ans = 
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
 %         decimation: [8 2 2 2]
-%        AGC1_scales: [1 2 4 6]
-%        AGC2_scales: [1.5000 3 6 9]
-%       detect_scale: 0.1500
+%        AGC1_scales: [1 1.4000 2 2.8000]
+%        AGC2_scales: [1.6000 2.2500 3.2000 4.5000]
+%       detect_scale: 0.2500
 %      AGC_mix_coeff: 0.5000
 % ans = 
+%               n_ch: 71
 %     velocity_scale: 0.2000
 %           v_offset: 0.0100
 %          v2_corner: 0.2000
 %         v_damp_max: 0.0100
-%          r1_coeffs: [66x1 double]
-%          a0_coeffs: [66x1 double]
-%          c0_coeffs: [66x1 double]
-%           h_coeffs: [66x1 double]
-%          g0_coeffs: [66x1 double]
-%          zr_coeffs: [66x1 double]
+%          r1_coeffs: [71x1 double]
+%          a0_coeffs: [71x1 double]
+%          c0_coeffs: [71x1 double]
+%           h_coeffs: [71x1 double]
+%          g0_coeffs: [71x1 double]
+%          zr_coeffs: [71x1 double]
 % ans = 
+%                       n_ch: 71
+%               n_AGC_stages: 4
 %             AGC_stage_gain: 2
 %                AGC_epsilon: [0.1659 0.0867 0.0443 0.0224]
 %                 decimation: [8 2 2 2]
-%                 AGC_polez1: [0.1627 0.2713 0.3944 0.4194]
-%                 AGC_polez2: [0.2219 0.3165 0.4260 0.4414]
-%     AGC_spatial_iterations: [1 1 2 2]
+%                 AGC_polez1: [0.1699 0.1780 0.1872 0.1903]
+%                 AGC_polez2: [0.2388 0.2271 0.2216 0.2148]
+%     AGC_spatial_iterations: [1 1 1 1]
 %            AGC_spatial_FIR: [3x4 double]
-%         AGC_spatial_n_taps: [3 5 5 5]
+%         AGC_spatial_n_taps: [3 3 3 3]
 %             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
 %                   AGC_gain: 15
-%               detect_scale: 0.0664
+%               detect_scale: 0.0167
 % ans = 
-%              just_hwr: 0
-%             lpf_coeff: 0.4327
-%             out1_rate: 0.0023
-%              in1_rate: 0.0023
-%             out2_rate: 0.0091
-%              in2_rate: 0.0091
-%               one_cap: 0
-%           rest_output: 0.0365
-%              rest_cap: 0
-%             rest_cap1: 0.9635
-%             rest_cap2: 0.9269
-%     saturation_output: 0.1507
-
+%            n_ch: 71
+%        just_hwr: 0
+%       lpf_coeff: 0.4327
+%       out1_rate: 0.0045
+%        in1_rate: 0.0023
+%       out2_rate: 0.0267
+%        in2_rate: 0.0091
+%         one_cap: 0
+%     output_gain: 17.9162
+%     rest_output: 0.5240
+%       rest_cap2: 0.7421
+%       rest_cap1: 0.8281

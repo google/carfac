@@ -29,17 +29,15 @@ if just_hwr
   ihc_out = max(0, filters_out);
   state.ihc_accum = state.ihc_accum + ihc_out;
 else
-  one_cap = coeffs.one_cap;
-
-  detect = CARFAC_Detect(filters_out);  % detect with HWR or so
-
-  if one_cap
-    ihc_out = detect .* state.cap_voltage;
+  conductance = CARFAC_Detect(filters_out);  % detect with HWR or so
+  
+  if coeffs.one_cap;
+    ihc_out = conductance .* state.cap_voltage;
     state.cap_voltage = state.cap_voltage - ihc_out .* coeffs.out_rate + ...
       (1 - state.cap_voltage) .* coeffs.in_rate;
   else
     % change to 2-cap version more like Meddis's:
-    ihc_out = detect .* state.cap2_voltage;
+    ihc_out = conductance .* state.cap2_voltage;
     state.cap1_voltage = state.cap1_voltage - ...
       (state.cap1_voltage - state.cap2_voltage) .* coeffs.out1_rate + ...
       (1 - state.cap1_voltage) .* coeffs.in1_rate;
@@ -56,7 +54,7 @@ else
   state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
     (state.lpf1_state - state.lpf2_state);
 
-  ihc_out = state.lpf2_state - coeffs.rest_output;
-
-  state.ihc_accum = state.ihc_accum + max(0, ihc_out);
+  ihc_out = state.lpf2_state * coeffs.output_gain - coeffs.rest_output;
+  
+  state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful
 end
