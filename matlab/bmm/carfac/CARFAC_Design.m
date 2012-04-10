@@ -151,6 +151,8 @@ CAR_coeffs = struct( ...
   'v_damp_max', CAR_params.v_damp_max ...
   );
 
+% don't really need these zero arrays, but it's a clue to what fields
+% and types are need in ohter language implementations:
 CAR_coeffs.r1_coeffs = zeros(n_ch, 1);
 CAR_coeffs.a0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.c0_coeffs = zeros(n_ch, 1);
@@ -213,7 +215,7 @@ AGC_coeffs = struct( ...
   'AGC_stage_gain', AGC_params.AGC_stage_gain);
 
 % AGC1 pass is smoothing from base toward apex;
-% AGC2 pass is back, which is done first now
+% AGC2 pass is back, which is done first now (in double exp. version)
 AGC1_scales = AGC_params.AGC1_scales;
 AGC2_scales = AGC_params.AGC2_scales;
 
@@ -293,7 +295,6 @@ AGC_coeffs.AGC_gain = total_DC_gain;
 
 % adjust the detect_scale by the total DC gain of the AGC filters:
 AGC_coeffs.detect_scale = AGC_params.detect_scale / total_DC_gain;
-
 
 % % print some results
 AGC_coeffs

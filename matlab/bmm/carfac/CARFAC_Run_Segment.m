@@ -78,20 +78,27 @@ for k = 1:n_samp
     [ihc_out, CF.IHC_state(ear)] = CARFAC_IHC_Step( ...
       car_out, CF.IHC_coeffs, CF.IHC_state(ear));
     
-    detects(:, ear) = ihc_out;  % for input to AGC, and out to SAI
-    naps(k, :, ear) = ihc_out;  % output to neural activity pattern  
+    % run the AGC update step, decimating internally,
+    [CF.AGC_state(ear), updated] = CARFAC_AGC_Step( ...
+      CF.AGC_coeffs, ihc_out, CF.AGC_state(ear));
+    
+    % save some output data:
+    naps(k, :, ear) = ihc_out;  % output to neural activity pattern
     if do_BM
       BM(k, :, ear) = car_out;
     end
   end
-  % run the AGC update step, taking input from IHC_state, 
-  % decimating internally, all ears at once due to mixing across them:
-  [CF.AGC_state, updated] = CARFAC_AGC_Step( ...
-    CF.AGC_coeffs, detects, CF.AGC_state);
   
-  % connect the feedback from AGC_state to CAR_state when it updates
-  if updated & ~open_loop
-    CF = CARFAC_Close_AGC_Loop(CF);
+  % connect the feedback from AGC_state to CAR_state when it updates;
+  % all ears together here due to mixing across them:
+  if updated 
+    if n_ears > 1
+      % do multi-aural cross-coupling:
+      CF.AGC_state = CARFAC_Cross_Couple(CF.AGC_coeffs, CF.AGC_state);
+    end
+    if ~open_loop
+      CF = CARFAC_Close_AGC_Loop(CF);
+    end
   end
 end
 

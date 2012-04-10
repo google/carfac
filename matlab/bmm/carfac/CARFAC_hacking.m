@@ -22,7 +22,7 @@
 clear variables
 
 %%
-use_plan_file = 0;
+use_plan_file = 1;
 if use_plan_file
   
   file_signal = wavread('plan.wav');
@@ -48,7 +48,7 @@ end
 % make a long test signal by repeating at different levels:
 dB = -80;
 test_signal =  10^(dB/20)* file_signal(1:4000) % lead-in [];
-for dB =  -80:20:80
+for dB =  -80:20:60
   test_signal = [test_signal; file_signal * 10^(dB/20)];
 end
 
@@ -59,7 +59,12 @@ CF_struct = CARFAC_Design;  % default design
 
 agc_plot_fig_num = 6;
 
-for n_ears = 1  % 1:2
+for n_ears = 1:2
+  if n_ears == 2
+    % For the 2-channel pass, add a silent second channel:
+    test_signal = [test_signal, zeros(size(test_signal))];
+  end
+  
   CF_struct = CARFAC_Init(CF_struct, n_ears);
 
   [CF_struct, nap_decim, nap, BM] = CARFAC_Run(CF_struct, test_signal, ...
@@ -70,10 +75,8 @@ for n_ears = 1  % 1:2
 %   dB_BM = 10/log(10) * log(filter(1, [1, -0.995], BM(:, 38:40, :).^2));
   dB_BM = 10/log(10) * log(filter(1, [1, -0.995], BM(:, 20:50, :).^2));
 
-  if n_ears == 1  % because this hack doesn't work for binarual yet
-    MultiScaleSmooth(dB_BM(5000:200:end, :, :), 1);
-%     MultiScaleSmooth(nap_decim, 4);
-  end
+  % only ear 1:
+  MultiScaleSmooth(dB_BM(5000:200:end, :, 1), 1);
 
   % Display results for 1 or 2 ears:
   for ear = 1:n_ears
@@ -93,8 +96,6 @@ for n_ears = 1  % 1:2
   CF_struct.AGC_state
   min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
 
-  % For the 2-channel pass, add a silent second channel:
-  test_signal = [test_signal, zeros(size(test_signal))];
 end
 
 % Expected result:  Figure 3 looks like figure 2, a tiny bit darker.
