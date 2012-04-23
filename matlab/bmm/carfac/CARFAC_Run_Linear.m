@@ -25,8 +25,11 @@ function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, extra_damping)
 % however, unlike CARFAC_Run, it forces it to be linear, and gives a
 % linear (not detected) output.
 
-saved_v_damp_max = CF.CAR_coeffs.v_damp_max;
-CF.CAR_coeffs.v_damp_max = 0.00;  % make it linear for now
+% only saving one of these, really:
+saved_v_damp_max = CF.ears(1).CAR_coeffs.v_damp_max;
+for ear = 1:CF.n_ears
+  CF.ears(ear).CAR_coeffs.v_damp_max = 0.00;  % make it linear for now
+end
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
@@ -41,11 +44,11 @@ end
 
 for ear = 1:CF.n_ears
   % Set the state of damping, and prevent interpolation from there:
-  CF.CAR_state(ear).zB_memory(:) = extra_damping;  % interpolator state
-  CF.CAR_state(ear).dzB_memory(:) = 0;  % interpolator slope
-  CF.CAR_state(ear).g_memory = CARFAC_Stage_g( ...
-    CF.CAR_coeffs(ear), extra_damping);
-  CF.CAR_state(ear).dg_memory(:) = 0;  % interpolator slope
+  CF.ears(ear).CAR_state.zB_memory(:) = extra_damping;  % interpolator state
+  CF.ears(ear).CAR_state.dzB_memory(:) = 0;  % interpolator slope
+  CF.ears(ear).CAR_state.g_memory = CARFAC_Stage_g( ...
+    CF.ears(ear).CAR_coeffs(ear), extra_damping);
+  CF.ears(ear).CAR_state.dg_memory(:) = 0;  % interpolator slope
 end
 
 naps = zeros(n_samp, n_ch, n_ears);
@@ -53,12 +56,14 @@ naps = zeros(n_samp, n_ch, n_ears);
 for k = 1:n_samp
   % at each time step, possibly handle multiple channels
   for ear = 1:n_ears
-    [filters_out, CF.CAR_state(ear)] = CARFAC_CAR_Step( ...
-      input_waves(k, ear), CF.CAR_coeffs, CF.CAR_state(ear));
+    [filters_out, CF.ears(ear).CAR_state] = CARFAC_CAR_Step( ...
+      input_waves(k, ear), CF.ears(ear).CAR_coeffs, CF.ears(ear).CAR_state);
     naps(k, :, ear) = filters_out;  % linear
   end
   % skip IHC and AGC updates
 end
 
-CF.CAR_coeffs.v_damp_max = saved_v_damp_max;
+for ear = 1:CF.n_ears
+  CF.ears(ear).CAR_coeffs.v_damp_max = saved_v_damp_max;
+end
 

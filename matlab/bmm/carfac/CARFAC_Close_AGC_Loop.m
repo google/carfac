@@ -24,12 +24,12 @@ function CF = CARFAC_Close_AGC_Loop(CF)
 decim1 = CF.AGC_params.decimation(1);
 
 for ear = 1:CF.n_ears
-  extra_damping = CF.AGC_state(ear).AGC_memory(:, 1);  % stage 1 result
+  extra_damping = CF.ears(ear).AGC_state.AGC_memory(:, 1);  % stage 1 result
   % Update the target stage gain for the new damping:
-  new_g = CARFAC_Stage_g(CF.CAR_coeffs, extra_damping);
+  new_g = CARFAC_Stage_g(CF.ears(ear).CAR_coeffs, extra_damping);
   % set the deltas needed to get to the new damping:
-  CF.CAR_state(ear).dzB_memory = ...
-    (extra_damping - CF.CAR_state(ear).zB_memory) / decim1;
-  CF.CAR_state(ear).dg_memory = ...
-    (new_g - CF.CAR_state(ear).g_memory) / decim1;
+  CF.ears(ear).CAR_state.dzB_memory = ...
+    (extra_damping - CF.ears(ear).CAR_state.zB_memory) / decim1;
+  CF.ears(ear).CAR_state.dg_memory = ...
+    (new_g - CF.ears(ear).CAR_state.g_memory) / decim1;
 end

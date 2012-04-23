@@ -30,7 +30,7 @@ function [complex_transfns_freqs, ...
 %   complex_transfns_freqs has a row of complex gains per to_channel.
 
 % always start with the rational functions, whether we want to return
-% them or not:
+% them or not; this defaults to ear 1 only:
 [stage_numerators, stage_denominators] = CARFAC_Rational_Functions(CF);
 
 if nargin >= 2
@@ -96,13 +96,17 @@ gains = (numerators * zz) ./ (denominators * zz);
 
 
 function [stage_numerators, stage_denominators] = ...
-  CARFAC_Rational_Functions(CF)
+  CARFAC_Rational_Functions(CF, ear)
 % function [stage_z_numerators, stage_z_denominators] = ...
-%   CARFAC_Rational_Functions(CF, chans)
+%   CARFAC_Rational_Functions(CF, ear)
 % Return transfer functions of all stages as rational functions.
 
+if nargin < 2
+  ear = 1;
+end
+
 n_ch = CF.n_ch;
-coeffs = CF.CAR_coeffs;
+coeffs = CF.ears(ear).CAR_coeffs;
 min_zeta = CF.CAR_params.min_zeta;
 
 a0 = coeffs.a0_coeffs;
@@ -111,8 +115,8 @@ zr = coeffs.zr_coeffs;
 
 % get r, adapted if we have state:
 r =  coeffs.r1_coeffs;
-if isfield(CF, 'CAR_state')
-  state = CF.CAR_state;
+if isfield(CF.ears(ear), 'CAR_state')
+  state = CF.ears(ear).CAR_state;
   zB = state.zB_memory; % current extra damping
   r = r - zr .* zB;
 else

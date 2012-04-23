@@ -17,7 +17,7 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF = CARFAC_Design(fs, CF_CAR_params, CF_AGC_params, CF_IHC_params)
+function CF = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, CF_IHC_params)
 % function CF = CARFAC_Design(fs, CF_CAR_params, ...
 %   CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
 %
@@ -41,7 +41,44 @@ function CF = CARFAC_Design(fs, CF_CAR_params, CF_AGC_params, CF_IHC_params)
 % All args are defaultable; for sample/default args see the code; they
 % make 96 channels at default fs = 22050, 114 channels at 44100.
 
+if nargin < 1
+  n_ears = 1;  % if more than 1, make them identical channels;
+  % then modify the design if necessary for different reasons
+end
+
+if nargin < 2
+  fs = 22050;
+end
+
+if nargin < 3
+  CF_CAR_params = struct( ...
+    'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
+    'v_offset', 0.01, ...  % offset gives a quadratic part
+    'v2_corner', 0.2, ...  % corner for essential nonlin
+    'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
+    'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
+    'first_pole_theta', 0.85*pi, ...
+    'zero_ratio', sqrt(2), ... % how far zero is above pole
+    'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
+    'ERB_per_step', 0.5, ... % assume G&M's ERB formula
+    'min_pole_Hz', 30, ...
+    'ERB_break_freq', 165.3, ...  % Greenwood map's break freq.
+    'ERB_Q', 1000/(24.7*4.37));  % Glasberg and Moore's high-cf ratio
+end
+
 if nargin < 4
+  CF_AGC_params = struct( ...
+    'n_stages', 4, ...
+    'time_constants', [1, 4, 16, 64]*0.002, ...
+    'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
+    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
+    'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
+    'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
+    'detect_scale', 0.25, ...  % the desired damping range
+    'AGC_mix_coeff', 0.5);
+end
+
+if nargin < 5
   % HACK: these constant control the defaults
   one_cap = 0;         % bool; 0 for new two-cap hack
   just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
@@ -68,37 +105,7 @@ if nargin < 4
   end
 end
 
-if nargin < 3
-  CF_AGC_params = struct( ...
-    'n_stages', 4, ...
-    'time_constants', [1, 4, 16, 64]*0.002, ...
-    'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
-    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
-    'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
-    'detect_scale', 0.25, ...  % the desired damping range
-    'AGC_mix_coeff', 0.5);
-end
 
-if nargin < 2
-  CF_CAR_params = struct( ...
-    'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
-    'v_offset', 0.01, ...  % offset gives a quadratic part
-    'v2_corner', 0.2, ...  % corner for essential nonlin
-    'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
-    'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
-    'first_pole_theta', 0.85*pi, ...
-    'zero_ratio', sqrt(2), ... % how far zero is above pole
-    'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
-    'ERB_per_step', 0.5, ... % assume G&M's ERB formula
-    'min_pole_Hz', 30, ...
-    'ERB_break_freq', 165.3, ...  % Greenwood map's break freq.
-    'ERB_Q', 1000/(24.7*4.37));  % Glasberg and Moore's high-cf ratio
-end
-
-if nargin < 1
-  fs = 22050;
-end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
 pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
@@ -121,6 +128,18 @@ end
 
 max_channels_per_octave = log(2) / log(pole_freqs(1)/pole_freqs(2));
 
+% convert to include an ear_array, each w coeffs and state...
+CAR_coeffs = CARFAC_DesignFilters(CF_CAR_params, fs, pole_freqs);
+AGC_coeffs = CARFAC_DesignAGC(CF_AGC_params, fs, n_ch);
+IHC_coeffs = CARFAC_DesignIHC(CF_IHC_params, fs, n_ch);
+% copy same designed coeffs into each ear (can do differently in the
+% future:
+for ear = 1:n_ears
+  ears(ear).CAR_coeffs = CAR_coeffs;
+  ears(ear).AGC_coeffs = AGC_coeffs;
+  ears(ear).IHC_coeffs = IHC_coeffs;
+end
+
 CF = struct( ...
   'fs', fs, ...
   'max_channels_per_octave', max_channels_per_octave, ...
@@ -129,10 +148,8 @@ CF = struct( ...
   'IHC_params', CF_IHC_params, ...
   'n_ch', n_ch, ...
   'pole_freqs', pole_freqs, ...
-  'CAR_coeffs', CARFAC_DesignFilters(CF_CAR_params, fs, pole_freqs), ...
-  'AGC_coeffs', CARFAC_DesignAGC(CF_AGC_params, fs, n_ch), ...
-  'IHC_coeffs', CARFAC_DesignIHC(CF_IHC_params, fs, n_ch), ...
-  'n_ears', 0 );
+  'ears', ears, ...
+  'n_ears', n_ears );
 
 
 
@@ -238,7 +255,7 @@ for stage = 1:n_AGC_stages
   delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
   spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
   
-  % get pole positions to better match intended spread and delay of 
+  % get pole positions to better match intended spread and delay of
   % [[geometric distribution]] in each direction (see wikipedia)
   u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
   p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
@@ -333,9 +350,9 @@ end
 function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
-    IHC_coeffs = struct( ...
-      'n_ch', n_ch, ...
-      'just_hwr', 1);
+  IHC_coeffs = struct( ...
+    'n_ch', n_ch, ...
+    'just_hwr', 1);
 else
   if IHC_params.one_cap
     ro = 1 / CARFAC_Detect(2);  % output resistance
@@ -362,7 +379,7 @@ else
       'cap_voltage', IHC_coeffs.rest_cap, ...
       'lpf1_state', 0, ...
       'lpf2_state', 0, ...
-      'ihc_accum', 0);  
+      'ihc_accum', 0);
   else
     ro = 1 / CARFAC_Detect(2);  % output resistance
     c2 = IHC_params.tau2_out / ro;
@@ -410,7 +427,7 @@ end
 % CF.CAR_coeffs
 % CF.AGC_coeffs
 % CF.IHC_coeffs
-% CF = 
+% CF =
 %                          fs: 22050
 %     max_channels_per_octave: 12.2709
 %                  CAR_params: [1x1 struct]
@@ -422,7 +439,7 @@ end
 %                  AGC_coeffs: [1x1 struct]
 %                  IHC_coeffs: [1x1 struct]
 %                      n_ears: 0
-% ans = 
+% ans =
 %                 velocity_scale: 0.2000
 %                       v_offset: 0.0100
 %                      v2_corner: 0.2000
@@ -435,7 +452,7 @@ end
 %                    min_pole_Hz: 30
 %                 ERB_break_freq: 165.3000
 %                          ERB_Q: 9.2645
-% ans = 
+% ans =
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
@@ -444,7 +461,7 @@ end
 %        AGC2_scales: [1.6000 2.2500 3.2000 4.5000]
 %       detect_scale: 0.2500
 %      AGC_mix_coeff: 0.5000
-% ans = 
+% ans =
 %               n_ch: 71
 %     velocity_scale: 0.2000
 %           v_offset: 0.0100
@@ -456,7 +473,7 @@ end
 %           h_coeffs: [71x1 double]
 %          g0_coeffs: [71x1 double]
 %          zr_coeffs: [71x1 double]
-% ans = 
+% ans =
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -470,7 +487,7 @@ end
 %             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
 %                   AGC_gain: 15
 %               detect_scale: 0.0167
-% ans = 
+% ans =
 %            n_ch: 71
 %        just_hwr: 0
 %       lpf_coeff: 0.4327

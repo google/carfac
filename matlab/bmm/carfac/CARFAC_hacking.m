@@ -52,20 +52,21 @@ for dB =  -80:20:60
   test_signal = [test_signal; file_signal * 10^(dB/20)];
 end
 
-%%
-CF_struct = CARFAC_Design;  % default design
 
 %% Run mono, then stereo test:
 
 agc_plot_fig_num = 6;
 
 for n_ears = 1:2
+  
+  CF_struct = CARFAC_Design(n_ears);  % default design
+
   if n_ears == 2
     % For the 2-channel pass, add a silent second channel:
     test_signal = [test_signal, zeros(size(test_signal))];
   end
   
-  CF_struct = CARFAC_Init(CF_struct, n_ears);
+  CF_struct = CARFAC_Init(CF_struct);
 
   [CF_struct, nap_decim, nap, BM] = CARFAC_Run(CF_struct, test_signal, ...
     agc_plot_fig_num);

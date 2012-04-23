@@ -17,41 +17,19 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF_struct = CARFAC_Init(CF_struct, n_ears)
-% function CF_struct = CARFAC_Init(CF_struct, n_ears)
+function CF = CARFAC_Init(CF)
+% function CF = CARFAC_Init(CF)
 %
-% Initialize state for n_ears channels (default 1).
-% This allocates and zeros all the state vector storage in the CF_struct.
+% Initialize state for one or more ears of CF.
+% This allocates and zeros all the state vector storage in the CF struct.
 
-% TODO (dicklyon): Review whether storing state in the same struct as
-% the design is a good thing, or whether we want another
-% level of object.  I like fewer structs and class types.
+n_ears = CF.n_ears;
 
-if nargin < 2
-  n_ears = 1;  % monaural default
-end
-
-% % this is probably what I'd do in the C++ version:
-% if CF_struct.n_ears ~= n_ears;
-%   % free the state and make new number of channels
-%   % make a struct arrray, one element per ear channel, numbered:
-%   for k = 1:n_ears
-%     CF_struct.state(k)  = struct('ear_number', k);
-%   end
-% end
-% But this code doesn't work because I don't understand struct arrays.
-
-% For now I don't ever free anything if n_ears is reduced;
-% so be sure to respect n_ears, not the size of the state struct array.
-
-CF_struct.n_ears = n_ears;
-
-% These inits grow the struct arrays as needed:
 for ear = 1:n_ears
   % for now there's only one coeffs, not one per ear
-  CF_struct.CAR_state(ear) = CAR_Init_State(CF_struct.CAR_coeffs);
-  CF_struct.IHC_state(ear) = IHC_Init_State(CF_struct.IHC_coeffs);
-  CF_struct.AGC_state(ear) = AGC_Init_State(CF_struct.AGC_coeffs);
+  CF.ears(ear).CAR_state = CAR_Init_State(CF.ears(ear).CAR_coeffs);
+  CF.ears(ear).IHC_state = IHC_Init_State(CF.ears(ear).IHC_coeffs);
+  CF.ears(ear).AGC_state = AGC_Init_State(CF.ears(ear).AGC_coeffs);
 end
 
 

@@ -110,18 +110,18 @@ for seg_num = 1:n_segs
   
   if ~isempty(decim_naps)
     for ear = 1:n_ears
-      decim_naps(seg_num, :, ear) = CF.IHC_state(ear).ihc_accum / seglen;
-      CF.IHC_state(ear).ihc_accum = zeros(n_ch,1);
+      decim_naps(seg_num, :, ear) = CF.ears(ear).IHC_state.ihc_accum / seglen;
+      CF.ears(ear).IHC_state.ihc_accum = zeros(n_ch,1);
     end
   end
   
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
     for ear = 1:n_ears
-      maxes(ear) = max(CF.AGC_state(ear).AGC_memory(:));
+      maxes(ear) = max(CF.ears(ear).AGC_state.AGC_memory(:));
       hold on
       for stage = 1:4;
-        plot(2^(stage-1) * CF.AGC_state(ear).AGC_memory(:, stage));
+        plot(2^(stage-1) * CF.ears(ear).AGC_state.AGC_memory(:, stage));
       end
     end
     axis([0, CF.n_ch+1, 0.0, max(maxes) * 1.01 + 0.002]);
