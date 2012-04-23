@@ -333,8 +333,9 @@ end
 function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
-  IHC_coeffs = struct('just_hwr', 1);
-  saturation_output = 10;  % HACK: assume some max out
+    IHC_coeffs = struct( ...
+      'n_ch', n_ch, ...
+      'just_hwr', 1);
 else
   if IHC_params.one_cap
     ro = 1 / CARFAC_Detect(2);  % output resistance
@@ -346,7 +347,6 @@ else
     r0 = 1 / CARFAC_Detect(0);
     current = 1 / (ri + r0);
     cap_voltage = 1 - current * ri;
-      IHC_coeffs.rest_output = IHC_out;
     IHC_coeffs = struct( ...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
@@ -362,7 +362,8 @@ else
       'cap_voltage', IHC_coeffs.rest_cap, ...
       'lpf1_state', 0, ...
       'lpf2_state', 0, ...
-      'ihc_accum', 0);  else
+      'ihc_accum', 0);  
+  else
     ro = 1 / CARFAC_Detect(2);  % output resistance
     c2 = IHC_params.tau2_out / ro;
     r2 = IHC_params.tau2_in / c2;

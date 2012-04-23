@@ -26,5 +26,5 @@ a0 = CAR_coeffs.a0_coeffs;
 c0 = CAR_coeffs.c0_coeffs;
 h  = CAR_coeffs.h_coeffs;
 zr = CAR_coeffs.zr_coeffs;
-r  = r1 - zr.*extra_damping;  % HACK??? or use sin(ff*theta) instead of c?
+r  = r1 - zr.*extra_damping;
 g  = (1 - 2*r.*a0 + r.^2) ./ (1 - 2*r.*a0 + h.*r.*c0 + r.^2);

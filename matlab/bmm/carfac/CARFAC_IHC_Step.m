@@ -26,7 +26,7 @@ function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
 just_hwr = coeffs.just_hwr;
 
 if just_hwr
-  ihc_out = max(0, filters_out);
+  ihc_out = min(2, max(0, filters_out));  % limit it for stability
   state.ihc_accum = state.ihc_accum + ihc_out;
 else
   conductance = CARFAC_Detect(filters_out);  % detect with HWR or so
@@ -48,13 +48,11 @@ else
 
   % smooth it twice with LPF:
 
+  ihc_out = ihc_out * coeffs.output_gain;
   state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
     (ihc_out - state.lpf1_state);
-
   state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
     (state.lpf1_state - state.lpf2_state);
-
-  ihc_out = state.lpf2_state * coeffs.output_gain - coeffs.rest_output;
-  
+  ihc_out = state.lpf2_state - coeffs.rest_output;
   state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful
 end
