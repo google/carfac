@@ -53,7 +53,7 @@ end
 if nargin < 3
   CF_CAR_params = struct( ...
     'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
-    'v_offset', 0.01, ...  % offset gives a quadratic part
+    'v_offset', 0.04, ...  % offset gives a quadratic part
     'v2_corner', 0.2, ...  % corner for essential nonlin
     'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
     'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
@@ -71,7 +71,7 @@ if nargin < 4
     'n_stages', 4, ...
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
-    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
+    'decimation', [4, 2, 2, 2], ...  % how often to update the AGC states
     'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
     'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
     'detect_scale', 0.25, ...  % the desired damping range

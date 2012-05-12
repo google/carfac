@@ -17,9 +17,9 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [CF, decim_naps, naps, BM] = CARFAC_Run ...
+function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
   (CF, input_waves, AGC_plot_fig_num)
-% function [CF, decim_naps, naps] = CARFAC_Run ...
+% function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 %   (CF, input_waves, AGC_plot_fig_num)
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input to make one or more neural activity patterns (naps).
@@ -38,10 +38,7 @@ function [CF, decim_naps, naps, BM] = CARFAC_Run ...
 % the input_waves are assumed to be sampled at the same rate as the
 % CARFAC is designed for; a resampling may be needed before calling this.
 %
-% The function works as an outer iteration on time, updating all the
-% filters and AGC states concurrently, so that the different channels can
-% interact easily.  The inner loops are over filterbank channels, and
-% this level should be kept efficient.
+% ohc and agc are optional extra outputs for diagnosing internals.
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
@@ -54,6 +51,18 @@ if nargout > 3
   BM = zeros(n_samp, n_ch, n_ears);
 else
   BM = [];
+end
+
+if nargout > 4
+  ohc = zeros(n_samp, n_ch, n_ears);
+else
+  ohc = [];
+end
+
+if nargout > 5
+  agc = zeros(n_samp, n_ch, n_ears);
+else
+  agc = [];
 end
 
 if n_ears ~= CF.n_ears
@@ -89,7 +98,8 @@ for seg_num = 1:n_segs
   end
   % Process a segment to get a slice of decim_naps, and plot AGC state:
   if ~isempty(BM)
-    [seg_naps, CF, seg_BM] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
+    % ask for everything in this case, for laziness:
+    [seg_naps, CF, seg_BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
   else
     [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
   end
@@ -105,6 +115,20 @@ for seg_num = 1:n_segs
     for ear = 1:n_ears
       % Accumulate segment naps to make full naps
       naps(k_range, :, ear) = seg_naps(:, :, ear);
+    end
+  end
+  
+  if ~isempty(ohc)
+    for ear = 1:n_ears
+      % Accumulate segment naps to make full naps
+      ohc(k_range, :, ear) = seg_ohc(:, :, ear);
+    end
+  end
+  
+  if ~isempty(agc)
+    for ear = 1:n_ears
+      % Accumulate segment naps to make full naps
+      agc(k_range, :, ear) = seg_agc(:, :, ear);
     end
   end
   

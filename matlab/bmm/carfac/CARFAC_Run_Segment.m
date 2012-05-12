@@ -17,8 +17,10 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [naps, CF, BM] = CARFAC_Run_Segment(CF, input_waves, open_loop)
-% function [naps, CF, BM] = CARFAC_Run_Segment(CF, input_waves, open_loop)
+function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
+  CF, input_waves, open_loop)
+% function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
+%   CF, input_waves, open_loop)
 % 
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input segment to make one or more neural activity patterns (naps);
@@ -41,9 +43,8 @@ function [naps, CF, BM] = CARFAC_Run_Segment(CF, input_waves, open_loop)
 % interact easily.  The inner loops are over filterbank channels, and
 % this level should be kept efficient.
 %
-% See other functions for designing and characterizing the CARFAC:
-% CF = CARFAC_Design(fs, CF_CAR_params, CF_AGC_params, n_ears)
-% transfns = CARFAC_Transfer_Functions(CF, to_chans, from_chans)
+% seg_ohc seg_agc are optional extra outputs useful for seeing what the
+% ohc nonlinearity and agc are doing; both in terms of extra damping.
 
 if nargin < 3
   open_loop = 0;
@@ -65,12 +66,18 @@ n_ch = CF.n_ch;
 naps = zeros(n_samp, n_ch, n_ears);  % allocate space for result
 if do_BM
   BM = zeros(n_samp, n_ch, n_ears);
+  seg_ohc = zeros(n_samp, n_ch, n_ears);
+  seg_agc = zeros(n_samp, n_ch, n_ears);
 end
 
 detects = zeros(n_ch, n_ears);
 for k = 1:n_samp
   % at each time step, possibly handle multiple channels
   for ear = 1:n_ears
+    
+    % This would be cleaner if we could just get and use a reference to
+    % CF.ears(ear), but Matlab doesn't work that way...
+    
     [car_out, CF.ears(ear).CAR_state] = CARFAC_CAR_Step( ...
       input_waves(k, ear), CF.ears(ear).CAR_coeffs, CF.ears(ear).CAR_state);
     
@@ -86,6 +93,9 @@ for k = 1:n_samp
     naps(k, :, ear) = ihc_out;  % output to neural activity pattern
     if do_BM
       BM(k, :, ear) = car_out;
+      state = CF.ears(ear).CAR_state;
+      seg_ohc(k, :, ear) = state.zA_memory;
+      seg_agc(k, :, ear) = state.zB_memory;;
     end
   end
   

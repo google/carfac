@@ -7,7 +7,7 @@ compression) is a cochlear model implemented as an efficient sound
 processor, for mono, stereo, or multi-channel sound inputs.  This file
 describes aspects of the software design.
 
-The implementation will include equivalent Maltab, C++, Python, and
+The implementation will include equivalent Matlab, C++, Python, and
 perhaps other versions.  They should all be based on the same set of
 classes (or structs) and functions, with roughly equivalent
 functionality and names where possible.  The examples here are Matlab,
@@ -20,7 +20,10 @@ sound signals to produce "neural activity patterns" (NAPs).  It
 includes various sub-objects representing the parameters, designs, and
 states of different parts of the CAR-FAC model.
 
-The three main subsystems of the CARFAC are the cascade of asymmetric
+The CARFAC class includes a vector of "ear" objects -- one for mono,
+two for stereo, or more.  
+
+The three main subsystems of the EAR are the cascade of asymmetric
 resonators (CAR), the inner hair cell (IHC), and the automatic gain
 control (AGC).  These are not intended to work independently, so may
 not have corresponding classes to combine all their aspects (in the
@@ -34,8 +37,6 @@ members:
 
 These names can be used both for the classes, and slightly modified
 for the member variables, arguments, temps, etc.
-
- -- (presently we have "filters" where I say "CAR"; I'll change it) --
 
 The params are inputs that specify the system; the coeffs are things
 like filter coefficients, things computed once and used at run time;

@@ -29,9 +29,6 @@ zA = state.zA_memory;
 zB = state.zB_memory + state.dzB_memory; % AGC interpolation
 r1 = CAR_coeffs.r1_coeffs;
 g = state.g_memory + state.dg_memory;  % interp g
-v_offset  = CAR_coeffs.v_offset;
-v2_corner = CAR_coeffs.v2_corner;
-v_damp_max = CAR_coeffs.v_damp_max;
 
 % zB and zA are "extra damping", and multiply zr (compressed theta):
 r = r1 - CAR_coeffs.zr_coeffs .* (zA + zB); 
@@ -43,11 +40,8 @@ z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
 z2 = r .* (CAR_coeffs.c0_coeffs .* state.z1_memory + ...
   CAR_coeffs.a0_coeffs .* state.z2_memory);
 
-% update the "velocity" for cubic nonlinearity, into zA:
-zA = (((state.z2_memory - z2) .* CAR_coeffs.velocity_scale) + ...
-  v_offset) .^ 2;
-% soft saturation to make it more like an "essential" nonlinearity:
-zA = v_damp_max * zA ./ (v2_corner + zA);
+% update the nonlinear function of "velocity", into zA:
+zA = CARFAC_OHC_NLF(state.z2_memory - z2, CAR_coeffs);
 
 zY = CAR_coeffs.h_coeffs .* z2;  % partial output
 
