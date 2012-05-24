@@ -17,21 +17,27 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [zY, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
+function [car_out, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
 % function [zY, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
 %
 % One sample-time update step for the filter part of the CARFAC.
 
 % Most of the update is parallel; finally we ripple inputs at the end.
 
-% Local nonlinearity zA and AGC feedback zB reduce pole radius:
-zA = state.zA_memory;
-zB = state.zB_memory + state.dzB_memory; % AGC interpolation
-r1 = CAR_coeffs.r1_coeffs;
-g = state.g_memory + state.dg_memory;  % interp g
 
-% zB and zA are "extra damping", and multiply zr (compressed theta):
-r = r1 - CAR_coeffs.zr_coeffs .* (zA + zB); 
+% do the DOHC stuff:
+
+g = state.g_memory + state.dg_memory;  % interp g
+zB = state.zB_memory + state.dzB_memory; % AGC interpolation state
+% update the nonlinear function of "velocity", and zA (delay of z2):
+zA = state.zA_memory;
+v = state.z2_memory - zA;
+% nlf = CARFAC_OHC_NLF(v .* widen, CAR_coeffs);  % widen v with feedback
+nlf = CARFAC_OHC_NLF(v, CAR_coeffs);
+% zB * nfl is "undamping" delta r:
+r = CAR_coeffs.r1_coeffs + zB .* nlf; 
+zA = state.z2_memory;
+
 
 % now reduce state by r and rotate with the fixed cos/sin coeffs:
 z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
@@ -39,9 +45,6 @@ z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
 % z1 = z1 + inputs;
 z2 = r .* (CAR_coeffs.c0_coeffs .* state.z1_memory + ...
   CAR_coeffs.a0_coeffs .* state.z2_memory);
-
-% update the nonlinear function of "velocity", into zA:
-zA = CARFAC_OHC_NLF(state.z2_memory - z2, CAR_coeffs);
 
 zY = CAR_coeffs.h_coeffs .* z2;  % partial output
 
@@ -57,11 +60,14 @@ for ch = 1:length(zY)
 end
 
 % put new state back in place of old
-% (z1 and z2 are genuine temps; the others can update by reference in C)
+% (z1 is a genuine temp; the others can update by reference in C)
 state.z1_memory = z1;
 state.z2_memory = z2;
 state.zA_memory = zA;
 state.zB_memory = zB;
 state.zY_memory = zY;
 state.g_memory = g;
+
+car_out = zY;
+
 

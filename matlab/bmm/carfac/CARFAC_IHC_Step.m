@@ -23,14 +23,15 @@ function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.
 
-just_hwr = coeffs.just_hwr;
+% AC couple the filters_out, with 20 Hz corner
+ac_diff = filters_out - state.ac_coupler;
+state.ac_coupler = state.ac_coupler + coeffs.ac_coeff * ac_diff;
 
-if just_hwr
-  ihc_out = min(2, max(0, filters_out));  % limit it for stability
-  state.ihc_accum = state.ihc_accum + ihc_out;
+if coeffs.just_hwr
+  ihc_out = min(2, max(0, ac_diff));  % limit it for stability
 else
-  conductance = CARFAC_Detect(filters_out);  % detect with HWR or so
-  
+  conductance = CARFAC_Detect(ac_diff);  % rectifying nonlinearity
+
   if coeffs.one_cap;
     ihc_out = conductance .* state.cap_voltage;
     state.cap_voltage = state.cap_voltage - ihc_out .* coeffs.out_rate + ...
@@ -54,5 +55,7 @@ else
   state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
     (state.lpf1_state - state.lpf2_state);
   ihc_out = state.lpf2_state - coeffs.rest_output;
-  state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful
 end
+
+state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful
+

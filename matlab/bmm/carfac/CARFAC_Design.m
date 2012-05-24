@@ -52,11 +52,11 @@ end
 
 if nargin < 3
   CF_CAR_params = struct( ...
-    'velocity_scale', 0.2, ...  % for the "cubic" velocity nonlinearity
+    'velocity_scale', 0.05, ...  % for the velocity nonlinearity
     'v_offset', 0.04, ...  % offset gives a quadratic part
     'v2_corner', 0.2, ...  % corner for essential nonlin
-    'v_damp_max', 0.01, ... % damping delta damping from velocity nonlin
     'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
+    'max_zeta', 0.35, ... % maximum damping factor in mid-freq channels
     'first_pole_theta', 0.85*pi, ...
     'zero_ratio', sqrt(2), ... % how far zero is above pole
     'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
@@ -71,10 +71,9 @@ if nargin < 4
     'n_stages', 4, ...
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
-    'decimation', [4, 2, 2, 2], ...  % how often to update the AGC states
+    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
     'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
     'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
-    'detect_scale', 0.25, ...  % the desired damping range
     'AGC_mix_coeff', 0.5);
 end
 
@@ -83,7 +82,8 @@ if nargin < 5
   one_cap = 0;         % bool; 0 for new two-cap hack
   just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
   if just_hwr
-    CF_IHC_params = struct('just_hwr', 1);  % just a simple HWR
+    CF_IHC_params = struct('just_hwr', 1, ...  % just a simple HWR
+        'ac_corner_Hz', 20);
   else
     if one_cap
       CF_IHC_params = struct( ...
@@ -91,7 +91,8 @@ if nargin < 5
         'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
         'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
         'tau_out', 0.0005, ...    % depletion tau is pretty fast
-        'tau_in', 0.010 );        % recovery tau is slower
+        'tau_in', 0.010, ...        % recovery tau is slower
+        'ac_corner_Hz', 20);
     else
       CF_IHC_params = struct( ...
         'just_hwr', just_hwr, ...        % not just a simple HWR
@@ -100,7 +101,8 @@ if nargin < 5
         'tau1_out', 0.010, ...    % depletion tau is pretty fast
         'tau1_in', 0.020, ...     % recovery tau is slower
         'tau2_out', 0.0025, ...   % depletion tau is pretty fast
-        'tau2_in', 0.005 );        % recovery tau is slower
+        'tau2_in', 0.005, ...        % recovery tau is slower
+        'ac_corner_Hz', 20);
     end
   end
 end
@@ -164,8 +166,7 @@ CAR_coeffs = struct( ...
   'n_ch', n_ch, ...
   'velocity_scale', CAR_params.velocity_scale, ...
   'v_offset', CAR_params.v_offset, ...
-  'v2_corner', CAR_params.v2_corner, ...
-  'v_damp_max', CAR_params.v_damp_max ...
+  'v2_corner', CAR_params.v2_corner ...
   );
 
 % don't really need these zero arrays, but it's a clue to what fields
@@ -194,18 +195,19 @@ a0 = cos(theta);
 % Compress theta to give somewhat higher Q at highest thetas:
 ff = CAR_params.high_f_damping_compression;  % 0 to 1; typ. 0.5
 x = theta/pi;
+
 zr_coeffs = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
 %                       and when ff is 1 it goes to zero at theta = pi.
-CAR_coeffs.zr_coeffs = zr_coeffs;  % how r relates to zeta
+max_zeta = CAR_params.max_zeta;
+CAR_coeffs.r1_coeffs = (1 - zr_coeffs .* max_zeta);  % "r1" for the max-damping condition
 
 min_zeta = CAR_params.min_zeta;
-% increase the min damping where channels are spaced out more:
-
-min_zeta = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
+% Increase the min damping where channels are spaced out more, by pulling 
+% 25% of the way toward ERB_Hz/pole_freqs (close to 0.1 at high f)
+min_zetas = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
   CAR_params.ERB_break_freq, CAR_params.ERB_Q) ./ pole_freqs - min_zeta);
-r1 = (1 - zr_coeffs .* min_zeta);  % "1" for the min-damping condition
-
-CAR_coeffs.r1_coeffs = r1;
+CAR_coeffs.zr_coeffs = zr_coeffs .* ...
+  (max_zeta - min_zetas);  % how r relates to undamping
 
 % undamped coupled-form coefficients:
 CAR_coeffs.a0_coeffs = a0;
@@ -216,10 +218,10 @@ h = c0 .* f;
 CAR_coeffs.h_coeffs = h;
 
 % for unity gain at min damping, radius r; only used in CARFAC_Init:
-extra_damping = zeros(size(r1));
+relative_undamping = ones(n_ch, 1);  % max undamping to start
 % this function needs to take CAR_coeffs even if we haven't finished
 % constucting it by putting in the g0_coeffs:
-CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, extra_damping);
+CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, relative_undamping);
 
 
 %% the AGC design coeffs:
@@ -310,14 +312,8 @@ end
 
 AGC_coeffs.AGC_gain = total_DC_gain;
 
-% adjust the detect_scale by the total DC gain of the AGC filters:
-AGC_coeffs.detect_scale = AGC_params.detect_scale / total_DC_gain;
-
-% % print some results
-AGC_coeffs
-AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
-AGC_spatial_iterations = AGC_coeffs.AGC_spatial_iterations
-AGC_spatial_n_taps = AGC_coeffs.AGC_spatial_n_taps
+% adjust the detect_scale to be the reciprocal DC gain of the AGC filters:
+AGC_coeffs.detect_scale = 1 / total_DC_gain;
 
 
 %%
@@ -355,7 +351,7 @@ if IHC_params.just_hwr
     'just_hwr', 1);
 else
   if IHC_params.one_cap
-    ro = 1 / CARFAC_Detect(2);  % output resistance
+    ro = 1 / CARFAC_Detect(10);  % output resistance at a very high level
     c = IHC_params.tau_out / ro;
     ri = IHC_params.tau_in / c;
     % to get steady-state average, double ro for 50% duty cycle
@@ -381,7 +377,7 @@ else
       'lpf2_state', 0, ...
       'ihc_accum', 0);
   else
-    ro = 1 / CARFAC_Detect(2);  % output resistance
+    ro = 1 / CARFAC_Detect(10);  % output resistance at a very high level
     c2 = IHC_params.tau2_out / ro;
     r2 = IHC_params.tau2_in / c2;
     c1 = IHC_params.tau1_out / r2;
@@ -415,6 +411,8 @@ else
       'ihc_accum', 0);
   end
 end
+% one more late addition that applies to all cases:
+IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 
 %%
 % default design result, running this function with no args, should look
@@ -422,12 +420,15 @@ end
 %
 %
 % CF = CARFAC_Design
-% CF.CAR_params
-% CF.AGC_params
-% CF.CAR_coeffs
-% CF.AGC_coeffs
-% CF.IHC_coeffs
-% CF =
+% CAR_params = CF.CAR_params
+% AGC_params = CF.AGC_params
+% IHC_params = CF.IHC_params
+% CAR_coeffs = CF.ears(1).CAR_coeffs
+% AGC_coeffs = CF.ears(1).AGC_coeffs
+% AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+% IHC_coeffs = CF.ears(1).IHC_coeffs
+
+% CF = 
 %                          fs: 22050
 %     max_channels_per_octave: 12.2709
 %                  CAR_params: [1x1 struct]
@@ -435,16 +436,14 @@ end
 %                  IHC_params: [1x1 struct]
 %                        n_ch: 71
 %                  pole_freqs: [71x1 double]
-%                  CAR_coeffs: [1x1 struct]
-%                  AGC_coeffs: [1x1 struct]
-%                  IHC_coeffs: [1x1 struct]
-%                      n_ears: 0
-% ans =
-%                 velocity_scale: 0.2000
-%                       v_offset: 0.0100
+%                        ears: [1x1 struct]
+%                      n_ears: 1
+% CAR_params = 
+%                 velocity_scale: 0.0500
+%                       v_offset: 0.0400
 %                      v2_corner: 0.2000
-%                     v_damp_max: 0.0100
 %                       min_zeta: 0.1000
+%                       max_zeta: 0.3500
 %               first_pole_theta: 2.6704
 %                     zero_ratio: 1.4142
 %     high_f_damping_compression: 0.5000
@@ -452,28 +451,35 @@ end
 %                    min_pole_Hz: 30
 %                 ERB_break_freq: 165.3000
 %                          ERB_Q: 9.2645
-% ans =
+% AGC_params = 
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
 %         decimation: [8 2 2 2]
 %        AGC1_scales: [1 1.4000 2 2.8000]
 %        AGC2_scales: [1.6000 2.2500 3.2000 4.5000]
-%       detect_scale: 0.2500
 %      AGC_mix_coeff: 0.5000
-% ans =
+% IHC_params = 
+%         just_hwr: 0
+%          one_cap: 0
+%          tau_lpf: 8.0000e-05
+%         tau1_out: 0.0100
+%          tau1_in: 0.0200
+%         tau2_out: 0.0025
+%          tau2_in: 0.0050
+%     ac_corner_Hz: 20
+% CAR_coeffs = 
 %               n_ch: 71
-%     velocity_scale: 0.2000
-%           v_offset: 0.0100
+%     velocity_scale: 0.0500
+%           v_offset: 0.0400
 %          v2_corner: 0.2000
-%         v_damp_max: 0.0100
 %          r1_coeffs: [71x1 double]
 %          a0_coeffs: [71x1 double]
 %          c0_coeffs: [71x1 double]
 %           h_coeffs: [71x1 double]
 %          g0_coeffs: [71x1 double]
 %          zr_coeffs: [71x1 double]
-% ans =
+% AGC_coeffs = 
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -486,17 +492,25 @@ end
 %         AGC_spatial_n_taps: [3 3 3 3]
 %             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
 %                   AGC_gain: 15
-%               detect_scale: 0.0167
-% ans =
+%               detect_scale: 0.0667
+% AGC_spatial_FIR =
+%     0.2744    0.2829    0.2972    0.2999
+%     0.3423    0.3571    0.3512    0.3616
+%     0.3832    0.3600    0.3516    0.3385
+% IHC_coeffs = 
 %            n_ch: 71
 %        just_hwr: 0
 %       lpf_coeff: 0.4327
 %       out1_rate: 0.0045
 %        in1_rate: 0.0023
-%       out2_rate: 0.0267
+%       out2_rate: 0.0199
 %        in2_rate: 0.0091
 %         one_cap: 0
-%     output_gain: 17.9162
-%     rest_output: 0.5240
-%       rest_cap2: 0.7421
-%       rest_cap1: 0.8281
+%     output_gain: 12.1185
+%     rest_output: 0.3791
+%       rest_cap2: 0.7938
+%       rest_cap1: 0.8625
+%        ac_coeff: 0.0057
+
+
+

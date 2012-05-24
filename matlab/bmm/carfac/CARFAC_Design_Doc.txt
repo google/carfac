@@ -1,6 +1,6 @@
 CARFAC Design Doc
 by "Richard F. Lyon" <dicklyon@google.com>
-
+updated 24 May 2012
 
 The CAR-FAC (cascade of asymmetric resonators with fast-acting
 compression) is a cochlear model implemented as an efficient sound
@@ -25,11 +25,10 @@ two for stereo, or more.
 
 The three main subsystems of the EAR are the cascade of asymmetric
 resonators (CAR), the inner hair cell (IHC), and the automatic gain
-control (AGC).  These are not intended to work independently, so may
-not have corresponding classes to combine all their aspects (in the
-Matlab so far, they don't).  Rather, each part has three classes
-associated with it, and the CARFAC stores instances of all of these as
-members:
+control (AGC).  These are not intended to work independently, but
+each part has three groups of data associated with it.  The CARFAC 
+stores instances of the "params" that drive the design, and the
+"coeffs" and "state" are stored per ear:
 
   CAR_params, CAR_coeffs, CAR_state
   IHC_params, IHC_coeffs, IHC_state
@@ -44,10 +43,9 @@ the state is whatever internal state is needed between running the
 model on samples or segments of sound waveforms, such as the state
 variables of the digital filters.
 
-At construction ("design") time, params are provided, and coeffs are
-created.  The created CARFAC stores the params that it was designed
-from, and the coeffs that will be used at run time; there is no state
-yet:
+At construction ("design") time, params are provided, and ears with coeffs 
+are created.  The created CARFAC stores the params that it was designed
+from; there is no state yet:
 
   CF = CARFAC_Design(CAR_params, IHC_params, AGC_params)
 
@@ -63,19 +61,22 @@ The parameter n_ears is set when state is initialized, but
 not earlier at design time; it is not in params since it doesn't
 affect coefficient design).
 
-Multi-ear designs always share the same coeffs, but need separate state.
-The only  place the ears interact is in the AGC.  The AGC_state is
-one object that holds the state of all the ears, so they can be
-concurrently updated.  For the CAR and IHC, though, the state object
-represents a single ear's state, and the CARFAC stores arrays (vectors) 
-of state objects for the different ears.  The functions that update the
-CAR and IHC states are then simple single-ear functions.
+Multi-ear designs usually have the same coeffs across several ears, but 
+always need separate state.  
+The coeffs are kept separate per ear in case someone wants to
+modify one or both to simulate asymmetric hearing loss or such.
+
+The only  place the ears interact is in the AGC.  The function that
+closes the AGC loop can "mix" their states, making an inter-ear
+coupling.  Other than that, the functions that update the CAR and IHC 
+and AGC states are simple single-ear functions (methods of the ear
+class?).
 
 
 Data size and performance:
 
 The coeffs and states are several kilobytes each, since they store a
-handful (5 to 10) of floating-point values (at 4 or 8 bytes each) for
+handful (10 or so) of floating-point values (at 4 or 8 bytes each) for
 each channel (typically 60 to 100 channels); that 240 to 800 bytes per
 coefficient and per state variable.  That's the entire data memory
 footprint; most of it is accessed at every sample time (hopefully it
@@ -102,15 +103,11 @@ length, not necessarily equal.  It is not inefficient to use a segment
 length of 1 sample if results are needed with very low latency.
 
 Internally, CARFAC_Run updates each part of the state, one sample at a
-time.  First the CAR and IHC are updated ("stepped") for all ears:
+time.  First the CAR, IHC, and AGC are updated ("stepped") for all ears:
 
   [car_out, CAR_state] = CARFAC_CAR_Step(sample,  CAR_coeffs, CAR_state)
   [ihc_out, IHC_state] = CARFAC_IHC_Step(car_out, IHC_coeffs, IHC_state)
-
-Then the AGC is updated, for all ears at once (note the plural
-"ihc_outs", representing the collection of n_ears):
-
-  [AGC_state, updated] = CARFAC_AGC_Step(AGC_coeffs, ihc_outs, AGC_state)
+  [AGC_state, updated] = CARFAC_AGC_Step(ihc_out, AGC_coeffs, AGC_state)
 
 The AGC filter mostly runs at a lower sample rate (by a factor of 8 by 
 default). Usually it just accumulates its input and returns quickly. The 

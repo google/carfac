@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, extra_damping)
-% function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, extra_damping)
+function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, relative_undamping)
+% function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, relative_undamping)
 %
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input to make one or more neural activity patterns (naps);
@@ -26,16 +26,17 @@ function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, extra_damping)
 % linear (not detected) output.
 
 % only saving one of these, really:
-saved_v_damp_max = CF.ears(1).CAR_coeffs.v_damp_max;
+velocity_scale = CF.ears(1).CAR_coeffs.velocity_scale;
 for ear = 1:CF.n_ears
-  CF.ears(ear).CAR_coeffs.v_damp_max = 0.00;  % make it linear for now
+  % make it effectively linear for now
+  CF.ears(ear).CAR_coeffs.velocity_scale = 0;
 end
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
 
 if nargin < 3
-  extra_damping = 0;
+  relative_undamping = 1;  % default to min-damping condition
 end
 
 if n_ears ~= CF.n_ears
@@ -43,11 +44,11 @@ if n_ears ~= CF.n_ears
 end
 
 for ear = 1:CF.n_ears
+  coeffs = CF.ears(ear).CAR_coeffs;
   % Set the state of damping, and prevent interpolation from there:
-  CF.ears(ear).CAR_state.zB_memory(:) = extra_damping;  % interpolator state
+  CF.ears(ear).CAR_state.zB_memory(:) = coeffs.zr_coeffs .* relative_undamping;  % interpolator state
   CF.ears(ear).CAR_state.dzB_memory(:) = 0;  % interpolator slope
-  CF.ears(ear).CAR_state.g_memory = CARFAC_Stage_g( ...
-    CF.ears(ear).CAR_coeffs(ear), extra_damping);
+  CF.ears(ear).CAR_state.g_memory = CARFAC_Stage_g(coeffs, relative_undamping);
   CF.ears(ear).CAR_state.dg_memory(:) = 0;  % interpolator slope
 end
 
@@ -64,6 +65,6 @@ for k = 1:n_samp
 end
 
 for ear = 1:CF.n_ears
-  CF.ears(ear).CAR_coeffs.v_damp_max = saved_v_damp_max;
+  CF.ears(ear).CAR_coeffs.velocity_scale = velocity_scale;
 end
 

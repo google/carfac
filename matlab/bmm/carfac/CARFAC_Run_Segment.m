@@ -87,7 +87,7 @@ for k = 1:n_samp
     
     % run the AGC update step, decimating internally,
     [CF.ears(ear).AGC_state, updated] = CARFAC_AGC_Step( ...
-      CF.ears(ear).AGC_coeffs, ihc_out, CF.ears(ear).AGC_state);
+      ihc_out, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
     
     % save some output data:
     naps(k, :, ear) = ihc_out;  % output to neural activity pattern

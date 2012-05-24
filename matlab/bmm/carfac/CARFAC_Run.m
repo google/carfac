@@ -72,7 +72,7 @@ end
 
 naps = zeros(n_samp, n_ch, n_ears);
 
-seglen = 256;
+seglen = 441;  % anything should work; this is 20 ms at default fs
 n_segs = ceil(n_samp / seglen);
 
 if nargout > 1

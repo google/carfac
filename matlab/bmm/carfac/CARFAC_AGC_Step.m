@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [state, updated] = CARFAC_AGC_Step(coeffs, detects, state)
-% function [state, updated] = CARFAC_AGC_Step(coeffs, detects, state)
+function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
+% function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
 %
 % one time step of the AGC state update; decimates internally
 

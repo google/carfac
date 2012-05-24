@@ -29,8 +29,6 @@ function MultiScaleSmooth(waves, n_scales)
 % Until we decide what we want, we'll just plot things, one plot per scale.
 
 fig_offset1 = 10;
-fig_offset2 = 30;
-fig_offset3 = 50;
 
 if nargin < 2
   n_scales = 20;
@@ -52,9 +50,6 @@ for scale_no = 1:n_scales
 
   figure(scale_no + fig_offset1)
   imagesc(squeeze(smoothed(:,:,1))')
-
-  figure(scale_no + fig_offset2)
-  plot(squeeze(mean(smoothed, 2)));
 
   drawnow
   pause(1)

@@ -50,7 +50,7 @@ if nargin >= 2
   
   % Now multiply gains from input to output places; use logs?
   log_gains = log(gains);
-  cum_log_gains = cumsum(log_gains);  % accum across cascaded stages  
+  cum_log_gains = cumsum(log_gains);  % accum across cascaded stages
   
   % And figure out which cascade products we want:
   n_ch = CF.n_ch;
@@ -95,6 +95,7 @@ zz = [z_row .* z_row; z_row; ones(size(z_row))];
 gains = (numerators * zz) ./ (denominators * zz);
 
 
+
 function [stage_numerators, stage_denominators] = ...
   CARFAC_Rational_Functions(CF, ear)
 % function [stage_z_numerators, stage_z_denominators] = ...
@@ -107,23 +108,23 @@ end
 
 n_ch = CF.n_ch;
 coeffs = CF.ears(ear).CAR_coeffs;
-min_zeta = CF.CAR_params.min_zeta;
 
 a0 = coeffs.a0_coeffs;
 c0 = coeffs.c0_coeffs;
 zr = coeffs.zr_coeffs;
 
 % get r, adapted if we have state:
-r =  coeffs.r1_coeffs;
+r1 =  coeffs.r1_coeffs;  % max-damping condition
 if isfield(CF.ears(ear), 'CAR_state')
   state = CF.ears(ear).CAR_state;
-  zB = state.zB_memory; % current extra damping
-  r = r - zr .* zB;
+  zB = state.zB_memory; % current delta-r from undamping
+  r = r1 + zB;
 else
-  zB = 0;
+  zB = 0;  % HIGH-level linear condition by default
 end
 
-g = CARFAC_Stage_g(coeffs, zB);
+relative_undamping = zB ./ zr;
+g = CARFAC_Stage_g(coeffs, relative_undamping);
 a = a0 .* r;
 c = c0 .* r;
 r2 = r .* r;
