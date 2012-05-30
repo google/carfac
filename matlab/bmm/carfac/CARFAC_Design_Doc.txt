@@ -1,6 +1,6 @@
 CARFAC Design Doc
 by "Richard F. Lyon" <dicklyon@google.com>
-updated 24 May 2012
+updated 24 May 2012 (v.237)
 
 The CAR-FAC (cascade of asymmetric resonators with fast-acting
 compression) is a cochlear model implemented as an efficient sound

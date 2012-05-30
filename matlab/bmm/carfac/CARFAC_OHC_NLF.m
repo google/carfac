@@ -20,9 +20,9 @@
 function nlf = CARFAC_OHC_NLF(velocities, CAR_coeffs)
 % function nlf = CARFAC_OHC_NLF(velocities, CAR_coeffs)
 % start with a quadratic nonlinear function, and limit it via a
-% rational function; make the result go to zero a high
+% rational function; make the result go to zero at high
 % absolute velocities, so it will do nothing there.
 
-qnlf = ((velocities .* CAR_coeffs.velocity_scale) + ...
-  CAR_coeffs.v_offset) .^ 2;
-nlf = 1 - qnlf ./ (CAR_coeffs.v2_corner + qnlf);
+nlf = 1 ./ (1 + ...
+  (velocities * CAR_coeffs.velocity_scale + CAR_coeffs.v_offset) .^ 2 );
+
