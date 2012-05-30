@@ -437,9 +437,8 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %                        ears: [1x1 struct]
 %                      n_ears: 1
 % CAR_params = 
-%                 velocity_scale: 0.0500
+%                 velocity_scale: 0.1000
 %                       v_offset: 0.0400
-%                      v2_corner: 0.2000
 %                       min_zeta: 0.1000
 %                       max_zeta: 0.3500
 %               first_pole_theta: 2.6704
