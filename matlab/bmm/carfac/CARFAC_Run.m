@@ -1,4 +1,4 @@
-% Copyright 2012, Google, Inc.
+% Copyright 2012 Google Inc. All Rights Reserved.
 % Author Richard F. Lyon
 %
 % This Matlab file is part of an implementation of Lyon's cochlear model:
