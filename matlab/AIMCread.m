@@ -1,14 +1,21 @@
-function [data, nFrames, period, nChannels, nSamples, sample_rate] = AIMCread(filename)
+function [data, nFrames, period, nChannels, nSamples, sample_rate] = ...
+    AIMCread(filename, strobes_filename)
 %[data, nFrames, period, nChannels, nSamples ] = AIMCread( filename)
 %
 % data ... matrix (or array) of size [nFrames,nChannels,nSamples]
 %          in case vertical/horizontal profiles are read, you should use squeeze
 % nFrames ... number of frames
 % period ... Frame interval in ms
-% nChannels ... points on vertical axis of an auditori image
-% nSamples ... points on horizontal axis of an auditori image
+% nChannels ... points on vertical axis of an auditory image
+% nSamples ... points on horizontal axis of an auditory image
 
 fid = fopen(filename);
+
+strobes_fid = -1;
+if nargin > 1
+  strobes_fid = fopen(strobes_filename);
+  strobes_raw = fread(strobes_fid, [], 'int32');
+end
 
 debug = 0;
 
