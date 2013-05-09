@@ -71,14 +71,14 @@ if nargin < 4
     'time_constants', [1, 4, 16, 64]*0.002, ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
     'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', [1.0, 1.4,  2.0, 2.8], ...   % in units of channels
-    'AGC2_scales', [1.6, 2.25, 3.2, 4.5], ... % spread more toward base
+    'AGC1_scales', [1.0, 1.4, 2.0, 2.8]*1.0, ...   % in units of channels
+    'AGC2_scales', [1.0, 1.4, 2.0, 2.8]*1.65, ... % spread more toward base
     'AGC_mix_coeff', 0.5);
 end
 
 if nargin < 5
   % HACK: these constant control the defaults
-  one_cap = 0;         % bool; 0 for new two-cap hack
+  one_cap = 1;         % bool; 1 for Allen model, as text states we use
   just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
   if just_hwr
     CF_IHC_params = struct('just_hwr', 1, ...  % just a simple HWR
@@ -416,7 +416,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 % default design result, running this function with no args, should look
 % like this, before CARFAC_Init puts state storage into it:
 %
-%
+
 % CF = CARFAC_Design
 % CAR_params = CF.CAR_params
 % AGC_params = CF.AGC_params
@@ -454,22 +454,19 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %     AGC_stage_gain: 2
 %         decimation: [8 2 2 2]
 %        AGC1_scales: [1 1.4000 2 2.8000]
-%        AGC2_scales: [1.6000 2.2500 3.2000 4.5000]
+%        AGC2_scales: [1.6500 2.3100 3.3000 4.6200]
 %      AGC_mix_coeff: 0.5000
 % IHC_params = 
 %         just_hwr: 0
-%          one_cap: 0
+%          one_cap: 1
 %          tau_lpf: 8.0000e-05
-%         tau1_out: 0.0100
-%          tau1_in: 0.0200
-%         tau2_out: 0.0025
-%          tau2_in: 0.0050
+%          tau_out: 5.0000e-04
+%           tau_in: 0.0100
 %     ac_corner_Hz: 20
 % CAR_coeffs = 
 %               n_ch: 71
-%     velocity_scale: 0.0500
+%     velocity_scale: 0.1000
 %           v_offset: 0.0400
-%          v2_corner: 0.2000
 %          r1_coeffs: [71x1 double]
 %          a0_coeffs: [71x1 double]
 %          c0_coeffs: [71x1 double]
@@ -482,8 +479,8 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %             AGC_stage_gain: 2
 %                AGC_epsilon: [0.1659 0.0867 0.0443 0.0224]
 %                 decimation: [8 2 2 2]
-%                 AGC_polez1: [0.1699 0.1780 0.1872 0.1903]
-%                 AGC_polez2: [0.2388 0.2271 0.2216 0.2148]
+%                 AGC_polez1: [0.1737 0.1818 0.1921 0.1948]
+%                 AGC_polez2: [0.2472 0.2336 0.2288 0.2207]
 %     AGC_spatial_iterations: [1 1 1 1]
 %            AGC_spatial_FIR: [3x4 double]
 %         AGC_spatial_n_taps: [3 3 3 3]
@@ -491,23 +488,17 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %                   AGC_gain: 15
 %               detect_scale: 0.0667
 % AGC_spatial_FIR =
-%     0.2744    0.2829    0.2972    0.2999
-%     0.3423    0.3571    0.3512    0.3616
-%     0.3832    0.3600    0.3516    0.3385
+%     0.2856    0.2930    0.3099    0.3111
+%     0.3108    0.3314    0.3212    0.3365
+%     0.4036    0.3756    0.3689    0.3524
 % IHC_coeffs = 
 %            n_ch: 71
 %        just_hwr: 0
 %       lpf_coeff: 0.4327
-%       out1_rate: 0.0045
-%        in1_rate: 0.0023
-%       out2_rate: 0.0199
-%        in2_rate: 0.0091
-%         one_cap: 0
-%     output_gain: 12.1185
-%     rest_output: 0.3791
-%       rest_cap2: 0.7938
-%       rest_cap1: 0.8625
+%        out_rate: 0.0996
+%         in_rate: 0.0045
+%         one_cap: 1
+%     output_gain: 49.3584
+%     rest_output: 1.0426
+%        rest_cap: 0.5360
 %        ac_coeff: 0.0057
-
-
-

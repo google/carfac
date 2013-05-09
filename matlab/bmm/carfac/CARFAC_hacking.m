@@ -23,16 +23,17 @@ clear variables
 
 %%
 
-use_plan_file = 1;
-dB_list = -60:20:40
+use_wav_file = 1;
+dB_list = -40;  % -60:20:40
 
-if use_plan_file
+if use_wav_file
+  wav_fn = 'plan.wav';
   
-  file_signal = wavread('plan.wav');
-  %   file_signal = file_signal(8100+(1:20000));  % trim for a faster test
-  file_signal = file_signal(10000+(1:10000));  % trim for a faster test
-  
+  wav_fn
+  file_signal = wavread(wav_fn);
+  file_signal = file_signal(:, 1);  % Mono test only.
 else
+  % A tone complex.
   flist = 1400 + (1:4)*200;
   alist = [1, 1, 1, 1];
   sine_signal = 0;
@@ -52,7 +53,6 @@ for dB =  dB_list
   test_signal = [test_signal; file_signal * 10^(dB/20)];
 end
 
-
 %% Run mono, then stereo test:
 
 agc_plot_fig_num = 6;
@@ -68,26 +68,26 @@ for n_ears = 1:2
   
   CF_struct = CARFAC_Init(CF_struct);
   
-  [CF_struct, nap_decim, nap, BM, ohc, agc] = CARFAC_Run(CF_struct, test_signal, ...
+  [CF_struct, nap_decim, nap] = CARFAC_Run(CF_struct, test_signal, ...
     agc_plot_fig_num);
-  
-  %   nap = deskew(nap);  % deskew doesn't make much difference
-  
-  %   dB_BM = 10/log(10) * log(filter(1, [1, -0.995], BM(:, 20:50, :).^2));
-  sm_BM = filter(1, [1, -0.995], BM(:, :, :).^2);
+    
+  smoothed = filter(1, [1, -0.995], nap(:, :, :));
   
   % only ear 1:
-  smoothed = sm_BM(100:100:end, :, 1);
-  MultiScaleSmooth(10/log(10) * log(smoothed), 1);
+  smoothed = max(0, smoothed(50:50:end, :, 1));
+  MultiScaleSmooth(smoothed.^0.5, 1);
   
- 
+  figure(1)
+  starti = 0;  % Adjust if you want to plot a later part.
+  imagesc(nap(starti+(1:15000), :)');
+  
   % Display results for 1 or 2 ears:
   for ear = 1:n_ears
     smooth_nap = nap_decim(:, :, ear);
     if n_ears == 1
       mono_max = max(smooth_nap(:));
     end
-    figure(3 + ear + n_ears)  % Makes figures 5, ...
+    figure(3 + ear + n_ears)  % Makes figures 5, 6, 7.
     image(63 * ((max(0, smooth_nap)/mono_max)' .^ 0.5))
     title('smooth nap from nap decim')
     colormap(1 - gray);
