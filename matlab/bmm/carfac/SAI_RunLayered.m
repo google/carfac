@@ -41,7 +41,7 @@ width_per_layer = 40;
 % Make the composite SAI image array.
 composite_frame = zeros(n_ch, total_width);
 
-seglen = round(fs * 0.020);  % Pick about 20 ms segments
+seglen = round(fs / 30);  % Pick about 60 fps
 frame_rate = fs / seglen;
 n_segs = ceil(n_samp / seglen);
 
@@ -49,8 +49,14 @@ n_segs = ceil(n_samp / seglen);
 for layer = 1:n_layers
   layer_array(layer).nap_buffer = zeros(layer_array(layer).buffer_width, n_ch);
   layer_array(layer).nap_fraction = 0;  % leftover fraction to shift in.
+  % The SAI frame is transposed to be image-like.
+  layer_array(layer).frame = zeros(n_ch, layer_array(layer).frame_width);
 end
 
+n_marginal_rows = 34;
+marginals = [];
+
+average_frame = 0;
 for seg_num = 1:n_segs
   % k_range is the range of input sample indices for this segment
   if seg_num == n_segs
@@ -75,69 +81,36 @@ for seg_num = 1:n_segs
   for layer = n_layers:-1:1  % blend from coarse to fine
     update_interval = layer_array(layer).update_interval;
     if 0 == mod(seg_num, update_interval)
-      nap_buffer = real(layer_array(layer).nap_buffer);
-      n_buffer_times = size(nap_buffer, 1);
-      width = layer_array(layer).frame_width;  % To render linear SAI to.
-      new_frame = zeros(n_ch, width);
-      
-      % Make the window to use for all the channels at this layer.
-      layer_factor = 1.5;
-      window_size = layer_array(layer).window_width;
-      after_samples = layer_array(layer).future_lags;
-
-      window_range = (1:window_size) + ...
-        (n_buffer_times - window_size) - after_samples;
-      window = sin((1:window_size)' * pi / window_size);
-      % This should not go negative!
-      offset_range = (1:width) + ...
-        (n_buffer_times - width - window_size);
-      % CHECK
-      if any(offset_range < 0)
-        error;
-      end
-      
-      % smooth across channels; more in later layers
-      smoothed_buffer =  smooth1d(nap_buffer', 0.25*(layer - 2))';
-      
-      % For each buffer column (channel), pick a trigger and align into SAI_frame
-      for ch = 1:n_ch
-        smooth_wave = smoothed_buffer(:, ch);  % for the trigger
-        
-        [peak_val, trigger_time] = max(smooth_wave(window_range) .* window);
-        nap_wave = nap_buffer(:, ch);  % for the waveform
-        if peak_val <= 0  % just use window center instead
-          [peak_val, trigger_time] = max(window);
-        end
-        if layer == n_layers  % mark the trigger points to display as imaginary.
-          layer_array(layer).nap_buffer(trigger_time + window_range(1) - 1, ch) = ...
-            layer_array(layer).nap_buffer(trigger_time + window_range(1) - 1, ch) + 1i;
-        end
-        new_frame(ch, :) = nap_wave(trigger_time + offset_range)';
-      end
-      composite_frame = SAI_BlendFrameIntoComposite(new_frame, ...
+      layer_array(layer) = SAI_StabilizeLayer(layer_array(layer));
+      new_frame = layer_array(layer).frame;
+      composite_frame = SAI_BlendFrameIntoComposite( ...
         layer_array(layer), composite_frame);
     end
   end
-  
-  
+ 
+  if isempty(marginals)
+    composite_width = size(composite_frame, 2);
+    marginals = zeros(n_marginal_rows, composite_width);
+  end
+  for row = n_marginal_rows:-1:11
+    % smooth from row above (lower number)
+    marginals(row, :) = marginals(row, :) + ...
+      2^((10 - row)/2) * (1.06*marginals(row - 1, :) - marginals(row, :));
+  end
   lag_marginal = mean(composite_frame, 1);  % means max out near 1 or 2
-  frame_bottom = zeros(size(composite_frame));  % will end up being 1/3
-  n_bottom_rows = size(frame_bottom, 1);
-  for height = 1:n_bottom_rows
-    big_ones = lag_marginal > 1*height/n_bottom_rows;
-    frame_bottom(n_bottom_rows - height + 1, big_ones) = 2;  % 2 for black
+  for row = 10:-1:1
+    marginals(row, :) = (lag_marginal - smooth1d(lag_marginal, 30)') - ...
+      (10 - row) / 40;
   end
     
   if 0 == mod(seg_num, update_interval) || seg_num == 1
     coc_gram = layer_array(end).nap_buffer';
     [n_ch, n_width] = size(composite_frame);
     coc_gram = [coc_gram, zeros(n_ch, n_width - size(coc_gram, 2))];
-    trigger_gram = 2 * (imag(coc_gram) ~= 0);
-    coc_gram = real(coc_gram);
   end
   
-  display_frame = [coc_gram; trigger_gram; ...
-    composite_frame(floor(1:0.5:end), :); frame_bottom];
+  display_frame = [coc_gram; ...
+    composite_frame(floor(1:0.5:end), :); 20*max(0,marginals)];
   
   cmap = jet;
   cmap = 1 - gray;  % jet

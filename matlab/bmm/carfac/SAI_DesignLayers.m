@@ -49,15 +49,15 @@ end
 if nargin < 2
   width_per_layer = 32;  % resolution "half life" in space
 end
-future_lags = 3 * width_per_layer;
-width_first_layer = future_lags + 2 * width_per_layer;
+future_lags = 4 * width_per_layer;
+width_first_layer = future_lags + 1 * width_per_layer;
 width_extra_last_layer = 2 * width_per_layer;
 left_overlap = 15;
 right_overlap = 15;
 first_window_width = 400;  % or maybe use seglen?  or 0.020 * fs?
-min_window_width = 2*width_per_layer;  % or somewhere on that order
+min_window_width = 1*width_per_layer;  % or somewhere on that order
 window_exponent = 1.4;
-alpha_max = 0.5;
+alpha_max = 1; 
 
 % Start with NAP_samples_per_SAI_sample, declining to 1 from here:
 max_samples_per = 2^(n_layers - 1);
@@ -121,6 +121,9 @@ for layer = n_layers:-1:1
   layer_array(layer).alpha = alpha * alpha_max;
   
   offset = offset + width;  % total width from left through this layer.
+  
+  % Smooth across channels a little before picking triggers:
+  layer_array(layer).channel_smoothing_scale = 0.25*(layer-1);
 end
 total_width = offset;  % Return size of SAI this will make.
 
@@ -165,8 +168,9 @@ for layer = 1:n_layers
   % location in the range of the window to a fixed location.  Assume
   % using two window placements overlapped 50%.
   n_triggers = 2;
+  layer_array(layer).n_window_pos = n_triggers;
   layer_array(layer).buffer_width = layer_array(layer).frame_width + ...
-    ceil((1 + (n_triggers - 1)/2) * layer_array(layer).window_width);
+    floor((1 + (n_triggers - 1)/2) * layer_array(layer).window_width);
 end
 
 return

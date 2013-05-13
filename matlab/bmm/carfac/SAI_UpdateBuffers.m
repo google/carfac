@@ -37,7 +37,7 @@ n_layers = length(layer_array);
 % Array of what to shift in to first or next layer.
 new_chunk = seg_naps;
 
-gain = 1.1;  % gain from layer to layer; could be layer dependent.
+gain = 1.05;  % gain from layer to layer; could be layer dependent.
 
 %% 
 % Decimate using a 2-3-4-filter and partial differencing emphasize onsets:

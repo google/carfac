@@ -17,9 +17,10 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function composite_frame = SAI_BlendFrameIntoComposite(new_frame, ...
+function composite_frame = SAI_BlendFrameIntoComposite( ...
   layer_struct, composite_frame)
 
+new_frame = layer_struct.frame;
 alpha = layer_struct.alpha;
 lag_curve = layer_struct.lag_curve;
 target_columns = layer_struct.target_indices;
