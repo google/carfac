@@ -23,7 +23,7 @@
 // *****************************************************************************
 // main.cc
 // *****************************************************************************
-// This 'main' file is not currently intended as part of the CARFAC distribution,
+// This 'main' file is not currently intended as part of the CARFAC distribution
 // but serves as a testbed for debugging and implementing various aspects of the
 // library. It currently includes the "libsndfile" API for loading soundfiles:
 //
@@ -35,36 +35,54 @@
 // design stage) and sound data (for running the model).
 #include <sndfile.h>
 #include "carfac.h"
+#include <fstream>
+//GoogleTest is now included for running unit tests
+#include <gtest/gtest.h>
 
 // ReadSound takes a character array (filename string) as an argument and
 // returns a two dimensional (samples x channels) FloatArray (Eigen ArrayXX)
 // containing the sound data
-FloatArray2d ReadSound(const char * filename){
-  FloatArray2d mysnd; //output data
+FloatArray2d ReadSound(const char * filename) {
+  // This output variable stores the sound data in an Eigen Array:
+  FloatArray2d mysnd;
+  // These two structures from the libsndfile library are used to store sound
+  // file information and load the data.
   SNDFILE *sf; 
   SF_INFO info;
+  // Several scalars are used to store relevant information needed for
+  // transfering data from the WAV file to an Eigen Array. 
   long num, num_items;
   double *buf;
-  long f,sr,c;
+  long f, sr, c;
+  // This opens the sound file and prints an error message if the file can't
+  // be found.
   sf = sf_open(filename,SFM_READ,&info);
   if (sf == NULL)
   {
     std::cout << "Failed to open the file" << std::endl;
     return mysnd;
   }
+  // Here we store relevant header information in our scalars and use them to
+  // read into our data buffer.
   f = info.frames;
   sr = info.samplerate;
   c = info.channels;
-  num_items = f*c;
+  num_items = f * c;
   buf = new double[num_items];
-  num = sf_read_double(sf,buf,num_items);
-  mysnd.resize(f,c);
+  num = sf_read_double(sf, buf, num_items);
+  // We resize our Eigen array to hold the correct number of samples and
+  // audio channels.
+  mysnd.resize(f, c);
+  // Now we move through the data buffer and store the stereo audio channels
+  // in the two columns of the Eigen Array
+  // TODO alexbrandmeyer: this assumes stereo and will give problems otherwise.
   int j = 0;
-  for(int i = 0; i < num_items; i = i + 2){
-    mysnd(j,0) = buf[i];
-    mysnd(j,1) = buf[i+1];
+  for(int i = 0; i < num_items; i = i + 2) {
+    mysnd(j, 0) = buf[i];
+    mysnd(j, 1) = buf[i + 1];
     j++;
   }
+  // Now it's time to close the audio file and return the Eigen Array as output.
   sf_close(sf);
   return mysnd;
 };
@@ -72,46 +90,46 @@ FloatArray2d ReadSound(const char * filename){
 // ReadSoundInfo takes a character array (filename string) as an argument and
 // returns an SF_INFO structure containing the sample rate and channel info
 // needed during the call to CARFAC::Design
-SF_INFO ReadSoundInfo(const char * filename){
+SF_INFO ReadSoundInfo(const char * filename) {
   SNDFILE *sf;
   SF_INFO info;
   sf = sf_open(filename,SFM_READ,&info);
-  if (sf == NULL)
-  {
+  if (sf == NULL) {
     std::cout << "Failed to open the file" << std::endl;
     return info;
   }
   return info;
 };
 
-
-
-
 // This 'main' function serves as the primary testbed for this C++ CARFAC
 // implementation. It currently uses a hardcoded filename to obtain sound file
 // info and sound data, and designs a CARFAC on the basis of the header data
 // using the default parameters.
-int main()
-{
-  //Here we specify a path to a test file
+int main(int argc, char **argv) {
+  // This initializes the GoogleTest unit testing framework.
+  ::testing::InitGoogleTest(&argc, argv);
+  // Here we specify a path to a test file.
   const char * filename = "/Users/alexbrandmeyer/aimc/carfac/test_signal.wav";
-  
-  //Now we load the header info and sound data
+  // This loads the header info and sound data.
   SF_INFO info = ReadSoundInfo(filename);
   FloatArray2d mysnd = ReadSound(filename);
-  //These initialze the default parameter objects needed for the CARFAC design
+  // These initialze the default parameter objects needed for the CARFAC design.
   CARParams *car_params = new CARParams();
   IHCParams *ihc_params = new IHCParams();
   AGCParams *agc_params = new AGCParams();
-  
-  //This initializes the CARFAC object and runs the design method
+  // This initializes the CARFAC object and runs the design method.
   CARFAC *mycf = new CARFAC();
-  mycf->Design(info.channels,info.samplerate, *car_params, *ihc_params,
+  mycf->Design(info.channels, info.samplerate, *car_params, *ihc_params,
                *agc_params);
-  std::cout << "CARFAC Object Created" << std::endl;
-  
-  //Now we run the model on the test data
-  CARFACOutput output = mycf->Run(mysnd);
+  // This clears the parameters which are no longer needed.
+  delete car_params;
+  delete ihc_params;
+  delete agc_params;
+  // Now we run the model on the test data (using a closed loop for now).
+  CARFACOutput output = mycf->Run(mysnd, false);
+  // Finally we clear the CARFAC object when we're done.
+  delete mycf;
+  //return RUN_ALL_TESTS();;
   return 0;
 }
 

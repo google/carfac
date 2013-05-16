@@ -25,26 +25,22 @@
 
 #include "carfac_common.h"
 
-class CARParams {
-public:
-  FPType velocity_scale_; //for the velocity nonlinearity
-  FPType v_offset_; //offset gives quadratic part
-  FPType min_zeta_; //minimum damping factor in mid-freq channels
-  FPType max_zeta_; //maximum damping factor in mid-freq channels
-  FPType first_pole_theta_;
-  FPType zero_ratio_; //how far zero is above pole
-  FPType high_f_damping_compression_; //0 to 1 to compress theta
-  FPType erb_per_step_; //assume G&M's ERB formula
-  FPType min_pole_hz_;
-  FPType erb_break_freq_; //Greenwood map's break frequency
-  FPType erb_q_; //G&M's high-cf ratio
-  
-  CARParams(); //Constructor initializes default parameter values
-  void OutputParams(); //Output current parameter values using std::cout
-  void SetParams(FPType vs, FPType voff, FPType min_z, FPType max_z, FPType fpt,
+struct CARParams {
+  CARParams();  // The constructor initializes using default parameter values.
+  CARParams(FPType vs, FPType voff, FPType min_z, FPType max_z, FPType fpt,
                  FPType zr, FPType hfdc, FPType erbps, FPType mph, FPType erbbf,
-                 FPType erbq); //Method to set non-default params
+                 FPType erbq);  // This is a method to set non-default params.
+  FPType velocity_scale_; // This is used for the velocity nonlinearity.
+  FPType v_offset_;  // The offset gives us quadratic part.
+  FPType min_zeta_;  // This is the minimum damping factor in mid-freq channels.
+  FPType max_zeta_;  // This is the maximum damping factor in mid-freq channels.
+  FPType first_pole_theta_;
+  FPType zero_ratio_;  // This is how far zero is above the pole.
+  FPType high_f_damping_compression_;  // A range from 0 to 1 to compress theta.
+  FPType erb_per_step_;  // Here we assume G&M's ERB formula.
+  FPType min_pole_hz_;
+  FPType erb_break_freq_;  // This is the Greenwood map's break frequency.
+  FPType erb_q_;  // This represents Glassberg and Moore's high-cf ratio.
 };
-
 
 #endif

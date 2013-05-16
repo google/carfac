@@ -25,9 +25,7 @@
 
 #include "car_coeffs.h"
 
-class CARState {
-public:
-  int n_ch_;
+struct CARState {
   FloatArray z1_memory_;
   FloatArray z2_memory_;
   FloatArray za_memory_;
@@ -36,10 +34,6 @@ public:
   FloatArray zy_memory_;
   FloatArray g_memory_;
   FloatArray dg_memory_;
-  
-  void InitCARState(CARCoeffs car_coeffs);
-  
 };
-
 
 #endif

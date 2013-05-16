@@ -25,18 +25,13 @@
 
 #include "ihc_coeffs.h"
 
-class IHCState {
-public:
-  int n_ch_;
+struct IHCState {
   FloatArray ihc_accum_;
   FloatArray cap1_voltage_;
   FloatArray cap2_voltage_;
   FloatArray lpf1_state_;
   FloatArray lpf2_state_;
   FloatArray ac_coupler_;
-  
-  void InitIHCState(IHCCoeffs ihc_coeffs);
-  
 };
 
 #endif

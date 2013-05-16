@@ -22,39 +22,22 @@
 
 #include "carfac_common.h"
 
-//Auditory filter nominal Equivalent Rectangular Bandwidth
-//Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
+// Auditory filter nominal Equivalent Rectangular Bandwidth
+// Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
 FPType ERBHz (FPType cf_hz, FPType erb_break_freq, FPType erb_q) {
-  
   FPType erb;
   erb = (erb_break_freq + cf_hz) / erb_q;
   return erb;
 }
 
-//An IHC-like sigmoidal detection nonlinearity for the CARFAC.
-//Resulting conductance is in about [0...1.3405]
-FPType CARFACDetect (FPType x) {
-  
-  FPType conductance, z;
-  FPType a = 0.175;
-  //offset of low-end tail into neg x territory
-  //this parameter is adjusted for the book, to make the 20% DC response
-  //threshold at 0.1
-  z  = x + a;
-  conductance = pow(z,3) / (pow(z,3) + pow(z,2) + 0.1);
-  //zero is the final answer for many points:
-  return conductance;
-}
-
 FloatArray CARFACDetect (FloatArray x) {
-  
-  FloatArray conductance, z;
+  FloatArray conductance, z, set;
   FPType a = 0.175;
-  //offset of low-end tail into neg x territory
-  //this parameter is adjusted for the book, to make the 20% DC response
-  //threshold at 0.1
+  // This offsets the low-end tail into negative x territory.
+  // The parameter is adjusted for the book, to make the 20% DC response
+  // threshold at 0.1.
   z  = x + a;
-  conductance = (z * z * z) / ((z * z * z) + (z * z) + 0.1);
-  //zero is the final answer for many points:
+  // Zero is the final answer for many points.
+  conductance = (z < 0).select(0.0, (z * z * z) / (z * z * z + z * z + 0.1));
   return conductance;
 }

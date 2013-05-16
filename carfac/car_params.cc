@@ -22,40 +22,21 @@
 
 #include "car_params.h"
 
-CARParams::CARParams(){
-  velocity_scale_ = 0.1; //for the velocity nonlinearity
-  v_offset_ = 0.04; //offset gives quadratic part
-  min_zeta_ = 0.1; //minimum damping factor in mid-freq channels
-  max_zeta_ = 0.35; //maximum damping factor in mid-freq channels
+CARParams::CARParams() {
+  velocity_scale_ = 0.1;
+  v_offset_ = 0.04;
+  min_zeta_ = 0.1;
+  max_zeta_ = 0.35;
   first_pole_theta_ = 0.85 * PI;
-  zero_ratio_ = 1.4142; //how far zero is above pole
-  high_f_damping_compression_ = 0.5; //0 to 1 to compress theta
-  erb_per_step_ = 0.5; //assume G&M's ERB formula
+  zero_ratio_ = 1.4142;
+  high_f_damping_compression_ = 0.5;
+  erb_per_step_ = 0.5;
   min_pole_hz_ = 30;
-  erb_break_freq_ = 165.3; //Greenwood map's break frequency
+  erb_break_freq_ = 165.3;
   erb_q_ = 1000/(24.7*4.37);
 };
 
-//This method has been created for debugging purposes and depends on <iostream>.
-//Could possibly be removed in the final version to reduce dependencies.
-void CARParams::OutputParams(){
-  std::cout << "CARParams Values" << std::endl;
-  std::cout << "****************" << std::endl;
-  std::cout << "velocity_scale_ = " << velocity_scale_ << std::endl;
-  std::cout << "v_offset_ = " << v_offset_ << std::endl;
-  std::cout << "min_zeta_ = " << min_zeta_ << std::endl;
-  std::cout << "max_zeta_ = " << max_zeta_ << std::endl;
-  std::cout << "first_pole_theta_ = " << first_pole_theta_ << std::endl;
-  std::cout << "zero_ratio_ = " << zero_ratio_ << std::endl;
-  std::cout << "high_f_damping_compression_ = " << high_f_damping_compression_
-            << std::endl;
-  std::cout << "erb_per_step_ = " << erb_per_step_ << std::endl;
-  std::cout << "min_pole_hz_ = " << min_pole_hz_ << std::endl;
-  std::cout << "erb_break_freq_ = " << erb_break_freq_ << std::endl;
-  std::cout << "erb_q_ = " << erb_q_ << std::endl << std::endl;
-}
-
-void CARParams::SetParams(FPType vs, FPType voff, FPType min_z, FPType max_z,
+CARParams::CARParams(FPType vs, FPType voff, FPType min_z, FPType max_z,
                           FPType fpt, FPType zr, FPType hfdc, FPType erbps,
                           FPType mph, FPType erbbf, FPType erbq) {  
   velocity_scale_ = vs;

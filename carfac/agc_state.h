@@ -25,14 +25,12 @@
 
 #include "agc_coeffs.h"
 
-class AGCState {
-public:
+struct AGCState {
   int n_ch_;
   int n_agc_stages_;
-  FloatArray2d agc_memory_;
-  FloatArray2d input_accum_;
-  FloatArray decim_phase_;
-  void InitAGCState(AGCCoeffs agc_coeffs);
+  std::vector<FloatArray> agc_memory_;
+  std::vector<FloatArray> input_accum_;
+  std::vector<int> decim_phase_;
 };
 
 #endif

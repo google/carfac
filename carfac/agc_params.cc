@@ -22,15 +22,16 @@
 
 #include "agc_params.h"
 
-AGCParams::AGCParams(){
+// The default constructor for AGCParams initializes with the settings from
+// Lyon's book 'Human and Machine Hearing'
+AGCParams::AGCParams() {
   n_stages_ = 4;
   agc_stage_gain_ = 2;
   FPType agc1f = 1.0;
   FPType agc2f = 1.65;
   time_constants_.resize(n_stages_);
-  time_constants_ << 1*0.002, 4*0.002, 16*0.002, 64*0.002;
-  decimation_.resize(n_stages_);
-  decimation_ << 8, 2, 2, 2;
+  time_constants_ << 1 * 0.002, 4 * 0.002, 16 * 0.002, 64 * 0.002;
+  decimation_ = {8, 2, 2, 2};
   agc1_scales_.resize(n_stages_);
   agc1_scales_ << 1.0 * agc1f, 1.4 * agc1f, 2.0 * agc1f, 2.8 * agc1f;
   agc2_scales_.resize(n_stages_);
@@ -38,8 +39,10 @@ AGCParams::AGCParams(){
   agc_mix_coeff_ = 0.5;
 }
 
-void AGCParams::SetParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
-                          FloatArray dec, FloatArray agc1sc, FloatArray agc2sc){
+// The overloaded constructor allows for use of different AGC parameters.
+AGCParams::AGCParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
+                     std::vector<int> dec, FloatArray agc1sc,
+                          FloatArray agc2sc) {
   n_stages_ = ns;
   agc_stage_gain_ = agcsg;
   agc_mix_coeff_ = agcmc;
@@ -47,16 +50,4 @@ void AGCParams::SetParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
   decimation_ = dec;
   agc1_scales_ = agc1sc;
   agc2_scales_ = agc2sc;
-}
-
-void AGCParams::OutputParams(){
-  std::cout << "AGCParams Values" << std::endl;
-  std::cout << "****************" << std::endl;
-  std::cout << "n_stages_ = " << n_stages_ << std::endl;
-  std::cout << "agc_stage_gain_ = " << agc_stage_gain_ << std::endl;
-  std::cout << "agc_mix_coeff_ = " << agc_mix_coeff_ << std::endl;
-  std::cout << "time_constants_ = " << time_constants_ << std::endl;
-  std::cout << "decimation_ = " << decimation_ << std::endl;
-  std::cout << "agc1_scales_ = " << agc1_scales_ << std::endl;
-  std::cout << "agc2_scales_ = " << agc2_scales_ << std::endl << std::endl;
 }

@@ -22,15 +22,15 @@
 
 #include "carfac_output.h"
 
-void CARFACOutput::InitOutput(int n_ears, int n_ch, long n_tp){
+void CARFACOutput::InitOutput(int n_ears, int n_ch, long n_tp) {
   n_ears_ = n_ears;
   ears_ = new EarOutput[n_ears_];
-  for (int i = 0; i < n_ears_; i++){
-    ears_[i].InitOutput(n_ch,n_tp);
+  for (int i = 0; i < n_ears_; i++) {
+    ears_[i].InitOutput(n_ch, n_tp);
   }
 }
 
-void CARFACOutput::MergeOutput(CARFACOutput output, long start, long length){
+void CARFACOutput::MergeOutput(CARFACOutput output, long start, long length) {
   for (int i = 0; i < n_ears_; i++){
     ears_[i].MergeOutput(output.ears_[i], start, length);
   }

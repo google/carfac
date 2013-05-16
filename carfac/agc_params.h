@@ -25,21 +25,17 @@
 
 #include "carfac_common.h"
 
-class AGCParams {
-public:
+struct AGCParams {
+  AGCParams();
+  AGCParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
+            std::vector<int> dec, FloatArray agc1sc, FloatArray agc2sc);
   int n_stages_;
   FPType agc_stage_gain_;
   FPType agc_mix_coeff_;
   FloatArray time_constants_;
-  FloatArray decimation_;
+  std::vector<int> decimation_;
   FloatArray agc1_scales_;
   FloatArray agc2_scales_;
-  
-  
-  void OutputParams();
-  void SetParams(int ns, FPType agcsg,FPType agcmc, FloatArray tc,
-                 FloatArray dec, FloatArray agc1sc, FloatArray agc2sc);
-  AGCParams();
 };
 
 #endif

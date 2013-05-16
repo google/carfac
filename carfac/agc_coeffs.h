@@ -25,47 +25,19 @@
 
 #include "agc_params.h"
 
-class AGCCoeffs {
-public:
-  int n_ch_;
+struct AGCCoeffs {
   int n_agc_stages_;
   int agc_stage_gain_;
-  FloatArray agc_epsilon_; //FloatArray
-  FloatArray decimation_; //FloatArray
-  FloatArray agc_pole_z1_; //FloatArray
-  FloatArray agc_pole_z2_; //FloatArray
-  FloatArray agc_spatial_iterations_; //FloatArray
-  FloatArray2d agc_spatial_fir_; //2-d FloatArray
-  FloatArray agc_spatial_n_taps_; //FloatArray
-  FloatArray agc_mix_coeffs_; //FloatArray
+  FloatArray agc_epsilon_;
+  std::vector<int> decimation_;
+  FloatArray agc_pole_z1_;
+  FloatArray agc_pole_z2_;
+  FloatArray agc_spatial_iterations_;
+  FloatArray2d agc_spatial_fir_;
+  FloatArray agc_spatial_n_taps_;
+  FloatArray agc_mix_coeffs_;
   FPType agc_gain_;
   FPType detect_scale_;
-  
-  FloatArray agc1_scales_;
-  FloatArray agc2_scales_;
-  FloatArray time_constants_;
-  FPType tau_;
-  FPType decim_;
-  FPType n_times_;
-  FPType delay_;
-  FPType spread_sq_;
-  FPType u_;
-  FPType p_;
-  FPType dp_;
-  FPType pole_z1_;
-  FPType pole_z2_;
-  int n_taps_;
-  bool fir_ok_;
-  int n_iterations_;
-  FPType total_dc_gain_;
-  FPType a, b;
-  FPType mix_coeff_;
-  FloatArray fir_;
-
-  
-  void OutputCoeffs(); //Method to view coeffs, could go in final version
-  void DesignAGC(AGCParams agc_params, long fs, int n_ch);
 };
-
 
 #endif

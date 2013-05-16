@@ -25,8 +25,9 @@
 
 #include "carfac_common.h"
 
-class EarOutput {
-public:
+struct EarOutput {
+  void InitOutput(int n_ch, long n_tp);
+  void MergeOutput(EarOutput output, long start, long length);
   int n_ch_;
   long n_timepoints_;
   FloatArray2d nap_;
@@ -34,8 +35,6 @@ public:
   FloatArray2d ohc_;
   FloatArray2d agc_;
   FloatArray2d bm_;
-  void InitOutput(int n_ch, long n_tp);
-  void MergeOutput(EarOutput output, long start, long length);
 };
 
 #endif

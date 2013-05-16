@@ -22,38 +22,24 @@
 
 #include "ihc_params.h"
 
-
-//Default constructor for IHCParams initializes with the settings from Lyon's
-//book 'Human and Machine Hearing'
-IHCParams::IHCParams(){
-  just_hwr_ = false; //not just a simple HWR
-  one_cap_ = true; //uses the Allen model, as in Lyon's book
-  tau_lpf_ = 0.000080; //80 microseconds smoothing twice
-  tau1_out_ = 0.0005; //depletion tau is pretty fast
-  tau1_in_ = 0.010; //recovery tau is slower
+// The default constructor for IHCParams initializes with the settings from
+// Lyon's book 'Human and Machine Hearing'
+IHCParams::IHCParams() {
+  just_hwr_ = false;
+  one_cap_ = true;
+  tau_lpf_ = 0.000080;
+  tau1_out_ = 0.0005;
+  tau1_in_ = 0.010;
   tau2_out_ = 0.0025;
   tau2_in_ = 0.005;
   ac_corner_hz_ = 20;
 }
 
-//OutputParams method uses <iostream> for debugging purposes, could go in the
-//final version
-void IHCParams::OutputParams(){
-  std::cout << "IHCParams Values" << std::endl;
-  std::cout << "****************" << std::endl;
-  std::cout << "just_hwr_ = " << just_hwr_ << std::endl;
-  std::cout << "one_cap_ = " << one_cap_ << std::endl;
-  std::cout << "tau_lpf_ = " << tau_lpf_ << std::endl;
-  std::cout << "tau1_out_ = " << tau1_out_ << std::endl;
-  std::cout << "tau1_in_ = " << tau1_in_ << std::endl;
-  std::cout << "tau2_out_ = " << tau2_out_ << std::endl;
-  std::cout << "tau2_in_ = " << tau2_in_ << std::endl;
-  std::cout << "ac_corner_hz_ = " << ac_corner_hz_ << std::endl << std::endl;
-}
-
-//SetParams method allows for use of different inner hair cell parameters
-void IHCParams::SetParams(bool jh, bool oc, FPType tlpf, FPType t1out,
-                          FPType t1in, FPType t2out, FPType t2in, FPType acchz){
+// The overloaded constructor allows for use of different inner hair cell
+// parameters.
+IHCParams::IHCParams(bool jh, bool oc, FPType tlpf, FPType t1out,
+                          FPType t1in, FPType t2out, FPType t2in,
+                          FPType acchz) {
   just_hwr_ = jh;
   one_cap_ = oc;
   tau_lpf_ = tlpf;

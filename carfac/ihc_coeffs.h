@@ -25,9 +25,7 @@
 
 #include "ihc_params.h"
 
-class IHCCoeffs {
-public:
-  int n_ch_;
+struct IHCCoeffs {
   bool just_hwr_;
   bool one_cap_;
   FPType lpf_coeff_;
@@ -40,13 +38,8 @@ public:
   FPType rest_cap1_;
   FPType rest_cap2_;
   FPType ac_coeff_;
-  
-  FPType ro_, c_, ri_, r0_, saturation_output_, current_, cap1_voltage_,
-         cap2_voltage_;
-  FPType c2_, r2_, c1_, r1_;
-  
-  void OutputCoeffs(); //Method to view coeffs, could go in final version
-  void DesignIHC(IHCParams ihc_params, long fs, int n_ch);
+  FPType cap1_voltage_;
+  FPType cap2_voltage_;
 };
 
 #endif

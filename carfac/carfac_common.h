@@ -47,17 +47,34 @@
 #ifndef CARFAC_Open_Source_C__Library_CARFACCommon_h
 #define CARFAC_Open_Source_C__Library_CARFACCommon_h
 
-#include <iostream> //Used for debugging output, could go in final version
-#include <math.h> //Used during coefficient calculations
-#include <Eigen/Dense> //Used for 1d and 2d floating point arrays
+// This section is where the base include operations for the CARFAC project
+// occur.
+// <iostream> is used for debugging output, but it could go in final version.
+#include <iostream>
+// <math.h> is used during coefficient calculations and runtime operations.
+#include <math.h>
+// <vector> is used in place of 2d Eigen Arrays for the AGC memory
+#include <vector>
+// The Eigen library is used extensively for 1d and 2d floating point arrays.
+// For more information, see: http://eigen.tuxfamily.org
+#include <Eigen/Dense>
 using namespace Eigen;
 
-#define PI 3.141592
-typedef float FPType; //Used to enable easy switching in precision level
+// One constant value is defined here, but see my TODO regarding style issues.
+// A fixed value of PI is defined throughout the project.
+// TODO alexbrandmeyer: verify that this is OK with Google Style.
+#define PI 3.141592653589793238
 
-//typedefs for Eigen floating point arrays
-typedef Eigen::Array<FPType,Dynamic,1> FloatArray; //1d floating point array
-typedef Eigen::Array<FPType,Dynamic,Dynamic> FloatArray2d; //2d fpoint array
+// Three typedefs are used for enabling quick switching of precision and array
+// usage. 
+// The 'FPType' typedef is used to enable easy switching in precision level.
+typedef double FPType;
+// These are the two typedefs for Eigen floating point arrays.
+typedef Eigen::Array<FPType, Dynamic, 1> FloatArray;  // This is a 1d array.
+typedef Eigen::Array<FPType, Dynamic, Dynamic> FloatArray2d;  // This is 2d.
+
+// Two psychoacoustics helper functions are defined here for use by the
+// different processing stages in calculating coeffecients.
 
 // Function: ERBHz
 // Auditory filter nominal Equivalent Rectangular Bandwidth
@@ -66,6 +83,6 @@ FPType ERBHz(FPType cf_hz, FPType erb_break_freq, FPType erb_q);
 
 // Function CARFACDetect
 // TODO explain a bit more
-FPType CARFACDetect (FPType x);
 FloatArray CARFACDetect (FloatArray x);
+
 #endif

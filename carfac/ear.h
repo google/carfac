@@ -27,29 +27,64 @@
 #include "ihc_state.h"
 #include "agc_state.h"
 
-
 class Ear {
-public:
-  int n_ch_;
-  FPType max_channels_per_octave_;
-  CARParams car_params_;
-  IHCParams ihc_params_;
-  AGCParams agc_params_;
+ public:
+  // This is the primary initialization function that is called for each
+  // Ear object in the CARFAC 'Design' method.
+  void InitEar(int n_ch, long fs, FloatArray pole_freqs, CARParams car_p,
+               IHCParams ihc_p, AGCParams agc_p);
+  // These three methods apply the different stages of the model in sequence
+  // to individual audio samples.
+  FloatArray CARStep(FPType input);
+  FloatArray IHCStep(FloatArray car_out);
+  bool AGCStep(FloatArray ihc_out);
+  // These helper functions return portions of the CAR state for storage in the
+  // CAROutput structures.
+  FloatArray ReturnZAMemory();
+  FloatArray ReturnZBMemory();
+  FloatArray ReturnGMemory();
+  FloatArray ReturnZRCoeffs();
+  // These helper functions return portions of the AGC state during the cross
+  // coupling of the ears.
+  int ReturnAGCNStages();
+  int ReturnAGCStateDecimPhase(int stage);
+  FPType ReturnAGCMixCoeff(int stage);
+  int ReturnAGCDecimation(int stage);
+  FloatArray ReturnAGCStateMemory(int stage);
+  // This returns the stage G value during the closing of the AGC loop.
+  FloatArray StageGValue(FloatArray undamping);
+  // This function sets the AGC memory during the cross coupling stage.
+  void SetAGCStateMemory(int stage, FloatArray new_values);
+  // These are two functions to set the CARState dzB and dG memories when
+  // closing the AGC loop
+  void SetCARStateDZBMemory(FloatArray new_values);
+  void SetCARStateDGMemory(FloatArray new_values);
+ private:
+  // These methods carry out the design of the coefficient sets for each of the
+  // three model stages.
+  void DesignFilters(CARParams car_params, long fs, FloatArray pole_freqs);
+  void DesignIHC(IHCParams ihc_params, long fs);
+  void DesignAGC(AGCParams agc_params, long fs);
+  // These are the corresponding methods that initialize the model state
+  // variables before runtime using the model coefficients.
+  void InitIHCState();
+  void InitAGCState();
+  void InitCARState();
+  // These are the various helper functions called during the model runtime.
+  FloatArray OHC_NLF(FloatArray velocities);
+  bool AGCRecurse(int stage, FloatArray agc_in);
+  FloatArray AGCSpatialSmooth(int stage, FloatArray stage_state);
+  FloatArray AGCSmoothDoubleExponential(FloatArray stage_state, FPType pole_z1,
+                                        FPType pole_z2);
+  // These are the private data members that store the state and coefficient
+  // information.
   CARCoeffs car_coeffs_;
   IHCCoeffs ihc_coeffs_;
   AGCCoeffs agc_coeffs_;
   CARState car_state_;
   IHCState ihc_state_;
   AGCState agc_state_;
-  
-  void InitEar(long fs, CARParams car_p, IHCParams ihc_p, AGCParams agc_p);
-  FloatArray CARStep(FPType input);
-  FloatArray OHC_NLF(FloatArray velocities);
-  FloatArray IHCStep(FloatArray car_out);
-  bool AGCStep(FloatArray ihc_out);
-  bool AGCRecurse(int stage, FloatArray agc_in);
-  FloatArray AGCSpatialSmooth(int stage, FloatArray stage_state);
-  FloatArray AGCSmoothDoubleExponential(FloatArray stage_state);
+  int n_ch_;
 };
 
 #endif

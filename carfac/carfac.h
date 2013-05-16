@@ -43,12 +43,7 @@
 #include "carfac_output.h"
 
 class CARFAC {
-public:
-  int n_ears_; //number of ears
-  long fs_; //sample rate
-  int n_ch_; //number of channels in the CARFAC model
-  Ear *ears_; //array of Ear objects for mono/stereo/multichannel processing
-  
+ public:
   // The 'Design' method takes a set of CAR, IHC and AGC parameters along with
   // arguments specifying the number of 'ears' (audio file channels) and sample
   // rate. This initializes a vector of 'Ear' objects -- one for mono, two for
@@ -57,15 +52,23 @@ public:
   // model.
   void Design(int n_ears, long fs, CARParams car_params, IHCParams ihc_params,
               AGCParams agc_params);
+  // The 'Run' method processes an entire file with the current model, using
+  // subsequent calls to the 'RunSegment' method
+  CARFACOutput Run(FloatArray2d sound_data, bool open_loop);
+  // The 'RunSegment' method processes individual sound segments
+  void RunSegment(FloatArray2d sound_data, CARFACOutput *seg_output,
+                  bool open_loop);
   
-  //The 'Run' method processes an entire file with the current model, using
-  //subsequent calls to the 'RunSegment' method
-  CARFACOutput Run(FloatArray2d sound_data);
+ private:
+  void CrossCouple();
+  void CloseAGCLoop();
   
-  //The 'RunSegment' method processes individual sound segments
-  void RunSegment(FloatArray2d sound_data, CARFACOutput *seg_output);
+  int n_ears_;  // This is the number of ears.
+  long fs_;  // This is our current sample rate.
+  int n_ch_;  // This is the number of channels in the CARFAC model.
+  FPType max_channels_per_octave_;
+  // We store an array of Ear objects for mono/stereo/multichannel processing:
+  Ear *ears_; 
 };
-
-
 
 #endif

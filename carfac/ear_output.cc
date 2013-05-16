@@ -22,16 +22,16 @@
 
 #include "ear_output.h"
 
-void EarOutput::InitOutput(int n_ch, long n_tp){
+void EarOutput::InitOutput(int n_ch, long n_tp) {
   n_ch_ = n_ch;
   n_timepoints_ = n_tp;
-  nap_.resize(n_ch_,n_timepoints_);
-  bm_.resize(n_ch_,n_timepoints_);
-  ohc_.resize(n_ch_,n_timepoints_);
-  agc_.resize(n_ch_,n_timepoints_);
+  nap_.resize(n_ch_, n_timepoints_);
+  bm_.resize(n_ch_, n_timepoints_);
+  ohc_.resize(n_ch_, n_timepoints_);
+  agc_.resize(n_ch_, n_timepoints_);
 }
 
-void EarOutput::MergeOutput(EarOutput ear_output, long start, long length){
+void EarOutput::MergeOutput(EarOutput ear_output, long start, long length) {
   nap_.block(0, start, n_ch_, length) = ear_output.nap_.block(0, 0, n_ch_,
                                                               length);
   bm_.block(0, start, n_ch_, length) = ear_output.bm_.block(0, 0, n_ch_,

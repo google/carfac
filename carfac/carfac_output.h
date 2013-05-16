@@ -43,12 +43,11 @@
 
 #include "ear_output.h"
 
-class CARFACOutput {
-public:
-  int n_ears_;
-  EarOutput *ears_;
+struct CARFACOutput {
   void InitOutput(int n_ears, int n_ch, long n_tp);
   void MergeOutput(CARFACOutput output, long start, long length);
+  int n_ears_;
+  EarOutput *ears_;
 };
 
 #endif

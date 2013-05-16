@@ -25,8 +25,10 @@
 
 #include "carfac_common.h"
 
-class IHCParams {
-public:
+struct IHCParams {
+  IHCParams();
+  IHCParams(bool jh, bool oc, FPType tlpf, FPType t1out, FPType t1in,
+                 FPType t2out, FPType t2in, FPType acchz);
   bool just_hwr_;
   bool one_cap_;
   FPType tau_lpf_;
@@ -35,11 +37,6 @@ public:
   FPType tau2_out_;
   FPType tau2_in_;
   FPType ac_corner_hz_;
-  
-  IHCParams();
-  void OutputParams(); //Output current parameter values using std::cout
-  void SetParams(bool jh, bool oc, FPType tlpf, FPType t1out, FPType t1in,
-                 FPType t2out, FPType t2in, FPType acchz);//Method to set non-default params
 };
 
 #endif

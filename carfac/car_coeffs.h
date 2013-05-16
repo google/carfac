@@ -25,9 +25,7 @@
 
 #include "car_params.h"
 
-class CARCoeffs {
-public:
-  int n_ch_;
+struct CARCoeffs {
   FPType velocity_scale_;
   FPType v_offset_;
   FloatArray r1_coeffs_;
@@ -36,11 +34,6 @@ public:
   FloatArray h_coeffs_;
   FloatArray g0_coeffs_;
   FloatArray zr_coeffs_;
-  
-  void OutputCoeffs(); //Method to view coeffs, could go in final version
-  void DesignFilters(CARParams car_params, long fs,
-                     FloatArray pole_freqs[]);
 };
-
 
 #endif
