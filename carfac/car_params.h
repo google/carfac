@@ -27,9 +27,11 @@
 
 struct CARParams {
   CARParams();  // The constructor initializes using default parameter values.
-  CARParams(FPType vs, FPType voff, FPType min_z, FPType max_z, FPType fpt,
-                 FPType zr, FPType hfdc, FPType erbps, FPType mph, FPType erbbf,
-                 FPType erbq);  // This is a method to set non-default params.
+  // This is a method to set non-default params.
+  CARParams(FPType velocity_scale, FPType v_offset, FPType min_zeta,
+            FPType max_zeta, FPType first_pole_theta, FPType zero_ratio,
+            FPType high_f_damping_compression, FPType erb_per_step,
+            FPType min_pole_hz_, FPType erb_break_freq, FPType erb_q_);
   FPType velocity_scale_; // This is used for the velocity nonlinearity.
   FPType v_offset_;  // The offset gives us quadratic part.
   FPType min_zeta_;  // This is the minimum damping factor in mid-freq channels.

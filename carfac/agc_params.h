@@ -27,8 +27,9 @@
 
 struct AGCParams {
   AGCParams();
-  AGCParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
-            std::vector<int> dec, FloatArray agc1sc, FloatArray agc2sc);
+  AGCParams(int n_stages, FPType agc_stage_gain, FPType agc_mix_coeff,
+            FloatArray time_constants, std::vector<int> decimation,
+            FloatArray agc1_scales, FloatArray agc2_scales);
   int n_stages_;
   FPType agc_stage_gain_;
   FPType agc_mix_coeff_;

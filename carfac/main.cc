@@ -35,7 +35,6 @@
 // design stage) and sound data (for running the model).
 #include <sndfile.h>
 #include "carfac.h"
-#include <fstream>
 //GoogleTest is now included for running unit tests
 #include <gtest/gtest.h>
 
@@ -51,15 +50,14 @@ FloatArray2d ReadSound(const char * filename) {
   SF_INFO info;
   // Several scalars are used to store relevant information needed for
   // transfering data from the WAV file to an Eigen Array. 
-  long num, num_items;
+  int32_t num, num_items;
   double *buf;
-  long f, sr, c;
+  int32_t f, sr, c;
   // This opens the sound file and prints an error message if the file can't
   // be found.
   sf = sf_open(filename,SFM_READ,&info);
   if (sf == NULL)
   {
-    std::cout << "Failed to open the file" << std::endl;
     return mysnd;
   }
   // Here we store relevant header information in our scalars and use them to
@@ -95,7 +93,6 @@ SF_INFO ReadSoundInfo(const char * filename) {
   SF_INFO info;
   sf = sf_open(filename,SFM_READ,&info);
   if (sf == NULL) {
-    std::cout << "Failed to open the file" << std::endl;
     return info;
   }
   return info;
@@ -126,10 +123,8 @@ int main(int argc, char **argv) {
   delete ihc_params;
   delete agc_params;
   // Now we run the model on the test data (using a closed loop for now).
-  CARFACOutput output = mycf->Run(mysnd, false);
+  CARFACOutput output = mycf->Run(mysnd, false, true, true, true);
   // Finally we clear the CARFAC object when we're done.
   delete mycf;
-  //return RUN_ALL_TESTS();;
   return 0;
 }
-

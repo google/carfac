@@ -25,11 +25,17 @@
 
 #include "carfac_common.h"
 
-struct EarOutput {
-  void InitOutput(int n_ch, long n_tp);
-  void MergeOutput(EarOutput output, long start, long length);
+class EarOutput {
+ public:
+  void InitOutput(int n_ch, int32_t n_tp);
+  void MergeOutput(EarOutput output, int32_t start, int32_t length);
+  void StoreNAPOutput(int32_t timepoint, int n_ch, FloatArray nap);
+  void StoreBMOutput(int32_t timepoint, int n_ch, FloatArray bm);
+  void StoreOHCOutput(int32_t timepoint, int n_ch, FloatArray ohc);
+  void StoreAGCOutput(int32_t timepoint, int n_ch, FloatArray agc);
+ private:
   int n_ch_;
-  long n_timepoints_;
+  int32_t n_timepoints_;
   FloatArray2d nap_;
   FloatArray2d nap_decim_;
   FloatArray2d ohc_;

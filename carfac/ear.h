@@ -31,7 +31,7 @@ class Ear {
  public:
   // This is the primary initialization function that is called for each
   // Ear object in the CARFAC 'Design' method.
-  void InitEar(int n_ch, long fs, FloatArray pole_freqs, CARParams car_p,
+  void InitEar(int n_ch, int32_t fs, FloatArray pole_freqs, CARParams car_p,
                IHCParams ihc_p, AGCParams agc_p);
   // These three methods apply the different stages of the model in sequence
   // to individual audio samples.
@@ -62,9 +62,9 @@ class Ear {
  private:
   // These methods carry out the design of the coefficient sets for each of the
   // three model stages.
-  void DesignFilters(CARParams car_params, long fs, FloatArray pole_freqs);
-  void DesignIHC(IHCParams ihc_params, long fs);
-  void DesignAGC(AGCParams agc_params, long fs);
+  void DesignFilters(CARParams car_params, int32_t fs, FloatArray pole_freqs);
+  void DesignIHC(IHCParams ihc_params, int32_t fs);
+  void DesignAGC(AGCParams agc_params, int32_t fs);
   // These are the corresponding methods that initialize the model state
   // variables before runtime using the model coefficients.
   void InitIHCState();

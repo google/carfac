@@ -22,16 +22,36 @@
 
 #include "carfac_output.h"
 
-void CARFACOutput::InitOutput(int n_ears, int n_ch, long n_tp) {
+void CARFACOutput::InitOutput(int n_ears, int n_ch, int32_t n_tp) {
   n_ears_ = n_ears;
-  ears_ = new EarOutput[n_ears_];
+  ears_.resize(n_ears_);
   for (int i = 0; i < n_ears_; i++) {
-    ears_[i].InitOutput(n_ch, n_tp);
+    ears_.at(i).InitOutput(n_ch, n_tp);
   }
 }
 
-void CARFACOutput::MergeOutput(CARFACOutput output, long start, long length) {
+void CARFACOutput::MergeOutput(CARFACOutput output, int32_t start, int32_t length) {
   for (int i = 0; i < n_ears_; i++){
-    ears_[i].MergeOutput(output.ears_[i], start, length);
+    ears_.at(i).MergeOutput(output.ears_[i], start, length);
   }
+}
+
+void CARFACOutput::StoreNAPOutput(int32_t timepoint, int ear, int n_ch,
+                               FloatArray nap) {
+  ears_.at(ear).StoreNAPOutput(timepoint, n_ch, nap);
+}
+
+void CARFACOutput::StoreBMOutput(int32_t timepoint, int ear, int n_ch,
+                                  FloatArray nap) {
+  ears_.at(ear).StoreBMOutput(timepoint, n_ch, nap);
+}
+
+void CARFACOutput::StoreOHCOutput(int32_t timepoint, int ear, int n_ch,
+                                  FloatArray nap) {
+  ears_.at(ear).StoreOHCOutput(timepoint, n_ch, nap);
+}
+
+void CARFACOutput::StoreAGCOutput(int32_t timepoint, int ear, int n_ch,
+                                  FloatArray nap) {
+  ears_.at(ear).StoreNAPOutput(timepoint, n_ch, nap);
 }

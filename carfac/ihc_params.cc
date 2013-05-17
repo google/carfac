@@ -37,15 +37,15 @@ IHCParams::IHCParams() {
 
 // The overloaded constructor allows for use of different inner hair cell
 // parameters.
-IHCParams::IHCParams(bool jh, bool oc, FPType tlpf, FPType t1out,
-                          FPType t1in, FPType t2out, FPType t2in,
-                          FPType acchz) {
-  just_hwr_ = jh;
-  one_cap_ = oc;
-  tau_lpf_ = tlpf;
-  tau1_out_ = t1out;
-  tau1_in_ = t1in;
-  tau2_out_ = t2out;
-  tau2_in_ = t2in;
-  ac_corner_hz_ = acchz;  
+IHCParams::IHCParams(bool just_hwr, bool one_cap, FPType tau_lpf,
+                     FPType tau1_out, FPType tau1_in, FPType tau2_out,
+                     FPType tau2_in, FPType ac_corner_hz) {
+  just_hwr_ = just_hwr;
+  one_cap_ = one_cap;
+  tau_lpf_ = tau_lpf;
+  tau1_out_ = tau1_out;
+  tau1_in_ = tau1_in;
+  tau2_out_ = tau2_out;
+  tau2_in_ = tau2_in;
+  ac_corner_hz_ = ac_corner_hz;  
 }

@@ -25,7 +25,7 @@
 // The 'InitEar' function takes a set of model parameters and initializes the
 // design coefficients and model state variables needed for running the model
 // on a single audio channel. 
-void Ear::InitEar(int n_ch, long fs, FloatArray pole_freqs,
+void Ear::InitEar(int n_ch, int32_t fs, FloatArray pole_freqs,
                   CARParams car_p, IHCParams ihc_p, AGCParams agc_p) {
   // The first section of code determines the number of channels that will be
   // used in the model on the basis of the sample rate and the CAR parameters
@@ -43,7 +43,7 @@ void Ear::InitEar(int n_ch, long fs, FloatArray pole_freqs,
   InitAGCState();
 }
 
-void Ear::DesignFilters(CARParams car_params, long fs,
+void Ear::DesignFilters(CARParams car_params, int32_t fs,
                               FloatArray pole_freqs) {
   car_coeffs_.velocity_scale_ = car_params.velocity_scale_;
   car_coeffs_.v_offset_ = car_params.v_offset_;
@@ -82,7 +82,7 @@ void Ear::DesignFilters(CARParams car_params, long fs,
 }
 
 
-void Ear::DesignAGC(AGCParams agc_params, long fs) {
+void Ear::DesignAGC(AGCParams agc_params, int32_t fs) {
   // These data members could probably be initialized locally within the design
   // function.
   agc_coeffs_.n_agc_stages_ = agc_params.n_stages_;
@@ -100,7 +100,7 @@ void Ear::DesignAGC(AGCParams agc_params, long fs) {
   FPType mix_coeff = agc_params.agc_mix_coeff_;
   int decim = 1;
   agc_coeffs_.decimation_ = agc_params.decimation_;
-  FPType total_dc_gain = 0;
+  FPType total_dc_gain = 0.0;
   // Here we loop through each of the stages of the AGC.
   for (int stage=0; stage < agc_coeffs_.n_agc_stages_; stage++) {
     FPType tau = time_constants(stage);
@@ -151,13 +151,17 @@ void Ear::DesignAGC(AGCParams agc_params, long fs) {
         case 3:
           a = (var + pow(mn, 2) - mn) / 2;
           b = (var + pow(mn, 2) + mn) / 2;
-          fir << a, 1 - a - b, b;
+          fir(0) = a;
+          fir(1) = 1 - a - b;
+          fir(2) = b;
           fir_ok = (fir(2) >= 0.2) ? true : false;
           break;
         case 5:
           a = (((var + pow(mn, 2)) * 2/5) - (mn * 2/3)) / 2;
           b = (((var + pow(mn, 2)) * 2/5) + (mn * 2/3)) / 2;
-          fir << a/2, 1 - a - b, b/2;
+          fir(0) = a / 2;
+          fir(1) = 1 - a - b;
+          fir(2) = b / 2;
           fir_ok = (fir(2) >= 0.1) ? true : false;
           break;
         default:
@@ -181,17 +185,17 @@ void Ear::DesignAGC(AGCParams agc_params, long fs) {
   agc_coeffs_.detect_scale_ = 1 / total_dc_gain;
 }
 
-void Ear::DesignIHC(IHCParams ihc_params, long fs) {
+void Ear::DesignIHC(IHCParams ihc_params, int32_t fs) {
   if (ihc_params.just_hwr_) {
     ihc_coeffs_.just_hwr_ = ihc_params.just_hwr_;
   } else {
     // This section calculates conductance values using two pre-defined scalars.
     FloatArray x(1);
     FPType conduct_at_10, conduct_at_0;
-    x << 10;
+    x(0) = 10.0;
     x = CARFACDetect(x);
     conduct_at_10 = x(0);
-    x << 0;
+    x(0) = 0.0;
     x = CARFACDetect(x);
     conduct_at_0 = x(0);
     if (ihc_params.one_cap_) {
@@ -349,7 +353,7 @@ FloatArray Ear::IHCStep(FloatArray car_out) {
   if (ihc_coeffs_.just_hwr_) {
     for (int ch = 0; ch < n_ch_; ch++) {
       FPType a;
-      a = (ac_diff(ch) > 0) ? ac_diff(ch) : 0;
+      a = (ac_diff(ch) > 0.0) ? ac_diff(ch) : 0.0;
       ihc_out(ch) = (a < 2) ? a : 2;
     }
   } else {
@@ -469,8 +473,8 @@ FloatArray Ear::AGCSpatialSmooth(int stage, FloatArray stage_state) {
                       (fir_coeffs(2) * (ss_tap2 + ss_tap4));
         break;
       default:
+        break;
         // TODO alexbrandmeyer: determine proper error handling implementation.
-        std::cout << "Error: bad n-taps in AGCSpatialSmooth" << std::endl;
     }
   } else {
     stage_state = AGCSmoothDoubleExponential(stage_state,
@@ -482,9 +486,9 @@ FloatArray Ear::AGCSpatialSmooth(int stage, FloatArray stage_state) {
 
 FloatArray Ear::AGCSmoothDoubleExponential(FloatArray stage_state,
                                            FPType pole_z1, FPType pole_z2) {
-  int n_pts = stage_state.size();
+  int32_t n_pts = stage_state.size();
   FPType input;
-  FPType state = 0;
+  FPType state = 0.0;
   // TODO alexbrandmeyer: I'm assuming one dimensional input for now, but this
   // should be verified with Dick for the final version
   for (int i = n_pts - 11; i < n_pts; i ++){

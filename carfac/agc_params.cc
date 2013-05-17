@@ -27,27 +27,29 @@
 AGCParams::AGCParams() {
   n_stages_ = 4;
   agc_stage_gain_ = 2;
-  FPType agc1f = 1.0;
-  FPType agc2f = 1.65;
+  FPType agc2_factor = 1.65;
+  std::vector<FPType> stage_values = {1.0, 1.4, 2.0, 2.8};
   time_constants_.resize(n_stages_);
-  time_constants_ << 1 * 0.002, 4 * 0.002, 16 * 0.002, 64 * 0.002;
-  decimation_ = {8, 2, 2, 2};
   agc1_scales_.resize(n_stages_);
-  agc1_scales_ << 1.0 * agc1f, 1.4 * agc1f, 2.0 * agc1f, 2.8 * agc1f;
   agc2_scales_.resize(n_stages_);
-  agc2_scales_ << 1.0 * agc2f, 1.4 * agc2f, 2.0 * agc2f, 2.8 * agc2f;
+  for (int i = 0; i < n_stages_; ++i) {
+    time_constants_(i) = pow(4, i) * 0.002;
+    agc1_scales_(i) = stage_values.at(i);
+    agc2_scales_(i) = stage_values.at(i) * agc2_factor;
+  }
+  decimation_ = {8, 2, 2, 2};
   agc_mix_coeff_ = 0.5;
 }
 
 // The overloaded constructor allows for use of different AGC parameters.
-AGCParams::AGCParams(int ns, FPType agcsg, FPType agcmc, FloatArray tc,
-                     std::vector<int> dec, FloatArray agc1sc,
-                          FloatArray agc2sc) {
-  n_stages_ = ns;
-  agc_stage_gain_ = agcsg;
-  agc_mix_coeff_ = agcmc;
-  time_constants_ = tc;
-  decimation_ = dec;
-  agc1_scales_ = agc1sc;
-  agc2_scales_ = agc2sc;
+AGCParams::AGCParams(int n_stages, FPType agc_stage_gain, FPType agc_mix_coeff,
+                    FloatArray time_constants, std::vector<int> decimation,
+                    FloatArray agc1_scales, FloatArray agc2_scales) {
+  n_stages_ = n_stages;
+  agc_stage_gain_ = agc_stage_gain;
+  agc_mix_coeff_ = agc_mix_coeff;
+  time_constants_ = time_constants;
+  decimation_ = decimation;
+  agc1_scales_ = agc1_scales;
+  agc2_scales_ = agc2_scales;
 }

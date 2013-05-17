@@ -43,11 +43,17 @@
 
 #include "ear_output.h"
 
-struct CARFACOutput {
-  void InitOutput(int n_ears, int n_ch, long n_tp);
-  void MergeOutput(CARFACOutput output, long start, long length);
+class CARFACOutput {
+ public:
+  void InitOutput(int n_ears, int n_ch, int32_t n_tp);
+  void MergeOutput(CARFACOutput output, int32_t start, int32_t length);
+  void StoreNAPOutput(int32_t timepoint, int ear, int n_ch, FloatArray nap);
+  void StoreBMOutput(int32_t timepoint, int ear, int n_ch, FloatArray bm);
+  void StoreOHCOutput(int32_t timepoint, int ear, int n_ch, FloatArray ohc);
+  void StoreAGCOutput(int32_t timepoint, int ear, int n_ch, FloatArray agc);
+ private:
   int n_ears_;
-  EarOutput *ears_;
+  std::vector<EarOutput> ears_;
 };
 
 #endif

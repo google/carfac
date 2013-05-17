@@ -22,7 +22,7 @@
 
 #include "ear_output.h"
 
-void EarOutput::InitOutput(int n_ch, long n_tp) {
+void EarOutput::InitOutput(int n_ch, int32_t n_tp) {
   n_ch_ = n_ch;
   n_timepoints_ = n_tp;
   nap_.resize(n_ch_, n_timepoints_);
@@ -31,7 +31,7 @@ void EarOutput::InitOutput(int n_ch, long n_tp) {
   agc_.resize(n_ch_, n_timepoints_);
 }
 
-void EarOutput::MergeOutput(EarOutput ear_output, long start, long length) {
+void EarOutput::MergeOutput(EarOutput ear_output, int32_t start, int32_t length) {
   nap_.block(0, start, n_ch_, length) = ear_output.nap_.block(0, 0, n_ch_,
                                                               length);
   bm_.block(0, start, n_ch_, length) = ear_output.bm_.block(0, 0, n_ch_,
@@ -40,4 +40,20 @@ void EarOutput::MergeOutput(EarOutput ear_output, long start, long length) {
                                                               length);
   agc_.block(0, start, n_ch_, length) = ear_output.agc_.block(0, 0, n_ch_,
                                                               length);
+}
+
+void EarOutput::StoreNAPOutput(int32_t timepoint, int n_ch, FloatArray nap) {
+  nap_.block(0, timepoint, n_ch_, 1) = nap;
+}
+
+void EarOutput::StoreBMOutput(int32_t timepoint, int n_ch, FloatArray bm) {
+  bm_.block(0, timepoint, n_ch_, 1) = bm;
+}
+
+void EarOutput::StoreOHCOutput(int32_t timepoint, int n_ch, FloatArray ohc) {
+  ohc_.block(0, timepoint, n_ch_, 1) = ohc;
+}
+
+void EarOutput::StoreAGCOutput(int32_t timepoint, int n_ch, FloatArray agc) {
+  agc_.block(0, timepoint, n_ch_, 1) = agc;
 }

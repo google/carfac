@@ -49,8 +49,6 @@
 
 // This section is where the base include operations for the CARFAC project
 // occur.
-// <iostream> is used for debugging output, but it could go in final version.
-#include <iostream>
 // <math.h> is used during coefficient calculations and runtime operations.
 #include <math.h>
 // <vector> is used in place of 2d Eigen Arrays for the AGC memory
@@ -73,8 +71,8 @@ typedef double FPType;
 typedef Eigen::Array<FPType, Dynamic, 1> FloatArray;  // This is a 1d array.
 typedef Eigen::Array<FPType, Dynamic, Dynamic> FloatArray2d;  // This is 2d.
 
-// Two psychoacoustics helper functions are defined here for use by the
-// different processing stages in calculating coeffecients.
+// Two helper functions are defined here for use by the different model stages
+// in calculating coeffecients and during model runtime.
 
 // Function: ERBHz
 // Auditory filter nominal Equivalent Rectangular Bandwidth
@@ -82,7 +80,8 @@ typedef Eigen::Array<FPType, Dynamic, Dynamic> FloatArray2d;  // This is 2d.
 FPType ERBHz(FPType cf_hz, FPType erb_break_freq, FPType erb_q);
 
 // Function CARFACDetect
-// TODO explain a bit more
+// This returns the IHC detection nonilnearity function of the filter output
+// values.  This is here because it is called both in design and run phases.
 FloatArray CARFACDetect (FloatArray x);
 
 #endif

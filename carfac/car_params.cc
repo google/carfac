@@ -36,18 +36,20 @@ CARParams::CARParams() {
   erb_q_ = 1000/(24.7*4.37);
 };
 
-CARParams::CARParams(FPType vs, FPType voff, FPType min_z, FPType max_z,
-                          FPType fpt, FPType zr, FPType hfdc, FPType erbps,
-                          FPType mph, FPType erbbf, FPType erbq) {  
-  velocity_scale_ = vs;
-  v_offset_ = voff;
-  min_zeta_ = min_z;
-  max_zeta_ = max_z;
-  first_pole_theta_ = fpt;
-  zero_ratio_ = zr;
-  high_f_damping_compression_ = hfdc;
-  erb_per_step_ = erbps;
-  min_pole_hz_ = mph;
-  erb_break_freq_ = erbbf;
-  erb_q_ = erbq;
+CARParams::CARParams(FPType velocity_scale, FPType v_offset, FPType min_zeta,
+                     FPType max_zeta, FPType first_pole_theta,
+                     FPType zero_ratio, FPType high_f_damping_compression,
+                     FPType erb_per_step, FPType min_pole_hz_,
+                     FPType erb_break_freq, FPType erb_q_) {
+  velocity_scale_ = velocity_scale;
+  v_offset_ = v_offset;
+  min_zeta_ = min_zeta;
+  max_zeta_ = max_zeta;
+  first_pole_theta_ = first_pole_theta;
+  zero_ratio_ = zero_ratio;
+  high_f_damping_compression_ = high_f_damping_compression;
+  erb_per_step_ = erb_per_step;
+  min_pole_hz_ = min_pole_hz_;
+  erb_break_freq_ = erb_break_freq;
+  erb_q_ = erb_q_;
 };

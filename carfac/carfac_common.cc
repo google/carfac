@@ -22,8 +22,6 @@
 
 #include "carfac_common.h"
 
-// Auditory filter nominal Equivalent Rectangular Bandwidth
-// Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
 FPType ERBHz (FPType cf_hz, FPType erb_break_freq, FPType erb_q) {
   FPType erb;
   erb = (erb_break_freq + cf_hz) / erb_q;
