@@ -334,10 +334,8 @@ FloatArray Ear::CARStep(FPType input) {
 // rational function. This makes the result go to zero at high
 // absolute velocities, so it will do nothing there.
 FloatArray Ear::OHC_NLF(FloatArray velocities) {
-  return 1 / (1 +
-        (((velocities * car_coeffs_.velocity_scale_) + car_coeffs_.v_offset_) *
-         ((velocities * car_coeffs_.velocity_scale_) + car_coeffs_.v_offset_)));
-
+  return (1 + ((velocities * car_coeffs_.velocity_scale_)
+               + car_coeffs_.v_offset_).square()).inverse();
 }
 
 // This step is a one sample-time update of the inner-hair-cell (IHC) model,
