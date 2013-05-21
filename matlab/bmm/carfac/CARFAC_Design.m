@@ -17,9 +17,10 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function CF = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, CF_IHC_params)
-% function CF = CARFAC_Design(fs, CF_CAR_params, ...
-%   CF_AGC_params, ERB_break_freq, ERB_Q, CF_IHC_params)
+function CF = CARFAC_Design(n_ears, fs, ...
+  CF_CAR_params, CF_AGC_params, CF_IHC_params)
+% function CF = CARFAC_Design(n_ears, fs, ...
+%   CF_CAR_params, CF_AGC_params, CF_IHC_params)
 %
 % This function designs the CARFAC (Cascade of Asymmetric Resonators with
 % Fast-Acting Compression); that is, it take bundles of parameters and
@@ -125,16 +126,17 @@ for ch = 1:n_ch
   pole_Hz = pole_Hz - CF_CAR_params.ERB_per_step * ...
     ERB_Hz(pole_Hz, CF_CAR_params.ERB_break_freq, CF_CAR_params.ERB_Q);
 end
-% now we have n_ch, the number of channels, and pole_freqs array
+% Now we have n_ch, the number of channels, and pole_freqs array.
 
 max_channels_per_octave = log(2) / log(pole_freqs(1)/pole_freqs(2));
 
-% convert to include an ear_array, each w coeffs and state...
+% Convert to include an ear_array, each w coeffs and state...
 CAR_coeffs = CARFAC_DesignFilters(CF_CAR_params, fs, pole_freqs);
 AGC_coeffs = CARFAC_DesignAGC(CF_AGC_params, fs, n_ch);
 IHC_coeffs = CARFAC_DesignIHC(CF_IHC_params, fs, n_ch);
-% copy same designed coeffs into each ear (can do differently in the
-% future:
+
+% Copy same designed coeffs into each ear (can do differently in the
+% future).
 for ear = 1:n_ears
   ears(ear).CAR_coeffs = CAR_coeffs;
   ears(ear).AGC_coeffs = AGC_coeffs;
@@ -226,26 +228,30 @@ CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, relative_undamping);
 function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs, n_ch)
 
 n_AGC_stages = AGC_params.n_stages;
-AGC_coeffs = struct( ...
-  'n_ch', n_ch, ...
-  'n_AGC_stages', n_AGC_stages, ...
-  'AGC_stage_gain', AGC_params.AGC_stage_gain);
 
 % AGC1 pass is smoothing from base toward apex;
 % AGC2 pass is back, which is done first now (in double exp. version)
 AGC1_scales = AGC_params.AGC1_scales;
 AGC2_scales = AGC_params.AGC2_scales;
 
-AGC_coeffs.AGC_epsilon = zeros(1, n_AGC_stages);  % the 1/(tau*fs) roughly
 decim = 1;
-AGC_coeffs.decimation = AGC_params.decimation;
 
 total_DC_gain = 0;
+
+%%
+% Convert to vector of AGC coeffs
+AGC_coeffs = struct([]);
 for stage = 1:n_AGC_stages
+  AGC_coeffs(stage).n_ch = n_ch;
+  AGC_coeffs(stage).n_AGC_stages = n_AGC_stages;
+  AGC_coeffs(stage).AGC_stage_gain = AGC_params.AGC_stage_gain;
+
+  AGC_coeffs(stage).decimation = AGC_params.decimation(stage);
   tau = AGC_params.time_constants(stage);  % time constant in seconds
   decim = decim * AGC_params.decimation(stage);  % net decim to this stage
   % epsilon is how much new input to take at each update step:
-  AGC_coeffs.AGC_epsilon(stage) = 1 - exp(-decim / (tau * fs));
+  AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
+  
   % effective number of smoothings in a time constant:
   ntimes = tau * (fs / decim);  % typically 5 to 50
   
@@ -262,8 +268,8 @@ for stage = 1:n_AGC_stages
   dp = delay * (1 - 2*p +p^2)/2;
   polez1 = p - dp;
   polez2 = p + dp;
-  AGC_coeffs.AGC_polez1(stage) = polez1;
-  AGC_coeffs.AGC_polez2(stage) = polez2;
+  AGC_coeffs(stage).AGC_polez1 = polez1;
+  AGC_coeffs(stage).AGC_polez2 = polez2;
   
   % try a 3- or 5-tap FIR as an alternative to the double exponential:
   n_taps = 0;
@@ -292,46 +298,56 @@ for stage = 1:n_AGC_stages
       n_taps, spread_sq, delay, n_iterations);
   end
   % when FIR_OK, store the resulting FIR design in coeffs:
-  AGC_coeffs.AGC_spatial_iterations(stage) = n_iterations;
-  AGC_coeffs.AGC_spatial_FIR(:,stage) = AGC_spatial_FIR;
-  AGC_coeffs.AGC_spatial_n_taps(stage) = n_taps;
+  AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
+  AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
+  AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
   
   % accumulate DC gains from all the stages, accounting for stage_gain:
   total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
   
   % TODO (dicklyon) -- is this the best binaural mixing plan?
   if stage == 1
-    AGC_coeffs.AGC_mix_coeffs(stage) = 0;
+    AGC_coeffs(stage).AGC_mix_coeffs = 0;
   else
-    AGC_coeffs.AGC_mix_coeffs(stage) = AGC_params.AGC_mix_coeff / ...
+    AGC_coeffs(stage).AGC_mix_coeffs = AGC_params.AGC_mix_coeff / ...
       (tau * (fs / decim));
   end
 end
 
-AGC_coeffs.AGC_gain = total_DC_gain;
-
-% adjust the detect_scale to be the reciprocal DC gain of the AGC filters:
-AGC_coeffs.detect_scale = 1 / total_DC_gain;
+% adjust stage 1 detect_scale to be the reciprocal DC gain of the AGC filters:
+AGC_coeffs(1).detect_scale = 1 / total_DC_gain;
 
 
 %%
-function [FIR, OK] = Design_FIR_coeffs(n_taps, var, mn, n_iter)
-% function [FIR, OK] = Design_FIR_coeffs(n_taps, spread_sq, delay, n_iter)
+function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
+  mean_delay, n_iter)
+% function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
+%   mean_delay, n_iter)
+% The smoothing function is a space-domain smoothing, but it considered
+% here by analogy to time-domain smoothing, which is why its potential
+% off-centeredness is called a delay.  Since it's a smoothing filter, it is
+% also analogous to a discrete probability distribution (a p.m.f.), with
+% mean corresponding to delay and variance corresponding to squared spatial
+% spread (in samples, or channels, and the square thereof, respecitively).
+% Here we design a filter implementation's coefficient via the method of
+% moment matching, so we get the intended delay and spread, and don't worry
+% too much about the shape of the distribution, which will be some kind of
+% blob not too far from Gaussian if we run several FIR iterations.
 
 % reduce mean and variance of smoothing distribution by n_iterations:
-mn = mn / n_iter;
-var = var / n_iter;
+mean_delay = mean_delay / n_iter;
+delay_variance = delay_variance / n_iter;
 switch n_taps
   case 3
     % based on solving to match mean and variance of [a, 1-a-b, b]:
-    a = (var + mn*mn - mn) / 2;
-    b = (var + mn*mn + mn) / 2;
+    a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
+    b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
     FIR = [a, 1 - a - b, b];
     OK = FIR(2) >= 0.2;
   case 5
     % based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((var + mn*mn)*2/5 - mn*2/3) / 2;
-    b = ((var + mn*mn)*2/5 + mn*2/3) / 2;
+    a = ((delay_variance + mean_delay*mean_delay)*2/5 - mean_delay*2/3) / 2;
+    b = ((delay_variance + mean_delay*mean_delay)*2/5 + mean_delay*2/3) / 2;
     % first and last coeffs are implicitly duplicated to make 5-point FIR:
     FIR = [a/2, 1 - a - b, b/2];
     OK = FIR(2) >= 0.1;

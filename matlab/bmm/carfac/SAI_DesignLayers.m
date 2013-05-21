@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [layer_array, total_width] = SAI_DesignLayers( ...
-  n_layers, width_per_layer)
+function [layer_array, total_width, lag_period_samples] = SAI_DesignLayers( ...
+  n_layers, width_per_layer, seglen)
 % function [layer_array, total_width] = SAI_DesignLayers( ...
 %   n_layers, width_per_layer)
 %
@@ -41,23 +41,23 @@ function [layer_array, total_width] = SAI_DesignLayers( ...
 % Other fields could be added to hold state, such as history buffers for
 % each layer, or those could go in state struct array...
 
-
 % Elevate these to a param struct?
 if nargin < 1
-  n_layers = 11
+  n_layers = 12;
 end
 if nargin < 2
-  width_per_layer = 32;  % resolution "half life" in space
+  width_per_layer = 24;  % resolution "half life" in space; half-semitones
 end
-future_lags = 4 * width_per_layer;
-width_first_layer = future_lags + 1 * width_per_layer;
-width_extra_last_layer = 2 * width_per_layer;
-left_overlap = 15;
-right_overlap = 15;
-first_window_width = 400;  % or maybe use seglen?  or 0.020 * fs?
+future_lags = 0 * width_per_layer;
+width_extra_last_layer = 0 * width_per_layer;
+left_overlap = 10;
+right_overlap = 10;
+first_window_width = seglen;  % Less would be a problem.
 min_window_width = 1*width_per_layer;  % or somewhere on that order
 window_exponent = 1.4;
 alpha_max = 1; 
+
+width_first_layer = future_lags + 2 * width_per_layer;
 
 % Start with NAP_samples_per_SAI_sample, declining to 1 from here:
 max_samples_per = 2^(n_layers - 1);
@@ -66,7 +66,11 @@ NAP_samples_per_SAI_sample = [ ...
   max_samples_per * ones(1, width_extra_last_layer), ...
   max_samples_per * ...
     2 .^ (-(1:(width_per_layer * (n_layers - 1))) / width_per_layer), ...
-  ones(1, width_first_layer)];
+  ones(1, width_first_layer), ];  % w/o future for now.
+
+lag_period_samples = cumsum(NAP_samples_per_SAI_sample(end:-1:1));
+lag_period_samples = lag_period_samples(end:-1:1);  % Put it back in order.
+lag_period_samples = lag_period_samples - lag_period_samples(end - future_lags);
 
 % Each layer needs a lag_warp for a portion of that, divided by
 % 2^(layer-1), where the portion includes some overlap into its neighbors
@@ -171,6 +175,11 @@ for layer = 1:n_layers
   layer_array(layer).n_window_pos = n_triggers;
   layer_array(layer).buffer_width = layer_array(layer).frame_width + ...
     floor((1 + (n_triggers - 1)/2) * layer_array(layer).window_width);
+  % Make sure it's big enough for next layer to shift in what it wants.
+  n_shift = ceil(seglen / (2.0^(layer - 1)));
+  if layer_array(layer).buffer_width < 6 + n_shift;
+    layer_array(layer).buffer_width = 6 + n_shift;
+  end
 end
 
 return

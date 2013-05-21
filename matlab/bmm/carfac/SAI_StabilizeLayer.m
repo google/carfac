@@ -44,7 +44,6 @@ for ch = 1:n_ch
     if peak_val <= 0  % just use window center instead
       [peak_val, trigger_time] = max(window);
     end
-    % TODO(dicklyon):  alpha blend here.
     trigger_time = trigger_time + floor((w - 1) * d_win);
     alpha = (0.025 + peak_val) / (0.5 + peak_val);  % alpha 0.05 to near 1.0
     frame(ch, :) = alpha * nap_wave(trigger_time + offset_range)' + ...

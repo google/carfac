@@ -33,16 +33,32 @@ if n_ears ~= CF.n_ears
 end
 fs = CF.fs;
 
+seglen = round(fs / 30);  % Pick about 30 fps
+frame_rate = fs / seglen;
+
 % Design the composite log-lag SAI using these parameters and defaults.
-n_layers = 10;
-width_per_layer = 40;
-[layer_array, total_width] = SAI_DesignLayers(n_layers, width_per_layer);
+n_layers = 15
+width_per_layer = 36;
+[layer_array, total_width, lags] = ...
+  SAI_DesignLayers(n_layers, width_per_layer, seglen);
+
+% Find where in the lag curve corresponds to the piano black keys:
+pitches = fs ./ lags;
+key_indices = [];
+df = log(2)/width_per_layer;
+for f = [BlackKeyFrequencies, 8, 4, 2, 1-df, 1, 1+df, 0.5, 0.25, 0.125, ...
+    -2000, -1000, -500, -250, -125];  % Augment with beat.
+  [dist, index] = min((f - pitches).^2);
+  key_indices = [key_indices, index];
+end
+piano = zeros(1, total_width);
+piano(key_indices) = 1;
+piano = [piano; piano; piano];
+
 
 % Make the composite SAI image array.
 composite_frame = zeros(n_ch, total_width);
 
-seglen = round(fs / 30);  % Pick about 60 fps
-frame_rate = fs / seglen;
 n_segs = ceil(n_samp / seglen);
 
 % Make the history buffers in the layers_array:
@@ -53,10 +69,14 @@ for layer = 1:n_layers
   layer_array(layer).frame = zeros(n_ch, layer_array(layer).frame_width);
 end
 
-n_marginal_rows = 34;
+n_marginal_rows = 100;
 marginals = [];
+average_composite = 0;
 
-average_frame = 0;
+future_lags = layer_array(1).future_lags;
+% marginals_frame = zeros(total_width - future_lags + 2*n_ch, total_width);
+marginals_frame = zeros(n_ch, total_width);
+
 for seg_num = 1:n_segs
   % k_range is the range of input sample indices for this segment
   if seg_num == n_segs
@@ -77,40 +97,54 @@ for seg_num = 1:n_segs
   % Shift new data into some or all of the layer buffers:
   layer_array = SAI_UpdateBuffers(layer_array, seg_naps, seg_num);
 
-
-  for layer = n_layers:-1:1  % blend from coarse to fine
+  for layer = n_layers:-1:1  % Stabilize and blend from coarse to fine
     update_interval = layer_array(layer).update_interval;
     if 0 == mod(seg_num, update_interval)
       layer_array(layer) = SAI_StabilizeLayer(layer_array(layer));
-      new_frame = layer_array(layer).frame;
       composite_frame = SAI_BlendFrameIntoComposite( ...
         layer_array(layer), composite_frame);
     end
   end
+  
+  average_composite = average_composite + ...
+    0.01 * (composite_frame - average_composite);
  
   if isempty(marginals)
-    composite_width = size(composite_frame, 2);
-    marginals = zeros(n_marginal_rows, composite_width);
+    marginals = zeros(n_marginal_rows, total_width);
   end
   for row = n_marginal_rows:-1:11
     % smooth from row above (lower number)
     marginals(row, :) = marginals(row, :) + ...
-      2^((10 - row)/2) * (1.06*marginals(row - 1, :) - marginals(row, :));
+      2^((10 - row)/8) * (1.01*marginals(row - 1, :) - marginals(row, :));
   end
   lag_marginal = mean(composite_frame, 1);  % means max out near 1 or 2
+  lag_marginal = lag_marginal - 0.75*smooth1d(lag_marginal, 30)';
+  
+  freq_marginal = mean(layer_array(1).nap_buffer);
+  % emphasize local peaks:
+  freq_marginal = freq_marginal - 0.5*smooth1d(freq_marginal, 5)';
+  
+  
+%   marginals_frame = [marginals_frame(:, 2:end), ...
+%     [lag_marginal(1:(end - future_lags)), freq_marginal(ceil((1:(2*end))/2))]'];
+  marginals_frame = [marginals_frame(:, 2:end), freq_marginal(1:end)'];
+  
   for row = 10:-1:1
-    marginals(row, :) = (lag_marginal - smooth1d(lag_marginal, 30)') - ...
-      (10 - row) / 40;
+    marginals(row, :) = lag_marginal - (10 - row) / 40;
   end
     
   if 0 == mod(seg_num, update_interval) || seg_num == 1
     coc_gram = layer_array(end).nap_buffer';
     [n_ch, n_width] = size(composite_frame);
     coc_gram = [coc_gram, zeros(n_ch, n_width - size(coc_gram, 2))];
+    coc_gram = coc_gram(:, (end-total_width+1):end);
   end
   
-  display_frame = [coc_gram; ...
-    composite_frame(floor(1:0.5:end), :); 20*max(0,marginals)];
+  display_frame = [ ...  % coc_gram; ...
+    4 * marginals_frame; ...
+    composite_frame(ceil((1:(2*end))/2), :); ...
+    piano; ...
+    10*max(0,marginals)];
   
   cmap = jet;
   cmap = 1 - gray;  % jet
@@ -127,5 +161,13 @@ num_frames = seg_num;
 return
 
 
+function frequencies = BlackKeyFrequencies
+black_indices = [];
+for index = 0:87
+  if any(mod(index, 12) == [1 4 6 9 11])
+    black_indices = [black_indices, index];
+  end
+end
+frequencies = 27.5 * 2.^(black_indices / 12);
 
 

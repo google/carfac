@@ -42,7 +42,7 @@ gain = 1.05;  % gain from layer to layer; could be layer dependent.
 %% 
 % Decimate using a 2-3-4-filter and partial differencing emphasize onsets:
 kernel = filter([1 1]/2, 1, filter([1 1 1]/3, 1, [1 1 1 1 0 0 0 0]/4));
-kernel = kernel + 2*diff([0, kernel]);
+% kernel = kernel + 2*diff([0, kernel]);
 % figure(1)
 % plot(kernel)
 
@@ -65,11 +65,13 @@ for layer = 1:n_layers
       n_shift = floor(n_shift);
       % Grab new stuff from new end (big time indices) of previous layer.
       % Take twice as many times as we need, + 5, for decimation, and do
-      % 343 smoothing to get new points.
+      % smoothing to get new points.
       new_chunk = ...
         layer_array(layer - 1).nap_buffer((end - 2*n_shift - 4):end, :);
       new_chunk = filter(kernel, 1, new_chunk);
-      new_chunk = gain * new_chunk(7:2:end, :);
+      % new_chunk = gain * new_chunk(7:2:end, :);
+      % try a little extra smoothing:
+      new_chunk = gain * (new_chunk(7:2:end, :) + new_chunk(6:2:(end-1), :))/2;
       
     end
     % Put new stuff in at latest time indices.

@@ -21,6 +21,21 @@ function composite_frame = SAI_BlendFrameIntoComposite( ...
   layer_struct, composite_frame)
 
 new_frame = layer_struct.frame;
+n_ch = size(new_frame, 1);
+
+if layer_struct.right_overlap == 0  % A layer 1 hack only.
+  for row = 1:n_ch
+    % Taper new_frame down near zero lag for a nicer result...
+    taper_size = round(6 + 60*(row/n_ch)^2);  %  hack
+    zero_pos = layer_struct.frame_width - layer_struct.future_lags;
+    taper = [-taper_size:min(taper_size, layer_struct.future_lags)];
+    col_range = zero_pos + taper;
+    taper = (0.4 + 0.6*abs(taper) / taper_size) .^ 2;
+    taper(taper == 0) = 0.5;
+    new_frame(row, col_range) = new_frame(row, col_range) .* taper;
+  end
+end
+
 alpha = layer_struct.alpha;
 lag_curve = layer_struct.lag_curve;
 target_columns = layer_struct.target_indices;

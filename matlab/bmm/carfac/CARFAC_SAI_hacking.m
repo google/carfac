@@ -28,6 +28,8 @@ system('mkdir frames');
 dB_list = -40; %  -60:20:0
 
 wav_fn = 'plan.wav';
+wav_fn = 'Stiletto44.wav';
+wav_fn = 'You Can Call Me Al.wav';
 
 if ~exist(['./', wav_fn], 'file')
   error('wav file not found')
@@ -36,14 +38,14 @@ end
 wav_fn
 [file_signal, fs] = wavread(wav_fn);
 
-if fs == 44100
-  file_signal = (file_signal(1:2:end-1, :) + file_signal(2:2:end, :)) / 2;
-  fs = fs / 2;
-end
-
-if fs ~= 22050
-  error('unexpected sample rate')
-end
+% if fs == 44100
+%   file_signal = (file_signal(1:2:end-1, :) + file_signal(2:2:end, :)) / 2;
+%   fs = fs / 2;
+% end
+% 
+% if fs ~= 22050
+%   error('unexpected sample rate')
+% end
 
 file_signal = file_signal(:, 1);  % mono
 file_signal = [file_signal; zeros(fs, 1)];  % pad with a second of silence
@@ -56,7 +58,7 @@ for dB =  dB_list
 end
 
 %%
-CF_struct = CARFAC_Design(1);  % default design
+CF_struct = CARFAC_Design(1, fs);  % default design
 
 CF_struct = CARFAC_Init(CF_struct);
 
@@ -69,4 +71,5 @@ MakeMovieFromPngsAndWav(round(frame_rate), png_name_pattern, ...
 
 %%
 system('rm -r frames');
+
 

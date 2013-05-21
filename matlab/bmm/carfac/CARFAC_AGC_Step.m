@@ -23,7 +23,7 @@ function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
 % one time step of the AGC state update; decimates internally
 
 stage = 1;
-AGC_in = coeffs.detect_scale * detects;
+AGC_in = coeffs(1).detect_scale * detects;
 [state, updated] = CARFAC_AGC_Recurse(coeffs, AGC_in, stage, state);
 
 
@@ -33,36 +33,37 @@ function [state, updated] = CARFAC_AGC_Recurse(coeffs, AGC_in, ...
 %   stage, state)
 
 % decim factor for this stage, relative to input or prev. stage:
-decim = coeffs.decimation(stage);
+decim = coeffs(stage).decimation;
 % decim phase of this stage (do work on phase 0 only):
-decim_phase = mod(state(1).decim_phase(stage) + 1, decim);
-state.decim_phase(stage) = decim_phase;
+decim_phase = mod(state(stage).decim_phase + 1, decim);
+state(stage).decim_phase = decim_phase;
 
 % accumulate input for this stage from detect or previous stage:
-state.input_accum(:, stage) = state.input_accum(:, stage) + AGC_in;
+state(stage).input_accum = state(stage).input_accum + AGC_in;
 
 % nothing else to do if it's not the right decim_phase
 if decim_phase == 0
   % do lots of work, at decimated rate.
   % decimated inputs for this stage, and to be decimated more for next:
-  AGC_in = state.input_accum(:, stage) / decim;
-  state.input_accum(:, stage) = 0;  % reset accumulator
+  AGC_in = state(stage).input_accum / decim;
+  state(stage).input_accum(:) = 0;  % reset accumulator
   
-  if stage < length(coeffs.decimation)  % recurse to evaluate next stage(s)
+  if stage < coeffs(1).n_AGC_stages
     state = CARFAC_AGC_Recurse(coeffs, AGC_in, stage+1, state);
     % and add its output to this stage input, whether it updated or not:
-    AGC_in = AGC_in + coeffs.AGC_stage_gain * state.AGC_memory(:, stage+1);
+    AGC_in = AGC_in + ...
+      coeffs(stage).AGC_stage_gain * state(stage + 1).AGC_memory;
   end
   
-  AGC_stage_state = state.AGC_memory(:, stage);
+  AGC_stage_state = state(stage).AGC_memory;
   % first-order recursive smoothing filter update, in time:
   AGC_stage_state = AGC_stage_state + ...
-    coeffs.AGC_epsilon(stage) * (AGC_in - AGC_stage_state);
+    coeffs(stage).AGC_epsilon * (AGC_in - AGC_stage_state);
   % spatial smooth:
   AGC_stage_state = ...
-    CARFAC_Spatial_Smooth(coeffs, stage, AGC_stage_state);
+    CARFAC_Spatial_Smooth(coeffs(stage), AGC_stage_state);
   % and store the state back (in C++, do it all in place?)
-  state.AGC_memory(:, stage) = AGC_stage_state;
+  state(stage).AGC_memory = AGC_stage_state;
   
   updated = 1;  % bool to say we have new state
 else

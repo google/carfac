@@ -48,13 +48,15 @@ state = struct( ...
 
 
 function state = AGC_Init_State(coeffs)
-n_ch = coeffs.n_ch;
-n_AGC_stages = coeffs.n_AGC_stages;
-state = struct( ...
-  'AGC_memory', zeros(n_ch, n_AGC_stages), ...
-  'input_accum', zeros(n_ch, n_AGC_stages), ...
-  'decim_phase', zeros(n_AGC_stages, 1) ... % integer decimator phase
-  );
+n_ch = coeffs(1).n_ch;
+n_AGC_stages = coeffs(1).n_AGC_stages;
+state = struct([]);
+for stage = 1:n_AGC_stages
+  % Initialize state recursively...
+  state(stage).AGC_memory = zeros(n_ch, 1);
+  state(stage).input_accum = zeros(n_ch, 1);
+  state(stage).decim_phase = 0;  % integer decimator phase
+end
 
 
 function state = IHC_Init_State(coeffs)

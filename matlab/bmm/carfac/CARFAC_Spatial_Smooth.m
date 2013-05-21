@@ -17,17 +17,17 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function stage_state = CARFAC_Spatial_Smooth(coeffs, stage, stage_state)
+function stage_state = CARFAC_Spatial_Smooth(coeffs, stage_state)
 % function AGC_state = CARFAC_Spatial_Smooth( ...
 %   n_taps, n_iterations, FIR_coeffs, AGC_state)
 
-n_iterations = coeffs.AGC_spatial_iterations(stage);
+n_iterations = coeffs.AGC_spatial_iterations;
 
 use_FIR = n_iterations < 4;  % or whatever condition we want to try
 
 if use_FIR
-  FIR_coeffs = coeffs.AGC_spatial_FIR(:,stage);
-  switch coeffs.AGC_spatial_n_taps(stage)
+  FIR_coeffs = coeffs.AGC_spatial_FIR;
+  switch coeffs.AGC_spatial_n_taps
     case 3
       for iter = 1:n_iterations
         stage_state = ...
