@@ -33,10 +33,13 @@
 // linking to the libsndfile.dylib file. Two helper functions 'ReadSound' and
 // 'ReadSoundInfo' are used to obtain header information (needed for the CARFAC
 // design stage) and sound data (for running the model).
+#include <iostream>
+
 #include <sndfile.h>
-#include "carfac.h"
 //GoogleTest is now included for running unit tests
 #include <gtest/gtest.h>
+
+#include "carfac.h"
 
 // ReadSound takes a character array (filename string) as an argument and
 // returns a two dimensional (samples x channels) FloatArray (Eigen ArrayXX)
@@ -106,10 +109,11 @@ int main(int argc, char **argv) {
   // This initializes the GoogleTest unit testing framework.
   ::testing::InitGoogleTest(&argc, argv);
   // Here we specify a path to a test file.
-  const char * filename = "/Users/alexbrandmeyer/aimc/carfac/test_signal.wav";
+  const char *filename = "test_signal.wav";
   // This loads the header info and sound data.
   SF_INFO info = ReadSoundInfo(filename);
   FloatArray2d mysnd = ReadSound(filename);
+  std::cout << "Read sound from " << filename << std::endl;
   // These initialze the default parameter objects needed for the CARFAC design.
   CARParams *car_params = new CARParams();
   IHCParams *ihc_params = new IHCParams();
@@ -122,8 +126,10 @@ int main(int argc, char **argv) {
   delete car_params;
   delete ihc_params;
   delete agc_params;
+  std::cout << "Running CARFAC..." << std::endl;
   // Now we run the model on the test data (using a closed loop for now).
   CARFACOutput output = mycf->Run(mysnd, false, true, true, true);
+  std::cout << "done." << std::endl;
   // Finally we clear the CARFAC object when we're done.
   delete mycf;
   return 0;

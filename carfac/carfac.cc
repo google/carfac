@@ -21,6 +21,7 @@
 // limitations under the License.
 
 #include "carfac.h"
+
 void CARFAC::Design(int n_ears, int32_t fs, CARParams car_params,
                     IHCParams ihc_params, AGCParams agc_params) {
   n_ears_ = n_ears;
