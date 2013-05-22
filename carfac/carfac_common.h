@@ -53,6 +53,8 @@
 #include <math.h>
 // <vector> is used in place of 2d Eigen Arrays for the AGC memory
 #include <vector>
+// The Google Logging library is included for error handling.
+#include <glog/logging.h>
 // The Eigen library is used extensively for 1d and 2d floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Dense>
@@ -64,12 +66,15 @@ using namespace Eigen;
 #define PI 3.141592653589793238
 
 // Three typedefs are used for enabling quick switching of precision and array
-// usage. 
+// usage. These names may be changed based on the discussions being had within
+// the AIMC group.
 // The 'FPType' typedef is used to enable easy switching in precision level.
+// It's currently set to double for during the unit testing phase of the
+// project.
 typedef double FPType;
-// These are the two typedefs for Eigen floating point arrays.
-typedef Eigen::Array<FPType, Dynamic, 1> FloatArray;  // This is a 1d array.
-typedef Eigen::Array<FPType, Dynamic, Dynamic> FloatArray2d;  // This is 2d.
+// A typedef is used to define a one-dimensional Eigen array with the same
+// precision level as FPType.
+typedef Eigen::Array<FPType, Dynamic, 1> FloatArray; 
 
 // Two helper functions are defined here for use by the different model stages
 // in calculating coeffecients and during model runtime.
@@ -77,11 +82,12 @@ typedef Eigen::Array<FPType, Dynamic, Dynamic> FloatArray2d;  // This is 2d.
 // Function: ERBHz
 // Auditory filter nominal Equivalent Rectangular Bandwidth
 // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-FPType ERBHz(FPType cf_hz, FPType erb_break_freq, FPType erb_q);
+FPType ERBHz(const FPType cf_hz, const FPType erb_break_freq,
+             const FPType erb_q);
 
 // Function CARFACDetect
 // This returns the IHC detection nonilnearity function of the filter output
 // values.  This is here because it is called both in design and run phases.
-FloatArray CARFACDetect (FloatArray x);
+FloatArray CARFACDetect (const FloatArray& x);
 
 #endif

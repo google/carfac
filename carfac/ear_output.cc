@@ -22,38 +22,33 @@
 
 #include "ear_output.h"
 
-void EarOutput::InitOutput(int n_ch, int32_t n_tp) {
+void EarOutput::InitOutput(int n_ch, int32_t n_timepoints) {
   n_ch_ = n_ch;
-  n_timepoints_ = n_tp;
-  nap_.resize(n_ch_, n_timepoints_);
-  bm_.resize(n_ch_, n_timepoints_);
-  ohc_.resize(n_ch_, n_timepoints_);
-  agc_.resize(n_ch_, n_timepoints_);
+  n_timepoints_ = n_timepoints;
+  nap_.resize(n_timepoints_);
+  bm_.resize(n_timepoints_);
+  ohc_.resize(n_timepoints_);
+  agc_.resize(n_timepoints_);
+  for (int32_t i = 0; i < n_timepoints; ++i) {
+    nap_[i].resize(n_ch);
+    bm_[i].resize(n_ch);
+    ohc_[i].resize(n_ch);
+    agc_[i].resize(n_ch);
+  }
 }
 
-void EarOutput::MergeOutput(EarOutput ear_output, int32_t start, int32_t length) {
-  nap_.block(0, start, n_ch_, length) = ear_output.nap_.block(0, 0, n_ch_,
-                                                              length);
-  bm_.block(0, start, n_ch_, length) = ear_output.bm_.block(0, 0, n_ch_,
-                                                            length);
-  ohc_.block(0, start, n_ch_, length) = ear_output.ohc_.block(0, 0, n_ch_,
-                                                              length);
-  agc_.block(0, start, n_ch_, length) = ear_output.agc_.block(0, 0, n_ch_,
-                                                              length);
+void EarOutput::StoreNAPOutput(const int32_t timepoint, const FloatArray& nap) {
+  nap_[timepoint] = nap;
 }
 
-void EarOutput::StoreNAPOutput(int32_t timepoint, int n_ch, FloatArray nap) {
-  nap_.block(0, timepoint, n_ch_, 1) = nap;
+void EarOutput::StoreBMOutput(const int32_t timepoint, const FloatArray& bm) {
+  bm_[timepoint] = bm;
 }
 
-void EarOutput::StoreBMOutput(int32_t timepoint, int n_ch, FloatArray bm) {
-  bm_.block(0, timepoint, n_ch_, 1) = bm;
+void EarOutput::StoreOHCOutput(const int32_t timepoint, const FloatArray& ohc) {
+  ohc_[timepoint] = ohc;
 }
 
-void EarOutput::StoreOHCOutput(int32_t timepoint, int n_ch, FloatArray ohc) {
-  ohc_.block(0, timepoint, n_ch_, 1) = ohc;
-}
-
-void EarOutput::StoreAGCOutput(int32_t timepoint, int n_ch, FloatArray agc) {
-  agc_.block(0, timepoint, n_ch_, 1) = agc;
+void EarOutput::StoreAGCOutput(const int32_t timepoint, const FloatArray& agc) {
+  agc_[timepoint] = agc;
 }

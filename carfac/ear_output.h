@@ -27,20 +27,20 @@
 
 class EarOutput {
  public:
-  void InitOutput(int n_ch, int32_t n_tp);
-  void MergeOutput(EarOutput output, int32_t start, int32_t length);
-  void StoreNAPOutput(int32_t timepoint, int n_ch, FloatArray nap);
-  void StoreBMOutput(int32_t timepoint, int n_ch, FloatArray bm);
-  void StoreOHCOutput(int32_t timepoint, int n_ch, FloatArray ohc);
-  void StoreAGCOutput(int32_t timepoint, int n_ch, FloatArray agc);
+  void InitOutput(int n_ch, int32_t n_timepoints);
+  void StoreNAPOutput(const int32_t timepoint, const FloatArray& nap);
+  void StoreBMOutput(const int32_t timepoint, const FloatArray& bm);
+  void StoreOHCOutput(const int32_t timepoint, const FloatArray& ohc);
+  void StoreAGCOutput(const int32_t timepoint, const FloatArray& agc);
+  
  private:
   int n_ch_;
   int32_t n_timepoints_;
-  FloatArray2d nap_;
-  FloatArray2d nap_decim_;
-  FloatArray2d ohc_;
-  FloatArray2d agc_;
-  FloatArray2d bm_;
+  std::vector<FloatArray> nap_;
+  std::vector<FloatArray> nap_decim_;  // TODO (alexbrandmeyer): store nap_decim output.
+  std::vector<FloatArray> ohc_;
+  std::vector<FloatArray> agc_;
+  std::vector<FloatArray> bm_;
 };
 
 #endif

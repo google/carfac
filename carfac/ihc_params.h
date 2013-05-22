@@ -27,9 +27,6 @@
 
 struct IHCParams {
   IHCParams();
-  IHCParams(bool just_hwr, bool one_cap, FPType tau_lpf, FPType tau1_out,
-            FPType tau1_in, FPType tau2_out, FPType tau2_in,
-            FPType ac_corner_hz);
   bool just_hwr_;
   bool one_cap_;
   FPType tau_lpf_;

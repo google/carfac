@@ -33,10 +33,6 @@
 // The 'InitOutput' method is used to initialize the arrays in each of the
 // EarOutput sub-objects once the target data dimensions ears (n_ears), channels
 // (n_ch) and timepoints (n_tp) are known.
-//
-// The 'MergeOutput' method is for integrating a smaller CARFACOutput into a
-// larger CARFACOutput object. This is intended to be used in the context of
-// the CARFAC class's 'Run' and 'RunSegments' methods. 
 
 #ifndef CARFAC_Open_Source_C__Library_carfac_output_h
 #define CARFAC_Open_Source_C__Library_carfac_output_h
@@ -45,12 +41,17 @@
 
 class CARFACOutput {
  public:
-  void InitOutput(int n_ears, int n_ch, int32_t n_tp);
-  void MergeOutput(CARFACOutput output, int32_t start, int32_t length);
-  void StoreNAPOutput(int32_t timepoint, int ear, int n_ch, FloatArray nap);
-  void StoreBMOutput(int32_t timepoint, int ear, int n_ch, FloatArray bm);
-  void StoreOHCOutput(int32_t timepoint, int ear, int n_ch, FloatArray ohc);
-  void StoreAGCOutput(int32_t timepoint, int ear, int n_ch, FloatArray agc);
+  void InitOutput(const int n_ears, const int n_ch,
+                  const int32_t n_timepoints);
+  void StoreNAPOutput(const int32_t timepoint, const int ear,
+                      const FloatArray& nap);
+  void StoreBMOutput(const int32_t timepoint, const int ear,
+                     const FloatArray& bm);
+  void StoreOHCOutput(const int32_t timepoint, const int ear,
+                      const FloatArray& ohc);
+  void StoreAGCOutput(const int32_t timepoint, const int ear,
+                      const FloatArray& agc);
+
  private:
   int n_ears_;
   std::vector<EarOutput> ears_;

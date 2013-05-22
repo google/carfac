@@ -28,28 +28,11 @@ CARParams::CARParams() {
   min_zeta_ = 0.1;
   max_zeta_ = 0.35;
   first_pole_theta_ = 0.85 * PI;
-  zero_ratio_ = 1.4142;
+  zero_ratio_ = sqrt(2.0);
   high_f_damping_compression_ = 0.5;
   erb_per_step_ = 0.5;
   min_pole_hz_ = 30;
-  erb_break_freq_ = 165.3;
+  erb_break_freq_ = 165.3;  // This is the Greenwood map's break frequency.
+  // This represents Glassberg and Moore's high-cf ratio.
   erb_q_ = 1000/(24.7*4.37);
-};
-
-CARParams::CARParams(FPType velocity_scale, FPType v_offset, FPType min_zeta,
-                     FPType max_zeta, FPType first_pole_theta,
-                     FPType zero_ratio, FPType high_f_damping_compression,
-                     FPType erb_per_step, FPType min_pole_hz_,
-                     FPType erb_break_freq, FPType erb_q_) {
-  velocity_scale_ = velocity_scale;
-  v_offset_ = v_offset;
-  min_zeta_ = min_zeta;
-  max_zeta_ = max_zeta;
-  first_pole_theta_ = first_pole_theta;
-  zero_ratio_ = zero_ratio;
-  high_f_damping_compression_ = high_f_damping_compression;
-  erb_per_step_ = erb_per_step;
-  min_pole_hz_ = min_pole_hz_;
-  erb_break_freq_ = erb_break_freq;
-  erb_q_ = erb_q_;
 };

@@ -22,13 +22,14 @@
 
 #include "carfac_common.h"
 
-FPType ERBHz (FPType cf_hz, FPType erb_break_freq, FPType erb_q) {
+FPType ERBHz (const FPType cf_hz, const FPType erb_break_freq,
+              const FPType erb_q) {
   FPType erb;
   erb = (erb_break_freq + cf_hz) / erb_q;
   return erb;
 }
 
-FloatArray CARFACDetect (FloatArray x) {
+FloatArray CARFACDetect (const FloatArray& x) {
   FloatArray conductance, z, set;
   FPType a = 0.175;
   // This offsets the low-end tail into negative x territory.
@@ -36,6 +37,6 @@ FloatArray CARFACDetect (FloatArray x) {
   // threshold at 0.1.
   z  = x + a;
   // Zero is the final answer for many points.
-  conductance = (z < 0).select(0.0, (z * z * z) / (z * z * z + z * z + 0.1));
+  conductance = (z < 0).select(0.0, (z*z*z) / (z*z*z + z*z + 0.1));
   return conductance;
 }

@@ -27,11 +27,6 @@
 
 struct CARParams {
   CARParams();  // The constructor initializes using default parameter values.
-  // This is a method to set non-default params.
-  CARParams(FPType velocity_scale, FPType v_offset, FPType min_zeta,
-            FPType max_zeta, FPType first_pole_theta, FPType zero_ratio,
-            FPType high_f_damping_compression, FPType erb_per_step,
-            FPType min_pole_hz_, FPType erb_break_freq, FPType erb_q_);
   FPType velocity_scale_; // This is used for the velocity nonlinearity.
   FPType v_offset_;  // The offset gives us quadratic part.
   FPType min_zeta_;  // This is the minimum damping factor in mid-freq channels.
@@ -39,10 +34,10 @@ struct CARParams {
   FPType first_pole_theta_;
   FPType zero_ratio_;  // This is how far zero is above the pole.
   FPType high_f_damping_compression_;  // A range from 0 to 1 to compress theta.
-  FPType erb_per_step_;  // Here we assume G&M's ERB formula.
+  FPType erb_per_step_;
   FPType min_pole_hz_;
-  FPType erb_break_freq_;  // This is the Greenwood map's break frequency.
-  FPType erb_q_;  // This represents Glassberg and Moore's high-cf ratio.
+  FPType erb_break_freq_;
+  FPType erb_q_;
 };
 
 #endif

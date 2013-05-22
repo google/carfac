@@ -22,36 +22,31 @@
 
 #include "carfac_output.h"
 
-void CARFACOutput::InitOutput(int n_ears, int n_ch, int32_t n_tp) {
+void CARFACOutput::InitOutput(const int n_ears, const int n_ch,
+                              const int32_t n_timepoints) {
   n_ears_ = n_ears;
   ears_.resize(n_ears_);
-  for (int i = 0; i < n_ears_; i++) {
-    ears_.at(i).InitOutput(n_ch, n_tp);
+  for (int i = 0; i < n_ears_; ++i) {
+    ears_[i].InitOutput(n_ch, n_timepoints);
   }
 }
 
-void CARFACOutput::MergeOutput(CARFACOutput output, int32_t start, int32_t length) {
-  for (int i = 0; i < n_ears_; i++){
-    ears_.at(i).MergeOutput(output.ears_[i], start, length);
-  }
+void CARFACOutput::StoreNAPOutput(const int32_t timepoint, const int ear,
+                                  const FloatArray& nap) {
+  ears_[ear].StoreNAPOutput(timepoint, nap);
 }
 
-void CARFACOutput::StoreNAPOutput(int32_t timepoint, int ear, int n_ch,
-                               FloatArray nap) {
-  ears_.at(ear).StoreNAPOutput(timepoint, n_ch, nap);
+void CARFACOutput::StoreBMOutput(const int32_t timepoint, const int ear,
+                                 const FloatArray& bm) {
+  ears_[ear].StoreBMOutput(timepoint, bm);
 }
 
-void CARFACOutput::StoreBMOutput(int32_t timepoint, int ear, int n_ch,
-                                  FloatArray nap) {
-  ears_.at(ear).StoreBMOutput(timepoint, n_ch, nap);
+void CARFACOutput::StoreOHCOutput(const int32_t timepoint, const int ear,
+                                  const FloatArray& ohc) {
+  ears_[ear].StoreOHCOutput(timepoint, ohc);
 }
 
-void CARFACOutput::StoreOHCOutput(int32_t timepoint, int ear, int n_ch,
-                                  FloatArray nap) {
-  ears_.at(ear).StoreOHCOutput(timepoint, n_ch, nap);
-}
-
-void CARFACOutput::StoreAGCOutput(int32_t timepoint, int ear, int n_ch,
-                                  FloatArray nap) {
-  ears_.at(ear).StoreNAPOutput(timepoint, n_ch, nap);
+void CARFACOutput::StoreAGCOutput(const int32_t timepoint, const int ear,
+                                  const FloatArray& agc) {
+  ears_[ear].StoreNAPOutput(timepoint, agc);
 }

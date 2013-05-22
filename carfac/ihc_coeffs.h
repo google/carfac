@@ -25,7 +25,11 @@
 
 #include "ihc_params.h"
 
+// TODO (alexbrandmeyer): check that struct is ok given possible non-triviality
+// of the 'Design' method. A change to class would require the addition of
+// accessor functions.
 struct IHCCoeffs {
+  void Design(const IHCParams& ihc_params, const FPType fs);
   bool just_hwr_;
   bool one_cap_;
   FPType lpf_coeff_;

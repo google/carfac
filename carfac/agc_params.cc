@@ -26,30 +26,23 @@
 // Lyon's book 'Human and Machine Hearing'
 AGCParams::AGCParams() {
   n_stages_ = 4;
-  agc_stage_gain_ = 2;
+  agc_stage_gain_ = 2.0;
+  std::vector<FPType> base_values = {1.0, 1.4, 2.0, 2.8};
+  FPType agc1_factor = 1.0;
   FPType agc2_factor = 1.65;
-  std::vector<FPType> stage_values = {1.0, 1.4, 2.0, 2.8};
   time_constants_.resize(n_stages_);
   agc1_scales_.resize(n_stages_);
   agc2_scales_.resize(n_stages_);
   for (int i = 0; i < n_stages_; ++i) {
-    time_constants_(i) = pow(4, i) * 0.002;
-    agc1_scales_(i) = stage_values.at(i);
-    agc2_scales_(i) = stage_values.at(i) * agc2_factor;
+    time_constants_[i] = pow(4, i) * 0.002;
+    // TODO (alexbrandmeyer): check with Dick Lyon about best way to initialize.
+    // Tests on AGC values fail the equality test with Matlab when using the
+    // geometric method for initializing the AGC scales.
+    // agc1_scales_[i] = agc1_factor * pow(2.0, i/2.0);
+    // agc2_scales_[i] = agc2_factor * pow(2.0, i/2.0);
+    agc1_scales_[i] = agc1_factor * base_values[i];
+    agc2_scales_[i] = agc2_factor * base_values[i];
   }
   decimation_ = {8, 2, 2, 2};
   agc_mix_coeff_ = 0.5;
-}
-
-// The overloaded constructor allows for use of different AGC parameters.
-AGCParams::AGCParams(int n_stages, FPType agc_stage_gain, FPType agc_mix_coeff,
-                    FloatArray time_constants, std::vector<int> decimation,
-                    FloatArray agc1_scales, FloatArray agc2_scales) {
-  n_stages_ = n_stages;
-  agc_stage_gain_ = agc_stage_gain;
-  agc_mix_coeff_ = agc_mix_coeff;
-  time_constants_ = time_constants;
-  decimation_ = decimation;
-  agc1_scales_ = agc1_scales;
-  agc2_scales_ = agc2_scales;
 }

@@ -27,10 +27,9 @@
 
 struct AGCState {
   int n_ch_;
-  int n_agc_stages_;
-  std::vector<FloatArray> agc_memory_;
-  std::vector<FloatArray> input_accum_;
-  std::vector<int> decim_phase_;
+  FloatArray agc_memory_;
+  FloatArray input_accum_;
+  int decim_phase_;
 };
 
 #endif

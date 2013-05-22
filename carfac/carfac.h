@@ -50,27 +50,26 @@ class CARFAC {
   // stereo, or more.  Each 'Ear' includes various sub-objects representing the
   // parameters, designs (coeffs) ,and states of different parts of the CAR-FAC
   // model.
-  void Design(int n_ears, int32_t fs, CARParams car_params, IHCParams ihc_params,
-              AGCParams agc_params);
+  void Design(const int n_ears, const FPType fs, const CARParams& car_params,
+              const IHCParams& ihc_params, const AGCParams& agc_params);
   // The 'Run' method processes an entire file with the current model, using
   // subsequent calls to the 'RunSegment' method
-  CARFACOutput Run(FloatArray2d sound_data, bool open_loop, bool store_bm,
-                   bool store_ohc, bool store_agc);
+  CARFACOutput Run(const std::vector<std::vector<float>>& sound_data);
   // The 'RunSegment' method processes individual sound segments
-  void RunSegment(FloatArray2d sound_data, CARFACOutput *seg_output,
-                  bool open_loop, bool store_bm, bool store_ohc,
-                  bool store_agc);
-  
+  void RunSegment(const std::vector<std::vector<float>>& sound_data,
+                  const int32_t start, const int32_t length,
+                  CARFACOutput* seg_output, const bool open_loop);
+
  private:
   void CrossCouple();
   void CloseAGCLoop();
-  
   int n_ears_;  // This is the number of ears.
-  int32_t fs_;  // This is our current sample rate.
+  FPType fs_;  // This is our current sample rate.
   int n_ch_;  // This is the number of channels in the CARFAC model.
   FPType max_channels_per_octave_;
   // We store an array of Ear objects for mono/stereo/multichannel processing:
   std::vector<Ear> ears_;
+  FloatArray pole_freqs_;
 };
 
 #endif

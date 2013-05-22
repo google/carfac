@@ -25,19 +25,25 @@
 
 #include "agc_params.h"
 
+// TODO (alexbrandmeyer): check that struct is ok given possible non-triviality
+// of the 'Design' method. A change to class would require the addition of
+// accessor functions.
 struct AGCCoeffs {
+  void Design(const AGCParams& agc_params, const int stage, const FPType fs,
+              const FPType previous_stage_gain, FPType decim);
   int n_agc_stages_;
-  int agc_stage_gain_;
-  FloatArray agc_epsilon_;
-  std::vector<int> decimation_;
-  FloatArray agc_pole_z1_;
-  FloatArray agc_pole_z2_;
-  FloatArray agc_spatial_iterations_;
-  FloatArray2d agc_spatial_fir_;
-  FloatArray agc_spatial_n_taps_;
-  FloatArray agc_mix_coeffs_;
+  FPType agc_stage_gain_;
+  FPType agc_epsilon_;
+  int decimation_;
+  FPType agc_pole_z1_;
+  FPType agc_pole_z2_;
+  int agc_spatial_iterations_;
+  std::vector<FPType> agc_spatial_fir_;
+  int agc_spatial_n_taps_;
+  FPType agc_mix_coeffs_;
   FPType agc_gain_;
   FPType detect_scale_;
+  FPType decim_;
 };
 
 #endif
