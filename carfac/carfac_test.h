@@ -35,6 +35,6 @@
 // when trying to build on a different system.
 #define TEST_SRC_DIR "/Users/alexbrandmeyer/aimc/carfac/test_data/"
 // Here we specify the level to which the output should match (10 decimals).
-#define PRECISION_LEVEL 10.0e-11
+#define PRECISION_LEVEL 1.0e-10
 
 #endif /* defined(__CARFAC_Open_Source_C___Library__carfac_test__) */

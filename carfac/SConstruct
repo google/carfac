@@ -35,13 +35,16 @@ To install dependencies and build on Ubuntu, run:
 import os
 
 carfac_sources = [
+    'agc_coeffs.cc',
     'agc_params.cc',
+    'car_coeffs.cc',
     'carfac.cc',
     'carfac_common.cc',
     'carfac_output.cc',
     'car_params.cc',
     'ear.cc',
     'ear_output.cc',
+    'ihc_coeffs.cc',
     'ihc_params.cc',
     ]
 
@@ -57,7 +60,7 @@ env.Command('tmp/libgtest.a', [],
                 'cd tmp && cmake . && make',
             ])
 
-env.Program(target = 'main',
-            source = ['main.cc'],
-            LIBS = ['carfac', 'sndfile', 'gtest', 'pthread'],
+env.Program(target = 'carfac_test',
+            source = ['carfac_test.cc'],
+            LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
             LIBPATH = ['.', 'tmp'])

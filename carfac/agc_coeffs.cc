@@ -106,8 +106,8 @@ void AGCCoeffs::Design(const AGCParams& agc_params, const int stage,
         fir_ok = fir[1] >= 0.1 ? true : false;
         break;
       default:
-        break;  // Again, we've arrived at a bad n_taps in the design.
-        CHECK_EQ(5, n_taps) << "Bad n_taps; should be 3 or 5.";
+        assert(true && "Bad n_taps; should be 3 or 5.");
+        break;
     }
   }
   // Once we have the FIR design for this stage we can assign it to the

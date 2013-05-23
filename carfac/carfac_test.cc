@@ -21,6 +21,7 @@
 // limitations under the License.
 
 #include "carfac_test.h"
+
 // Three helper functions are defined here for loading the test data generated
 // by the Matlab version of CARFAC.
 // This loads one-dimensional FloatArrays from single-column text files.
