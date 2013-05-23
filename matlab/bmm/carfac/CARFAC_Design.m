@@ -69,11 +69,11 @@ end
 if nargin < 4
   CF_AGC_params = struct( ...
     'n_stages', 4, ...
-    'time_constants', [1, 4, 16, 64]*0.002, ...
+    'time_constants', 0.002 * 4.^(0:3), ...
     'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
     'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', [1.0, 1.4, 2.0, 2.8]*1.0, ...   % in units of channels
-    'AGC2_scales', [1.0, 1.4, 2.0, 2.8]*1.65, ... % spread more toward base
+    'AGC1_scales', 1.0 * sqrt(2).^(0:3), ...   % in units of channels
+    'AGC2_scales', 1.65 * sqrt(2).^(0:3), ... % spread more toward base
     'AGC_mix_coeff', 0.5);
 end
 
@@ -439,7 +439,10 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 % IHC_params = CF.IHC_params
 % CAR_coeffs = CF.ears(1).CAR_coeffs
 % AGC_coeffs = CF.ears(1).AGC_coeffs
-% AGC_spatial_FIR = AGC_coeffs.AGC_spatial_FIR
+% AGC_coeffs(1)
+% AGC_coeffs(2)
+% AGC_coeffs(3)
+% AGC_coeffs(4)
 % IHC_coeffs = CF.ears(1).IHC_coeffs
 
 % CF = 
@@ -469,8 +472,8 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
 %         decimation: [8 2 2 2]
-%        AGC1_scales: [1 1.4000 2 2.8000]
-%        AGC2_scales: [1.6500 2.3100 3.3000 4.6200]
+%        AGC1_scales: [1 1.4142 2.0000 2.8284]
+%        AGC2_scales: [1.6500 2.3335 3.3000 4.6669]
 %      AGC_mix_coeff: 0.5000
 % IHC_params = 
 %         just_hwr: 0
@@ -490,23 +493,71 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %          g0_coeffs: [71x1 double]
 %          zr_coeffs: [71x1 double]
 % AGC_coeffs = 
+% 1x4 struct array with fields:
+%     n_ch
+%     n_AGC_stages
+%     AGC_stage_gain
+%     decimation
+%     AGC_epsilon
+%     AGC_polez1
+%     AGC_polez2
+%     AGC_spatial_iterations
+%     AGC_spatial_FIR
+%     AGC_spatial_n_taps
+%     AGC_mix_coeffs
+%     detect_scale
+% ans = 
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
-%                AGC_epsilon: [0.1659 0.0867 0.0443 0.0224]
-%                 decimation: [8 2 2 2]
-%                 AGC_polez1: [0.1737 0.1818 0.1921 0.1948]
-%                 AGC_polez2: [0.2472 0.2336 0.2288 0.2207]
-%     AGC_spatial_iterations: [1 1 1 1]
-%            AGC_spatial_FIR: [3x4 double]
-%         AGC_spatial_n_taps: [3 3 3 3]
-%             AGC_mix_coeffs: [0 0.0454 0.0227 0.0113]
-%                   AGC_gain: 15
+%                 decimation: 8
+%                AGC_epsilon: 0.1659
+%                 AGC_polez1: 0.1737
+%                 AGC_polez2: 0.2472
+%     AGC_spatial_iterations: 1
+%            AGC_spatial_FIR: [0.2856 0.3108 0.4036]
+%         AGC_spatial_n_taps: 3
+%             AGC_mix_coeffs: 0
 %               detect_scale: 0.0667
-% AGC_spatial_FIR =
-%     0.2856    0.2930    0.3099    0.3111
-%     0.3108    0.3314    0.3212    0.3365
-%     0.4036    0.3756    0.3689    0.3524
+% ans = 
+%                       n_ch: 71
+%               n_AGC_stages: 4
+%             AGC_stage_gain: 2
+%                 decimation: 2
+%                AGC_epsilon: 0.0867
+%                 AGC_polez1: 0.1845
+%                 AGC_polez2: 0.2365
+%     AGC_spatial_iterations: 1
+%            AGC_spatial_FIR: [0.2994 0.3178 0.3828]
+%         AGC_spatial_n_taps: 3
+%             AGC_mix_coeffs: 0.0454
+%               detect_scale: []
+% ans = 
+%                       n_ch: 71
+%               n_AGC_stages: 4
+%             AGC_stage_gain: 2
+%                 decimation: 2
+%                AGC_epsilon: 0.0443
+%                 AGC_polez1: 0.1921
+%                 AGC_polez2: 0.2288
+%     AGC_spatial_iterations: 1
+%            AGC_spatial_FIR: [0.3099 0.3212 0.3689]
+%         AGC_spatial_n_taps: 3
+%             AGC_mix_coeffs: 0.0227
+%               detect_scale: []
+% ans = 
+%                       n_ch: 71
+%               n_AGC_stages: 4
+%             AGC_stage_gain: 2
+%                 decimation: 2
+%                AGC_epsilon: 0.0224
+%                 AGC_polez1: 0.1975
+%                 AGC_polez2: 0.2235
+%     AGC_spatial_iterations: 1
+%            AGC_spatial_FIR: [0.3177 0.3230 0.3594]
+%         AGC_spatial_n_taps: 3
+%             AGC_mix_coeffs: 0.0113
+%               detect_scale: []
 % IHC_coeffs = 
 %            n_ch: 71
 %        just_hwr: 0
@@ -518,3 +569,4 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %     rest_output: 1.0426
 %        rest_cap: 0.5360
 %        ac_coeff: 0.0057
+
