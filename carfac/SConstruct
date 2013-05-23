@@ -23,13 +23,21 @@
 """@package SConstruct
 SConstruct file for the CARFAC Open Source C++ Library.
 
-To install dependencies and build on Ubuntu, run:
+To install dependencies on Ubuntu, run:
 
- sudo apt-get install libeigen3-dev scons \
-   cmake libgtest-dev libsndfile-dev  # For testing.
- export EIGEN_PATH=/usr/include/eigen3
- export GTEST_SOURCE=/usr/src/gtest
+  sudo apt-get install libeigen3-dev scons \
+    cmake libgtest-dev libsndfile-dev  # For testing.
+  export EIGEN_PATH=/usr/include/eigen3
+  export GTEST_SOURCE=/usr/src/gtest
+
+To build all libraries, run:
  scons
+
+To run unit tests, run:
+  scons test
+
+To clean up binaries, run:
+  scons --clean
 """
 
 import os
@@ -60,7 +68,9 @@ env.Command('tmp/libgtest.a', [],
                 'cd tmp && cmake . && make',
             ])
 
-env.Program(target = 'carfac_test',
-            source = ['carfac_test.cc'],
-            LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
-            LIBPATH = ['.', 'tmp'])
+test_program = env.Program(target = 'carfac_test',
+                           source = ['carfac_test.cc'],
+                           LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
+                           LIBPATH = ['.', 'tmp'])
+test_alias = Alias('test', [test_program], test_program[0].abspath)
+AlwaysBuild(test_alias)
