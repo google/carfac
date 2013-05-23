@@ -53,8 +53,6 @@
 #include <math.h>
 // <vector> is used in place of 2d Eigen Arrays for the AGC memory
 #include <vector>
-// The Google Logging library is included for error handling.
-#include <glog/logging.h>
 // The Eigen library is used extensively for 1d and 2d floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Dense>

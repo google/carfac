@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <assert.h>
+
 #include "agc_coeffs.h"
 
 void AGCCoeffs::Design(const AGCParams& agc_params, const int stage,
@@ -62,17 +64,12 @@ void AGCCoeffs::Design(const AGCParams& agc_params, const int stage,
         n_taps = 5;
         break;
       case 5:
-        n_iterations ++;
-        if (n_iterations > 16){
-          // This implies too many iterations, so we shoud indicate and error.
-          CHECK_GE(16, n_iterations) <<
-          "Too many iterations needed in AGC spatial smoothing.";
-        }
+        n_iterations++;
+        assert(n_iterations < 16 &&
+               "Too many iterations needed in AGC spatial smoothing.");
         break;
       default:
-        // This means a bad n_taps has been provided, so there should again be
-        // an error.
-        CHECK_EQ(5, n_taps) << "Bad n_taps; should be 3 or 5.";
+        assert(true && "Bad n_taps; should be 3 or 5.");
         break;
     }
     // The smoothing function is a space-domain smoothing, but it considered

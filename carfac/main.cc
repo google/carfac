@@ -35,8 +35,6 @@
 int main(int argc, char **argv) {
   // This initializes the GoogleTest unit testing framework.
   ::testing::InitGoogleTest(&argc, argv);
-  // This initializes Google's logging library.
-  google::InitGoogleLogging(argv[0]);
   // This runs all of the tests that we've defined above.
   return RUN_ALL_TESTS();
 }

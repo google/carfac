@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <assert.h>
+
 #include "ear.h"
 
 // The 'InitEar' function takes a set of model parameters and initializes the
@@ -275,9 +277,8 @@ FloatArray Ear::AGCSpatialSmooth(const int stage, FloatArray stage_state) {
         (fir_coeffs[2] * (ss_tap2 + ss_tap4));
         break;
       default:
+        assert(true && "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
         break;
-        CHECK_EQ(5, n_taps) <<
-        "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.";
     }
   } else {
     stage_state = AGCSmoothDoubleExponential(stage_state,
