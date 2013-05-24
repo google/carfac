@@ -21,7 +21,10 @@ function [frame_rate, num_frames] = SAI_RunLayered(CF, input_waves)
 % function [CF, SAI_movie] = CARFAC_RunLayered(CF, input_waves)
 % This function runs the CARFAC and generates an SAI movie, dumped as PNG
 % files for now.
-
+%
+% Computes a "layered" SAI composed of images computed at several
+% time scales.
+%
 % Layer 1 is not decimated from the 22050 rate; subsequent layers have
 % smoothing and 2X decimation each.  All layers get composited together
 % into movie frames.
@@ -35,6 +38,8 @@ fs = CF.fs;
 
 seglen = round(fs / 30);  % Pick about 30 fps
 frame_rate = fs / seglen;
+n_segs = ceil(n_samp / seglen);
+
 
 % Design the composite log-lag SAI using these parameters and defaults.
 n_layers = 15
@@ -59,8 +64,6 @@ piano = [piano; piano; piano];
 % Make the composite SAI image array.
 composite_frame = zeros(n_ch, total_width);
 
-n_segs = ceil(n_samp / seglen);
-
 % Make the history buffers in the layers_array:
 for layer = 1:n_layers
   layer_array(layer).nap_buffer = zeros(layer_array(layer).buffer_width, n_ch);
@@ -78,15 +81,15 @@ future_lags = layer_array(1).future_lags;
 marginals_frame = zeros(n_ch, total_width);
 
 for seg_num = 1:n_segs
-  % k_range is the range of input sample indices for this segment
+  % seg_range is the range of input sample indices for this segment
   if seg_num == n_segs
     % The last segment may be short of seglen, but do it anyway:
-    k_range = (seglen*(seg_num - 1) + 1):n_samp;
+    seg_range = (seglen*(seg_num - 1) + 1):n_samp;
   else
-    k_range = seglen*(seg_num - 1) + (1:seglen);
+    seg_range = seglen*(seg_num - 1) + (1:seglen);
   end
   % Process a segment to get a slice of decim_naps, and plot AGC state:
-  [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
+  [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(seg_range, :));
   
   seg_naps = max(0, seg_naps);  % Rectify
   
