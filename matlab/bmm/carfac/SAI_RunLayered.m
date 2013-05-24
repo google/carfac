@@ -18,12 +18,12 @@
 % limitations under the License.
 
 function [frame_rate, num_frames] = SAI_RunLayered(CF, input_waves)
-% function [CF, SAI_movie] = CARFAC_Run_Layered_SAI(CF, input_waves)
+% function [CF, SAI_movie] = CARFAC_RunLayered(CF, input_waves)
 % This function runs the CARFAC and generates an SAI movie, dumped as PNG
 % files for now.
 
 % Layer 1 is not decimated from the 22050 rate; subsequent layers have
-% smoothing and 2X decimation each.  All layers get composited togehter
+% smoothing and 2X decimation each.  All layers get composited together
 % into movie frames.
 
 n_ch = CF.n_ch;

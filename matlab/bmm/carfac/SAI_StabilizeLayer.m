@@ -9,20 +9,17 @@ n_buffer_times = size(nap_buffer, 1);
 [n_ch, width] = size(frame);
 
 % Make the window to use for all the channels at this layer.
-window_size = layer_struct.window_width;
+window_width = layer_struct.window_width;
 n_window_pos = layer_struct.n_window_pos;
 % Windows are always (approx) 50% overlapped:
-d_win = window_size / 2;
+window_hop = window_width / 2;
 
-after_samples = layer_struct.future_lags;
-
-window_range = (1:window_size) + ...
-  (n_buffer_times - window_size) - after_samples - ...
-  floor((n_window_pos - 1) * d_win);
-window = sin((1:window_size)' * pi / window_size);
+window = sin((1:window_width)' * pi / window_width);
+window_start = (n_buffer_times - window_width) - ...
+    floor((n_window_pos - 1) * window_hop);
+window_range = (1:window_width) + window_start - layer_struct.future_lags;
 % This should not go negative!
-offset_range = (1:width) + ...
-  (n_buffer_times - width - window_size) - floor((n_window_pos - 1) * d_win);
+offset_range = (1:width) + window_start - width;
 % CHECK
 if any(offset_range < 0)
   error;
@@ -37,14 +34,15 @@ for ch = 1:n_ch
   
   % Do several window positions and triggers
   for w = 1:n_window_pos
-    % move the window to later and go aggain
-    [peak_val, trigger_time] = max(smooth_wave(window_range + ...
-      floor((w - 1) * d_win)) .* window);
+    % move the window to later and go again
+    current_window_offset = floor((w - 1) * window_hop);
+    [peak_val, trigger_time] = ...
+        max(smooth_wave(window_range + current_window_offset) .* window);
     nap_wave = nap_buffer(:, ch);  % for the waveform
     if peak_val <= 0  % just use window center instead
       [peak_val, trigger_time] = max(window);
     end
-    trigger_time = trigger_time + floor((w - 1) * d_win);
+    trigger_time = trigger_time + current_window_offset;
     alpha = (0.025 + peak_val) / (0.5 + peak_val);  % alpha 0.05 to near 1.0
     frame(ch, :) = alpha * nap_wave(trigger_time + offset_range)' + ...
       (1 - alpha) * frame(ch, :);
