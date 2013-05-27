@@ -26,6 +26,7 @@
 #include "ihc_coeffs.h"
 
 struct IHCState {
+  FloatArray ihc_out_;
   FloatArray ihc_accum_;
   FloatArray cap1_voltage_;
   FloatArray cap2_voltage_;

@@ -24,9 +24,7 @@
 
 FPType ERBHz (const FPType cf_hz, const FPType erb_break_freq,
               const FPType erb_q) {
-  FPType erb;
-  erb = (erb_break_freq + cf_hz) / erb_q;
-  return erb;
+  return (erb_break_freq + cf_hz) / erb_q;
 }
 
 FloatArray CARFACDetect (const FloatArray& x) {

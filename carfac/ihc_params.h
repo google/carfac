@@ -27,8 +27,8 @@
 
 struct IHCParams {
   IHCParams();
-  bool just_hwr_;
-  bool one_cap_;
+  bool just_half_wave_rectify_;
+  bool one_capacitor_;
   FPType tau_lpf_;
   FPType tau1_out_;
   FPType tau1_in_;

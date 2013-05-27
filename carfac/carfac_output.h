@@ -37,24 +37,31 @@
 #ifndef CARFAC_Open_Source_C__Library_carfac_output_h
 #define CARFAC_Open_Source_C__Library_carfac_output_h
 
-#include "ear_output.h"
+#include <deque>
+#include "ear.h"
 
 class CARFACOutput {
  public:
-  void InitOutput(const int n_ears, const int n_ch,
-                  const int32_t n_timepoints);
-  void StoreNAPOutput(const int32_t timepoint, const int ear,
-                      const FloatArray& nap);
-  void StoreBMOutput(const int32_t timepoint, const int ear,
-                     const FloatArray& bm);
-  void StoreOHCOutput(const int32_t timepoint, const int ear,
-                      const FloatArray& ohc);
-  void StoreAGCOutput(const int32_t timepoint, const int ear,
-                      const FloatArray& agc);
-
+  void Init(const int n_ears, const bool store_nap, const bool  store_nap_decim,
+             const bool store_bm, const bool store_ohc, const bool store_agc);
+  void StoreOutput(std::vector<Ear>* ears);
+  FPType nap(const int ear, const int32_t timepoint, const int channel) {
+    return nap_[timepoint][ear](channel); }
+  FPType bm(const int ear, const int32_t timepoint, const int channel) {
+    return bm_[timepoint][ear](channel); }
+  std::deque<std::vector<FloatArray>> nap_;
+  std::deque<std::vector<FloatArray>> nap_decim_;
+  std::deque<std::vector<FloatArray>> bm_;
+  std::deque<std::vector<FloatArray>> ohc_;
+  std::deque<std::vector<FloatArray>> agc_;
+ 
  private:
   int n_ears_;
-  std::vector<EarOutput> ears_;
+  bool store_nap_;
+  bool store_nap_decim_;
+  bool store_bm_;
+  bool store_ohc_;
+  bool store_agc_;
 };
 
 #endif

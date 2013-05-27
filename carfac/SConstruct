@@ -43,22 +43,24 @@ To clean up binaries, run:
 import os
 
 carfac_sources = [
-    'agc_coeffs.cc',
+        'carfac_common.cc',
     'agc_params.cc',
-    'car_coeffs.cc',
-    'carfac.cc',
-    'carfac_common.cc',
+    'agc_coeffs.h',
+    'agc_state.h',		
     'carfac_output.cc',
     'car_params.cc',
-    'ear.cc',
-    'ear_output.cc',
-    'ihc_coeffs.cc',
+    'car_coeffs.h',
     'ihc_params.cc',
+    'car_state.h',
+    'ihc_coeffs.h',
+    'ihc_state.h',
+    'ear.cc',
+    'carfac.cc'
     ]
 
 env = Environment(CPPPATH=[os.environ['EIGEN_PATH']])
 # Needed to support std::vector initialization lists.
-env.MergeFlags(['-std=c++0x'])
+env.MergeFlags(['-std=c++11'])
 env.Library(target = 'carfac', source = carfac_sources)
 
 env.Command('tmp/libgtest.a', [],

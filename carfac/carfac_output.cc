@@ -21,32 +21,44 @@
 // limitations under the License.
 
 #include "carfac_output.h"
+using std::vector;
 
-void CARFACOutput::InitOutput(const int n_ears, const int n_ch,
-                              const int32_t n_timepoints) {
+void CARFACOutput::Init(const int n_ears, const bool store_nap,
+                        const bool store_nap_decim, const bool store_bm,
+                        const bool store_ohc, const bool store_agc) {
   n_ears_ = n_ears;
-  ears_.resize(n_ears_);
-  for (int i = 0; i < n_ears_; ++i) {
-    ears_[i].InitOutput(n_ch, n_timepoints);
+  store_nap_ = store_nap;
+  store_nap_decim_ = store_nap_decim;
+  store_bm_ = store_bm;
+  store_ohc_ = store_ohc;
+  store_agc_ = store_agc;
+
+}
+
+void CARFACOutput::StoreOutput(std::vector<Ear>* ears) {
+  if (store_nap_) {
+    nap_.push_back(vector<FloatArray>());
+    for (auto& ear : *ears) {
+      nap_.back().push_back(ear.ihc_out());
+    }
   }
-}
+  if (store_ohc_) {
+    ohc_.push_back(vector<FloatArray>());
+    for (auto& ear : *ears) {
+      ohc_.back().push_back(ear.za_memory());
+    }
+  }
+  if (store_agc_) {
+    agc_.push_back(vector<FloatArray>());
+    for (auto& ear : *ears) {
 
-void CARFACOutput::StoreNAPOutput(const int32_t timepoint, const int ear,
-                                  const FloatArray& nap) {
-  ears_[ear].StoreNAPOutput(timepoint, nap);
-}
-
-void CARFACOutput::StoreBMOutput(const int32_t timepoint, const int ear,
-                                 const FloatArray& bm) {
-  ears_[ear].StoreBMOutput(timepoint, bm);
-}
-
-void CARFACOutput::StoreOHCOutput(const int32_t timepoint, const int ear,
-                                  const FloatArray& ohc) {
-  ears_[ear].StoreOHCOutput(timepoint, ohc);
-}
-
-void CARFACOutput::StoreAGCOutput(const int32_t timepoint, const int ear,
-                                  const FloatArray& agc) {
-  ears_[ear].StoreNAPOutput(timepoint, agc);
+      agc_.back().push_back(ear.zb_memory());
+    }
+  }
+  if (store_bm_) {
+    bm_.push_back(vector<FloatArray>());
+    for (auto& ear : *ears) {
+      bm_.back().push_back(ear.zy_memory());
+    }
+  }
 }

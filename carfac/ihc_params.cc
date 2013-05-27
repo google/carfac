@@ -25,8 +25,8 @@
 // The default constructor for IHCParams initializes with the settings from
 // Lyon's book 'Human and Machine Hearing'
 IHCParams::IHCParams() {
-  just_hwr_ = false;
-  one_cap_ = true;
+  just_half_wave_rectify_ = false;
+  one_capacitor_ = true;
   tau_lpf_ = 0.000080;
   tau1_out_ = 0.0005;
   tau1_in_ = 0.010;

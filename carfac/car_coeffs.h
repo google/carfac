@@ -25,12 +25,7 @@
 
 #include "car_params.h"
 
-// TODO (alexbrandmeyer): check that struct is ok given possible non-triviality
-// of the 'Design' method. A change to class would require the addition of
-// accessor functions.
 struct CARCoeffs {
-  void Design(const CARParams& car_params, const FPType fs,
-              const FloatArray& pole_freqs);
   int n_ch_;
   FPType velocity_scale_;
   FPType v_offset_;

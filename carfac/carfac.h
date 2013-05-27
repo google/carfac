@@ -39,7 +39,6 @@
 #ifndef CARFAC_Open_Source_C__Library_CARFAC_h
 #define CARFAC_Open_Source_C__Library_CARFAC_h
 
-#include "ear.h"
 #include "carfac_output.h"
 
 class CARFAC {
@@ -54,13 +53,20 @@ class CARFAC {
               const IHCParams& ihc_params, const AGCParams& agc_params);
   // The 'Run' method processes an entire file with the current model, using
   // subsequent calls to the 'RunSegment' method
-  CARFACOutput Run(const std::vector<std::vector<float>>& sound_data);
+  void Run(const std::vector<std::vector<float>>& sound_data,
+           CARFACOutput* seg_output);
   // The 'RunSegment' method processes individual sound segments
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
                   const int32_t start, const int32_t length,
-                  CARFACOutput* seg_output, const bool open_loop);
+                  const bool open_loop, CARFACOutput* seg_output);
 
  private:
+  void DesignCARCoeffs(const CARParams& car_params, const FPType fs,
+                       const FloatArray& pole_freqs, CARCoeffs* car_coeffs);
+  void DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
+                       IHCCoeffs* ihc_coeffs);
+  void DesignAGCCoeffs(const AGCParams& agc_params, const FPType fs,
+                       std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
   int n_ears_;  // This is the number of ears.

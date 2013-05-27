@@ -31,9 +31,9 @@ class Ear {
  public:
   // This is the primary initialization function that is called for each
   // Ear object in the CARFAC 'Design' method.
-  void InitEar(const int n_ch, const FPType fs, const FloatArray& pole_freqs,
-               const CARParams& car_params, const IHCParams& ihc_params,
-               const AGCParams& agc_params);
+  void DesignEar(const int n_ch, const FPType fs,
+               const CARCoeffs& car_params, const IHCCoeffs& ihc_params,
+                 const std::vector<AGCCoeffs>& agc_params);
   // These three methods apply the different stages of the model in sequence
   // to individual audio samples.
   void CARStep(const FPType input, FloatArray* car_out);
@@ -43,7 +43,10 @@ class Ear {
   // the CAROutput structures.
   const FloatArray& za_memory() { return car_state_.za_memory_; }
   const FloatArray& zb_memory() { return car_state_.zb_memory_; }
+  const FloatArray& zy_memory() { return car_state_.zy_memory_; }
   const FloatArray& g_memory() { return car_state_.g_memory_; }
+  // This returns the IHC output for storage.
+  const FloatArray& ihc_out() { return ihc_state_.ihc_out_; }
   const FloatArray& dzb_memory() { return car_state_.dzb_memory_; }
   // These accessor functions return CAR coefficients.
   const FloatArray& zr_coeffs() { return car_coeffs_.zr_coeffs_; }

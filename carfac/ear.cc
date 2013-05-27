@@ -27,29 +27,17 @@
 // The 'InitEar' function takes a set of model parameters and initializes the
 // design coefficients and model state variables needed for running the model
 // on a single audio channel.
-void Ear::InitEar(const int n_ch, const FPType fs,
-                  const FloatArray& pole_freqs, const CARParams& car_params,
-                  const IHCParams& ihc_params, const AGCParams& agc_params) {
+void Ear::DesignEar(const int n_ch, const FPType fs,
+                  const CARCoeffs& car_coeffs,
+                    const IHCCoeffs& ihc_coeffs,
+                    const std::vector<AGCCoeffs>& agc_coeffs) {
   // The first section of code determines the number of channels that will be
   // used in the model on the basis of the sample rate and the CAR parameters
   // that have been passed to this function.
   n_ch_ = n_ch;
-  // These functions use the parameters that have been passed to design the
-  // coefficients for the first two stages of the model.
-  car_coeffs_.Design(car_params, fs, pole_freqs);
-  ihc_coeffs_.Design(ihc_params, fs);
-  // This code initializes the coefficients for each of the AGC stages.
-  agc_coeffs_.resize(agc_params.n_stages_);
-  FPType previous_stage_gain = 0.0;
-  FPType decim = 1.0;
-  for (int stage = 0; stage < agc_params.n_stages_; ++stage) {
-    agc_coeffs_[stage].Design(agc_params, stage, fs, previous_stage_gain,
-                              decim);
-    // Two variables store the decimation and gain levels for use in the design
-    // of the subsequent stages.
-    previous_stage_gain = agc_coeffs_[stage].agc_gain_;
-    decim = agc_coeffs_[stage].decim_;
-  }
+  car_coeffs_ = car_coeffs;
+  ihc_coeffs_ = ihc_coeffs;
+  agc_coeffs_ = agc_coeffs;
   // Once the coefficients have been determined, we can initialize the state
   // variables that will be used during runtime.
   InitCARState();
@@ -58,30 +46,27 @@ void Ear::InitEar(const int n_ch, const FPType fs,
 }
 
 void Ear::InitCARState() {
-  car_state_.z1_memory_ = FloatArray::Zero(n_ch_);
-  car_state_.z2_memory_ = FloatArray::Zero(n_ch_);
-  car_state_.za_memory_ = FloatArray::Zero(n_ch_);
+  car_state_.z1_memory_.setZero(n_ch_);
+  car_state_.z2_memory_.setZero(n_ch_);
+  car_state_.za_memory_.setZero(n_ch_);
   car_state_.zb_memory_ = car_coeffs_.zr_coeffs_;
-  car_state_.dzb_memory_ = FloatArray::Zero(n_ch_);
-  car_state_.zy_memory_ = FloatArray::Zero(n_ch_);
+  car_state_.dzb_memory_.setZero(n_ch_);
+  car_state_.zy_memory_.setZero(n_ch_);
   car_state_.g_memory_ = car_coeffs_.g0_coeffs_;
-  car_state_.dg_memory_ = FloatArray::Zero(n_ch_);
+  car_state_.dg_memory_.setZero(n_ch_);
 }
 
 void Ear::InitIHCState() {
   ihc_state_.ihc_accum_ = FloatArray::Zero(n_ch_);
-  if (! ihc_coeffs_.just_hwr_) {
-    ihc_state_.ac_coupler_ = FloatArray::Zero(n_ch_);
-    ihc_state_.lpf1_state_ = ihc_coeffs_.rest_output_ * FloatArray::Ones(n_ch_);
-    ihc_state_.lpf2_state_ = ihc_coeffs_.rest_output_ * FloatArray::Ones(n_ch_);
-    if (ihc_coeffs_.one_cap_) {
-      ihc_state_.cap1_voltage_ = ihc_coeffs_.rest_cap1_ *
-      FloatArray::Ones(n_ch_);
+  if (! ihc_coeffs_.just_half_wave_rectify_) {
+    ihc_state_.ac_coupler_.setZero(n_ch_);
+    ihc_state_.lpf1_state_.setConstant(n_ch_, ihc_coeffs_.rest_output_);
+    ihc_state_.lpf2_state_.setConstant(n_ch_, ihc_coeffs_.rest_output_);
+    if (ihc_coeffs_.one_capacitor_) {
+      ihc_state_.cap1_voltage_.setConstant(n_ch_, ihc_coeffs_.rest_cap1_);
     } else {
-      ihc_state_.cap1_voltage_ = ihc_coeffs_.rest_cap1_ *
-      FloatArray::Ones(n_ch_);
-      ihc_state_.cap2_voltage_ = ihc_coeffs_.rest_cap2_ *
-      FloatArray::Ones(n_ch_);
+      ihc_state_.cap1_voltage_.setConstant(n_ch_, ihc_coeffs_.rest_cap1_);
+      ihc_state_.cap2_voltage_.setConstant(n_ch_, ihc_coeffs_.rest_cap2_);
     }
   }
 }
@@ -89,10 +74,10 @@ void Ear::InitIHCState() {
 void Ear::InitAGCState() {
   int n_agc_stages = agc_coeffs_.size();
   agc_state_.resize(n_agc_stages);
-  for (int i = 0; i < n_agc_stages; ++i) {
-    agc_state_[i].decim_phase_ = 0;
-    agc_state_[i].agc_memory_ = FloatArray::Zero(n_ch_);
-    agc_state_[i].input_accum_ = FloatArray::Zero(n_ch_);
+  for (auto& stage_state : agc_state_) {
+    stage_state.decim_phase_ = 0;
+    stage_state.agc_memory_.setZero(n_ch_);
+    stage_state.input_accum_.setZero(n_ch_);
   }
 }
 
@@ -146,7 +131,7 @@ void Ear::IHCStep(const FloatArray& car_out, FloatArray* ihc_out) {
   FloatArray ac_diff = car_out - ihc_state_.ac_coupler_;
   ihc_state_.ac_coupler_ = ihc_state_.ac_coupler_ +
   (ihc_coeffs_.ac_coeff_ * ac_diff);
-  if (ihc_coeffs_.just_hwr_) {
+  if (ihc_coeffs_.just_half_wave_rectify_) {
     FloatArray output(n_ch_);
     for (int ch = 0; ch < n_ch_; ++ch) {
       FPType a = (ac_diff(ch) > 0.0) ? ac_diff(ch) : 0.0;
@@ -155,33 +140,32 @@ void Ear::IHCStep(const FloatArray& car_out, FloatArray* ihc_out) {
     *ihc_out = output;
   } else {
     FloatArray conductance = CARFACDetect(ac_diff);
-    if (ihc_coeffs_.one_cap_) {
+    if (ihc_coeffs_.one_capacitor_) {
       *ihc_out = conductance * ihc_state_.cap1_voltage_;
       ihc_state_.cap1_voltage_ = ihc_state_.cap1_voltage_ -
-      (*ihc_out * ihc_coeffs_.out1_rate_) +
-      ((1 - ihc_state_.cap1_voltage_)
-       * ihc_coeffs_.in1_rate_);
+                 (*ihc_out * ihc_coeffs_.out1_rate_) +
+                        ((1 - ihc_state_.cap1_voltage_) * ihc_coeffs_.in1_rate_);
     } else {
       *ihc_out = conductance * ihc_state_.cap2_voltage_;
       ihc_state_.cap1_voltage_ = ihc_state_.cap1_voltage_ -
-      ((ihc_state_.cap1_voltage_ - ihc_state_.cap2_voltage_)
-       * ihc_coeffs_.out1_rate_) +
-      ((1 - ihc_state_.cap1_voltage_) * ihc_coeffs_.in1_rate_);
+                          ((ihc_state_.cap1_voltage_ - ihc_state_.cap2_voltage_)
+                          * ihc_coeffs_.out1_rate_) +
+                          ((1 - ihc_state_.cap1_voltage_) *
+                           ihc_coeffs_.in1_rate_);
       ihc_state_.cap2_voltage_ = ihc_state_.cap2_voltage_ -
-      (*ihc_out * ihc_coeffs_.out2_rate_) +
-      ((ihc_state_.cap1_voltage_ - ihc_state_.cap2_voltage_)
-       * ihc_coeffs_.in2_rate_);
+                          (*ihc_out * ihc_coeffs_.out2_rate_) +
+                          ((ihc_state_.cap1_voltage_ - ihc_state_.cap2_voltage_)
+                          * ihc_coeffs_.in2_rate_);
     }
     // Here we smooth the output twice using a LPF.
     *ihc_out *= ihc_coeffs_.output_gain_;
-    ihc_state_.lpf1_state_ = ihc_state_.lpf1_state_ +
-    (ihc_coeffs_.lpf_coeff_ *
-     (*ihc_out - ihc_state_.lpf1_state_));
-    ihc_state_.lpf2_state_ = ihc_state_.lpf2_state_ +
-    (ihc_coeffs_.lpf_coeff_ *
-     (ihc_state_.lpf1_state_ - ihc_state_.lpf2_state_));
+    ihc_state_.lpf1_state_ += ihc_coeffs_.lpf_coeff_ *
+                              (*ihc_out - ihc_state_.lpf1_state_);
+    ihc_state_.lpf2_state_ += ihc_coeffs_.lpf_coeff_ *
+                              (ihc_state_.lpf1_state_ - ihc_state_.lpf2_state_);
     *ihc_out = ihc_state_.lpf2_state_ - ihc_coeffs_.rest_output_;
   }
+  ihc_state_.ihc_out_ = *ihc_out;
   ihc_state_.ihc_accum_ += *ihc_out;
 }
 
@@ -195,39 +179,38 @@ bool Ear::AGCStep(const FloatArray& ihc_out) {
 
 bool Ear::AGCRecurse(const int stage, FloatArray agc_in) {
   bool updated = true;
+  const auto& agc_coeffs = agc_coeffs_[stage];
+  auto& agc_state = agc_state_[stage];
   // This is the decim factor for this stage, relative to input or prev. stage:
-  int decim = agc_coeffs_[stage].decimation_;
+  int decim = agc_coeffs.decimation_;
   // This is the decim phase of this stage (do work on phase 0 only):
-  int decim_phase = agc_state_[stage].decim_phase_ + 1;
+  int decim_phase = agc_state.decim_phase_ + 1;
   decim_phase = decim_phase % decim;
-  agc_state_[stage].decim_phase_ = decim_phase;
+  agc_state.decim_phase_ = decim_phase;
   // Here we accumulate input for this stage from the previous stage:
-  agc_state_[stage].input_accum_ += agc_in;
+  agc_state.input_accum_ += agc_in;
   // We don't do anything if it's not the right decim_phase.
   if (decim_phase == 0) {
     // Now we do lots of work, at the decimated rate.
     // These are the decimated inputs for this stage, which will be further
     // decimated at the next stage.
-    agc_in = agc_state_[stage].input_accum_ / decim;
+    agc_in = agc_state.input_accum_ / decim;
     // This resets the accumulator.
-    agc_state_[stage].input_accum_ = FloatArray::Zero(n_ch_);
+    agc_state.input_accum_ = FloatArray::Zero(n_ch_);
     if (stage < (agc_coeffs_.size() - 1)) {
       // Now we recurse to evaluate the next stage(s).
-      // TODO (alexbrandmeyer): the Matlab version of AGCRecurse can return a
-      // value for updated, but isn't used in that version. Check with Dick to
-      // see if that is needed.
       updated = AGCRecurse(stage + 1, agc_in);
       // Afterwards we add its output to this stage input, whether it updated or
       // not.
-      agc_in += agc_coeffs_[stage].agc_stage_gain_ *
-      agc_state_[stage + 1].agc_memory_;
+      agc_in += agc_coeffs.agc_stage_gain_ *
+                agc_state_[stage + 1].agc_memory_;
     }
-    FloatArray agc_stage_state = agc_state_[stage].agc_memory_;
+    FloatArray agc_stage_state = agc_state.agc_memory_;
     // This performs a first-order recursive smoothing filter update, in time.
-    agc_stage_state += agc_coeffs_[stage].agc_epsilon_ *
-    (agc_in - agc_stage_state);
+    agc_stage_state += agc_coeffs.agc_epsilon_ *
+                      (agc_in - agc_stage_state);
     agc_stage_state = AGCSpatialSmooth(stage, agc_stage_state);
-    agc_state_[stage].agc_memory_ = agc_stage_state;
+    agc_state.agc_memory_ = agc_stage_state;
     updated = true;
   } else {
     updated = false;
@@ -243,7 +226,9 @@ FloatArray Ear::AGCSpatialSmooth(const int stage, FloatArray stage_state) {
   bool use_fir;
   use_fir = (n_iterations < 4) ? true : false;
   if (use_fir) {
-    std::vector<FPType> fir_coeffs = agc_coeffs_[stage].agc_spatial_fir_;
+    FPType fir_coeffs_left = agc_coeffs_[stage].agc_spatial_fir_left_;
+    FPType fir_coeffs_mid = agc_coeffs_[stage].agc_spatial_fir_mid_;
+    FPType fir_coeffs_right = agc_coeffs_[stage].agc_spatial_fir_right_;
     FloatArray ss_tap1(n_ch_);
     FloatArray ss_tap2(n_ch_);
     FloatArray ss_tap3(n_ch_);
@@ -257,9 +242,9 @@ FloatArray Ear::AGCSpatialSmooth(const int stage, FloatArray stage_state) {
     ss_tap2.block(0, 0, n_ch_ - 1, 1) = stage_state.block(1, 0, n_ch_ - 1, 1);
     switch (n_taps) {
       case 3:
-        stage_state = (fir_coeffs[0] * ss_tap1) +
-        (fir_coeffs[1] * stage_state) +
-        (fir_coeffs[2] * ss_tap2);
+        stage_state = (fir_coeffs_left * ss_tap1) +
+        (fir_coeffs_mid * stage_state) +
+        (fir_coeffs_right * ss_tap2);
         break;
       case 5:
         // Now we initialize last two taps of stage state, which are only used
@@ -272,9 +257,9 @@ FloatArray Ear::AGCSpatialSmooth(const int stage, FloatArray stage_state) {
         ss_tap4(n_ch_ - 1) = stage_state(n_ch_ - 2);
         ss_tap4.block(0, 0, n_ch_ - 2, 1) =
         stage_state.block(2, 0, n_ch_ - 2, 1);
-        stage_state = (fir_coeffs[0] * (ss_tap3 + ss_tap1)) +
-        (fir_coeffs[1] * stage_state) +
-        (fir_coeffs[2] * (ss_tap2 + ss_tap4));
+        stage_state = (fir_coeffs_left * (ss_tap3 + ss_tap1)) +
+        (fir_coeffs_mid * stage_state) +
+        (fir_coeffs_right * (ss_tap2 + ss_tap4));
         break;
       default:
         assert(true && "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
