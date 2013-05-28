@@ -30,14 +30,14 @@ void CARFAC::Design(const int n_ears, const FPType fs,
   fs_ = fs;
   ears_.resize(n_ears_);
   n_ch_ = 0;
-  FPType pole_hz = car_params.first_pole_theta_ * fs / (2 * PI);
+  FPType pole_hz = car_params.first_pole_theta_ * fs / (2 * kPi);
   while (pole_hz > car_params.min_pole_hz_) {
     ++n_ch_;
     pole_hz = pole_hz - car_params.erb_per_step_ *
     ERBHz(pole_hz, car_params.erb_break_freq_, car_params.erb_q_);
   }
   pole_freqs_.resize(n_ch_);
-  pole_hz = car_params.first_pole_theta_ * fs / (2 * PI);
+  pole_hz = car_params.first_pole_theta_ * fs / (2 * kPi);
   for (int ch = 0; ch < n_ch_; ++ch) {
     pole_freqs_(ch) = pole_hz;
     pole_hz = pole_hz - car_params.erb_per_step_ *
@@ -53,7 +53,7 @@ void CARFAC::Design(const int n_ears, const FPType fs,
   DesignAGCCoeffs(agc_params, fs, &agc_coeffs);
   // Once we have the coefficient structure we can design the ears.
   for (auto& ear : ears_) {
-    ear.DesignEar(n_ch_, fs_, car_coeffs, ihc_coeffs,
+    ear.InitEar(n_ch_, fs_, car_coeffs, ihc_coeffs,
                 agc_coeffs);
   }
 }
@@ -87,8 +87,6 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
                         const bool open_loop, CARFACOutput* seg_output) {
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
-  FloatArray car_out(n_ch_);
-  FloatArray ihc_out(n_ch_);
   bool updated;  // This variable is used by the AGC stage.
   for (int32_t i = 0; i < length; ++i) {
     for (int j = 0; j < n_ears_; ++j) {
@@ -98,11 +96,11 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
       FPType input = sound_data[j][start+i];
       // Now we apply the three stages of the model in sequence to the current
       // audio sample.
-      ear.CARStep(input, &car_out);
-      ear.IHCStep(car_out, &ihc_out);
-      updated = ear.AGCStep(ihc_out);
+      ear.CARStep(input);
+      ear.IHCStep(ear.car_out());
+      updated = ear.AGCStep(ear.ihc_out());
     }
-    seg_output->StoreOutput(&ears_);
+    seg_output->StoreOutput(ears_);
     if (updated) {
       if (n_ears_ > 1) {
         CrossCouple();
@@ -161,12 +159,12 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params, const FPType fs,
   car_coeffs->h_coeffs_.resize(n_ch_);
   car_coeffs->g0_coeffs_.resize(n_ch_);
   FPType f = car_params.zero_ratio_ * car_params.zero_ratio_ - 1.0;
-  FloatArray theta = pole_freqs * ((2.0 * PI) / fs);
+  FloatArray theta = pole_freqs * ((2.0 * kPi) / fs);
   car_coeffs->c0_coeffs_ = theta.sin();
   car_coeffs->a0_coeffs_ = theta.cos();
   FPType ff = car_params.high_f_damping_compression_;
-  FloatArray x = theta / PI;
-  car_coeffs->zr_coeffs_ = PI * (x - (ff * (x*x*x)));
+  FloatArray x = theta / kPi;
+  car_coeffs->zr_coeffs_ = kPi * (x - (ff * (x*x*x)));
   FPType max_zeta = car_params.max_zeta_;
   FPType min_zeta = car_params.min_zeta_;
   car_coeffs->r1_coeffs_ = (1.0 - (car_coeffs->zr_coeffs_ * max_zeta));
@@ -183,9 +181,8 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params, const FPType fs,
   FloatArray r = car_coeffs->r1_coeffs_ + (car_coeffs->zr_coeffs_ *
                                            relative_undamping);
   car_coeffs->g0_coeffs_ = (1.0 - (2.0 * r * car_coeffs->a0_coeffs_) + (r*r)) /
-  (1 - (2 * r * car_coeffs->a0_coeffs_) +
-   (car_coeffs->h_coeffs_ * r * car_coeffs->c0_coeffs_)
-   + (r*r));
+    (1 - (2 * r * car_coeffs->a0_coeffs_) +
+    (car_coeffs->h_coeffs_ * r * car_coeffs->c0_coeffs_) + (r*r));
 }
 
 void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
@@ -242,7 +239,7 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
       ihc_coeffs->rest_cap2_ = ihc_coeffs->cap2_voltage_;
     }
   }
-  ihc_coeffs->ac_coeff_ = 2 * PI * ihc_params.ac_corner_hz_ / fs;
+  ihc_coeffs->ac_coeff_ = 2 * kPi * ihc_params.ac_corner_hz_ / fs;
 }
 
 void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, const FPType fs,

@@ -26,7 +26,23 @@
 #include "carfac_common.h"
 
 struct AGCParams {
-  AGCParams();
+  AGCParams() {
+    n_stages_ = 4;
+    agc_stage_gain_ = 2.0;
+    time_constants_.resize(n_stages_);
+    agc1_scales_.resize(n_stages_);
+    agc2_scales_.resize(n_stages_);
+    agc1_scales_[0] = 1.0;
+    agc2_scales_[0] = 1.65;
+    time_constants_[0] = 0.002;
+    for (int i = 1; i < n_stages_; ++i) {
+      agc1_scales_[i] = agc1_scales_[i - 1] * sqrt(2.0);
+      agc2_scales_[i] = agc2_scales_[i - 1] * sqrt(2.0);
+      time_constants_[i] = time_constants_[i - 1] * 4.0;
+    }
+    decimation_ = {8, 2, 2, 2};
+    agc_mix_coeff_ = 0.5;
+  }
   int n_stages_;
   FPType agc_stage_gain_;
   FPType agc_mix_coeff_;

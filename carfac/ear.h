@@ -31,19 +31,22 @@ class Ear {
  public:
   // This is the primary initialization function that is called for each
   // Ear object in the CARFAC 'Design' method.
-  void DesignEar(const int n_ch, const FPType fs,
+  void InitEar(const int n_ch, const FPType fs,
                const CARCoeffs& car_params, const IHCCoeffs& ihc_params,
                  const std::vector<AGCCoeffs>& agc_params);
   // These three methods apply the different stages of the model in sequence
   // to individual audio samples.
-  void CARStep(const FPType input, FloatArray* car_out);
-  void IHCStep(const FloatArray& car_out, FloatArray* ihc_out);
+  void CARStep(const FPType input);
+  void IHCStep(const FloatArray& car_out);
   bool AGCStep(const FloatArray& ihc_out);
   // These accessor functions return portions of the CAR state for storage in
   // the CAROutput structures.
   const FloatArray& za_memory() { return car_state_.za_memory_; }
   const FloatArray& zb_memory() { return car_state_.zb_memory_; }
+  // The zy_memory_ of the CARState is equivalent to the CAR output. A second
+  // accessor function is included for documentation purposes.
   const FloatArray& zy_memory() { return car_state_.zy_memory_; }
+  const FloatArray& car_out() { return car_state_.zy_memory_; }
   const FloatArray& g_memory() { return car_state_.g_memory_; }
   // This returns the IHC output for storage.
   const FloatArray& ihc_out() { return ihc_state_.ihc_out_; }
@@ -82,10 +85,9 @@ class Ear {
   void OHCNonlinearFunction(const FloatArray& velocities,
                             FloatArray* nonlinear_fun);
   bool AGCRecurse(const int stage, FloatArray agc_in);
-  FloatArray AGCSpatialSmooth(const int stage, FloatArray stage_state);
-  FloatArray AGCSmoothDoubleExponential(FloatArray stage_state,
-                                        const FPType pole_z1,
-                                        const FPType pole_z2);
+  void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs , FloatArray* stage_state);
+  void AGCSmoothDoubleExponential(const FPType pole_z1, const FPType pole_z2,
+                                  FloatArray* stage_state);
   // These are the private data members that store the state and coefficient
   // information.
   CARCoeffs car_coeffs_;

@@ -43,14 +43,14 @@ To clean up binaries, run:
 import os
 
 carfac_sources = [
-        'carfac_common.cc',
-    'agc_params.cc',
+    'carfac_common.cc',
+    'agc_params.h',
     'agc_coeffs.h',
     'agc_state.h',		
     'carfac_output.cc',
-    'car_params.cc',
+    'car_params.h',
     'car_coeffs.h',
-    'ihc_params.cc',
+    'ihc_params.h',
     'car_state.h',
     'ihc_coeffs.h',
     'ihc_state.h',

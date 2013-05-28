@@ -26,7 +26,16 @@
 #include "carfac_common.h"
 
 struct IHCParams {
-  IHCParams();
+  IHCParams() {
+    just_half_wave_rectify_ = false;
+    one_capacitor_ = true;
+    tau_lpf_ = 0.000080;
+    tau1_out_ = 0.0005;
+    tau1_in_ = 0.010;
+    tau2_out_ = 0.0025;
+    tau2_in_ = 0.005;
+    ac_corner_hz_ = 20.0;
+  };
   bool just_half_wave_rectify_;
   bool one_capacitor_;
   FPType tau_lpf_;

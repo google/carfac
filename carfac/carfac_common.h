@@ -51,32 +51,27 @@
 // occur.
 // <math.h> is used during coefficient calculations and runtime operations.
 #include <math.h>
-// <vector> is used in place of 2d Eigen Arrays for the AGC memory
+//<vector> is used to store two dimensional data structures.
 #include <vector>
-// The Eigen library is used extensively for 1d and 2d floating point arrays.
+// The Eigen library is used extensively for floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Dense>
+
 using namespace Eigen;
 
-// One constant value is defined here, but see my TODO regarding style issues.
-// A fixed value of PI is defined throughout the project.
-// TODO alexbrandmeyer: verify that this is OK with Google Style.
-#define PI 3.141592653589793238
-
-// Three typedefs are used for enabling quick switching of precision and array
-// usage. These names may be changed based on the discussions being had within
-// the AIMC group.
 // The 'FPType' typedef is used to enable easy switching in precision level.
 // It's currently set to double for during the unit testing phase of the
 // project.
 typedef double FPType;
 // A typedef is used to define a one-dimensional Eigen array with the same
 // precision level as FPType.
-typedef Eigen::Array<FPType, Dynamic, 1> FloatArray; 
+typedef Eigen::Array<FPType, Dynamic, 1> FloatArray;
+
+// A fixed value of PI is defined throughout the project.
+static const FPType kPi = 3.141592653589793238;
 
 // Two helper functions are defined here for use by the different model stages
 // in calculating coeffecients and during model runtime.
-
 // Function: ERBHz
 // Auditory filter nominal Equivalent Rectangular Bandwidth
 // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138

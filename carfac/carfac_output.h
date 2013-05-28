@@ -44,17 +44,14 @@ class CARFACOutput {
  public:
   void Init(const int n_ears, const bool store_nap, const bool  store_nap_decim,
              const bool store_bm, const bool store_ohc, const bool store_agc);
-  void StoreOutput(std::vector<Ear>* ears);
-  FPType nap(const int ear, const int32_t timepoint, const int channel) {
-    return nap_[timepoint][ear](channel); }
-  FPType bm(const int ear, const int32_t timepoint, const int channel) {
-    return bm_[timepoint][ear](channel); }
-  std::deque<std::vector<FloatArray>> nap_;
-  std::deque<std::vector<FloatArray>> nap_decim_;
-  std::deque<std::vector<FloatArray>> bm_;
-  std::deque<std::vector<FloatArray>> ohc_;
-  std::deque<std::vector<FloatArray>> agc_;
- 
+  void StoreOutput(const std::vector<Ear>& ears);
+  // Here we define several acessors for the data members.
+  const std::deque<std::vector<FloatArray>>& nap() { return nap_;}
+  const std::deque<std::vector<FloatArray>>& bm() { return bm_; }
+  const std::deque<std::vector<FloatArray>>& nap_decim() { return nap_decim_;}
+  const std::deque<std::vector<FloatArray>>& ohc() { return ohc_; }
+  const std::deque<std::vector<FloatArray>>& agc() { return agc_;}
+
  private:
   int n_ears_;
   bool store_nap_;
@@ -62,6 +59,11 @@ class CARFACOutput {
   bool store_bm_;
   bool store_ohc_;
   bool store_agc_;
+  std::deque<std::vector<FloatArray>> nap_;
+  std::deque<std::vector<FloatArray>> nap_decim_;
+  std::deque<std::vector<FloatArray>> bm_;
+  std::deque<std::vector<FloatArray>> ohc_;
+  std::deque<std::vector<FloatArray>> agc_;
 };
 
 #endif

@@ -21,6 +21,7 @@
 // limitations under the License.
 
 #include "carfac_output.h"
+
 using std::vector;
 
 void CARFACOutput::Init(const int n_ears, const bool store_nap,
@@ -35,29 +36,28 @@ void CARFACOutput::Init(const int n_ears, const bool store_nap,
 
 }
 
-void CARFACOutput::StoreOutput(std::vector<Ear>* ears) {
+void CARFACOutput::StoreOutput(const vector<Ear>& ears) {
   if (store_nap_) {
     nap_.push_back(vector<FloatArray>());
-    for (auto& ear : *ears) {
+    for (auto ear : ears) {
       nap_.back().push_back(ear.ihc_out());
     }
   }
   if (store_ohc_) {
     ohc_.push_back(vector<FloatArray>());
-    for (auto& ear : *ears) {
+    for (auto ear : ears) {
       ohc_.back().push_back(ear.za_memory());
     }
   }
   if (store_agc_) {
     agc_.push_back(vector<FloatArray>());
-    for (auto& ear : *ears) {
-
+    for (auto ear : ears) {
       agc_.back().push_back(ear.zb_memory());
     }
   }
   if (store_bm_) {
     bm_.push_back(vector<FloatArray>());
-    for (auto& ear : *ears) {
+    for (auto ear : ears) {
       bm_.back().push_back(ear.zy_memory());
     }
   }

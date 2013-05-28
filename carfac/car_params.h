@@ -26,7 +26,21 @@
 #include "carfac_common.h"
 
 struct CARParams {
-  CARParams();  // The constructor initializes using default parameter values.
+  // The constructor initializes using default parameter values.
+  CARParams() {
+    velocity_scale_ = 0.1;
+    v_offset_ = 0.04;
+    min_zeta_ = 0.1;
+    max_zeta_ = 0.35;
+    first_pole_theta_ = 0.85 * kPi;
+    zero_ratio_ = sqrt(2.0);
+    high_f_damping_compression_ = 0.5;
+    erb_per_step_ = 0.5;
+    min_pole_hz_ = 30;
+    erb_break_freq_ = 165.3;  // This is the Greenwood map's break frequency.
+    // This represents Glassberg and Moore's high-cf ratio.
+    erb_q_ = 1000/(24.7*4.37);
+  };
   FPType velocity_scale_; // This is used for the velocity nonlinearity.
   FPType v_offset_;  // The offset gives us quadratic part.
   FPType min_zeta_;  // This is the minimum damping factor in mid-freq channels.
