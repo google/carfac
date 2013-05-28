@@ -46,11 +46,11 @@ class CARFACOutput {
              const bool store_bm, const bool store_ohc, const bool store_agc);
   void StoreOutput(const std::vector<Ear>& ears);
   // Here we define several acessors for the data members.
-  const std::deque<std::vector<FloatArray>>& nap() { return nap_;}
+  const std::deque<std::vector<FloatArray>>& nap() { return nap_; }
   const std::deque<std::vector<FloatArray>>& bm() { return bm_; }
-  const std::deque<std::vector<FloatArray>>& nap_decim() { return nap_decim_;}
+  const std::deque<std::vector<FloatArray>>& nap_decim() { return nap_decim_; }
   const std::deque<std::vector<FloatArray>>& ohc() { return ohc_; }
-  const std::deque<std::vector<FloatArray>>& agc() { return agc_;}
+  const std::deque<std::vector<FloatArray>>& agc() { return agc_; }
 
  private:
   int n_ears_;

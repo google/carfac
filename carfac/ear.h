@@ -33,7 +33,7 @@ class Ear {
   // Ear object in the CARFAC 'Design' method.
   void InitEar(const int n_ch, const FPType fs,
                const CARCoeffs& car_params, const IHCCoeffs& ihc_params,
-                 const std::vector<AGCCoeffs>& agc_params);
+               const std::vector<AGCCoeffs>& agc_params);
   // These three methods apply the different stages of the model in sequence
   // to individual audio samples.
   void CARStep(const FPType input);

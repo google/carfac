@@ -40,13 +40,14 @@ To clean up binaries, run:
   scons --clean
 """
 
+import commands
 import os
 
 carfac_sources = [
     'carfac_common.cc',
     'agc_params.h',
     'agc_coeffs.h',
-    'agc_state.h',		
+    'agc_state.h',
     'carfac_output.cc',
     'car_params.h',
     'car_coeffs.h',
@@ -59,8 +60,12 @@ carfac_sources = [
     ]
 
 env = Environment(CPPPATH=[os.environ['EIGEN_PATH']])
-# Needed to support std::vector initialization lists.
-env.MergeFlags(['-std=c++11'])
+GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
+if GCC_VERSION.startswith('4.6'):
+  env.MergeFlags(['-std=c++0x'])
+else:
+  env.MergeFlags(['-std=c++11x'])
+
 env.Library(target = 'carfac', source = carfac_sources)
 
 env.Command('tmp/libgtest.a', [],
