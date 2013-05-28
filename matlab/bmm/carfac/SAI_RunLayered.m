@@ -88,7 +88,6 @@ for seg_num = 1:n_segs
   else
     seg_range = seglen*(seg_num - 1) + (1:seglen);
   end
-  % Process a segment to get a slice of decim_naps, and plot AGC state:
   [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(seg_range, :));
   
   seg_naps = max(0, seg_naps);  % Rectify

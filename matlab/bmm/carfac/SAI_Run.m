@@ -33,8 +33,8 @@ frame_rate = fs / seglen;
 n_segs = ceil(n_samp / seglen);
 
 % Design the SAI parameters.
-sai_struct.width = 72;
-sai_struct.future_lags = 0;
+sai_struct.width = 256;
+sai_struct.future_lags = sai_struct.width / 2;
 sai_struct.window_width = seglen;
 n_triggers = 2;
 sai_struct.n_window_pos = n_triggers;
@@ -57,7 +57,6 @@ for seg_num = 1:n_segs
   else
     seg_range = seglen*(seg_num - 1) + (1:seglen);
   end
-  % Process a segment to get a slice of decim_naps, and plot AGC state:
   % NOTE: seg_naps might have multiple channels.
   [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(seg_range, :));
 
