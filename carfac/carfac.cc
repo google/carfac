@@ -59,30 +59,6 @@ void CARFAC::Design(const int n_ears, const FPType fs,
   }
 }
 
-void CARFAC::Run(const vector<vector<float>>& sound_data,
-                 CARFACOutput* output) {
-  int n_audio_channels = sound_data.size();
-  int32_t seg_len = 441;  // We use a fixed segment length for now.
-  int32_t n_timepoints = sound_data[0].size();
-  int32_t n_segs = ceil((n_timepoints * 1.0) / seg_len);
-  // These values store the start and endpoints for each segment
-  int32_t start;
-  int32_t length = seg_len;
-  // This section loops over the individual audio segments.
-  for (int32_t i = 0; i < n_segs; ++i) {
-    // For each segment we calculate the start point and the segment length.
-    start = i * seg_len;
-    if (i == n_segs - 1) {
-      // The last segment can be shorter than the rest.
-      length = n_timepoints - start;
-    }
-    // Once we've determined the start point and segment length, we run the
-    // CARFAC model on the current segment.
-    RunSegment(sound_data, start,
-               length, false, output);
-  }
-}
-
 void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
                         const int32_t start, const int32_t length,
                         const bool open_loop, CARFACOutput* seg_output) {

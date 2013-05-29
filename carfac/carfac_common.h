@@ -42,7 +42,7 @@
 // point data is consistent.
 //
 // The functions 'ERBHz' and 'CARFACDetect' are defined here, and are used
-// during the design stage of a CARFAC model. 
+// during the design stage of a CARFAC model.
 
 #ifndef CARFAC_CARFAC_COMMON_H
 #define CARFAC_CARFAC_COMMON_H
@@ -75,6 +75,6 @@ FPType ERBHz(const FPType cf_hz, const FPType erb_break_freq,
 // Function CARFACDetect
 // This returns the IHC detection nonilnearity function of the filter output
 // values.  This is here because it is called both in design and run phases.
-FloatArray CARFACDetect (const FloatArray& x);
+FloatArray CARFACDetect(const FloatArray& x);
 
 #endif  // CARFAC_CARFAC_COMMON_H

@@ -60,10 +60,6 @@ class CARFAC {
   // model.
   void Design(const int n_ears, const FPType fs, const CARParams& car_params,
               const IHCParams& ihc_params, const AGCParams& agc_params);
-  // The 'Run' method processes an entire file with the current model, using
-  // subsequent calls to the 'RunSegment' method
-  void Run(const std::vector<std::vector<float>>& sound_data,
-           CARFACOutput* seg_output);
   // The 'RunSegment' method processes individual sound segments
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
                   const int32_t start, const int32_t length,
@@ -78,6 +74,7 @@ class CARFAC {
                        std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
+
   int n_ears_;  // This is the number of ears.
   FPType fs_;  // This is our current sample rate.
   int n_ch_;  // This is the number of channels in the CARFAC model.

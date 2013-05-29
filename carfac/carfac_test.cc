@@ -146,7 +146,9 @@ TEST(CARFACTest, Binaural_Output_test) {
               agc_params);
   CARFACOutput my_output;
   my_output.Init(n_ears, true, false, true, false, false);
-  mycf.Run(sound_data, &my_output);
+  const bool kOpenLoop = false;
+  const int length = sound_data[0].size();
+  mycf.RunSegment(sound_data, 0, length, kOpenLoop, &my_output);
   filename = "cpp_nap_output_1_binaural_test.txt";
   WriteNAPOutput(my_output, filename, 0);
   filename = "cpp_nap_output_2_binaural_test.txt";
@@ -199,7 +201,9 @@ TEST(CARFACTest, Long_Output_test) {
               agc_params);
   CARFACOutput my_output;
   my_output.Init(n_ears, true, false, true, false, false);
-  mycf.Run(sound_data, &my_output);
+  const bool kOpenLoop = false;
+  const int length = sound_data[0].size();
+  mycf.RunSegment(sound_data, 0, length, kOpenLoop, &my_output);
   filename = "cpp_nap_output_1_long_test.txt";
   WriteNAPOutput(my_output, filename, 0);
   filename = "cpp_nap_output_2_long_test.txt";
