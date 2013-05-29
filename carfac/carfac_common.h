@@ -37,22 +37,16 @@
 // library. The remainder of the code uses this type for specifying floating
 // point scalars.
 //
-// Two additional typedefs are defined for one and two dimensional arrays:
-// FloatArray and FloatArray2d. These in turn make use of FPType so that the
-// precision level across floating point data is consistent.
+// An additional typedefs are defined for one dimensional arrays: FloatArray.
+// These in turn make use of FPType so that the precision level across floating
+// point data is consistent.
 //
 // The functions 'ERBHz' and 'CARFACDetect' are defined here, and are used
 // during the design stage of a CARFAC model. 
 
-#ifndef CARFAC_Open_Source_C__Library_CARFACCommon_h
-#define CARFAC_Open_Source_C__Library_CARFACCommon_h
+#ifndef CARFAC_CARFAC_COMMON_H
+#define CARFAC_CARFAC_COMMON_H
 
-// This section is where the base include operations for the CARFAC project
-// occur.
-// <math.h> is used during coefficient calculations and runtime operations.
-#include <math.h>
-//<vector> is used to store two dimensional data structures.
-#include <vector>
 // The Eigen library is used extensively for floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Dense>
@@ -83,4 +77,4 @@ FPType ERBHz(const FPType cf_hz, const FPType erb_break_freq,
 // values.  This is here because it is called both in design and run phases.
 FloatArray CARFACDetect (const FloatArray& x);
 
-#endif
+#endif  // CARFAC_CARFAC_COMMON_H

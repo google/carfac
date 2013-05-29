@@ -20,21 +20,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_CARCoeffs_h
-#define CARFAC_Open_Source_C__Library_CARCoeffs_h
+#ifndef CARFAC_CAR_COEFFS_H
+#define CARFAC_CAR_COEFFS_H
 
-#include "car_params.h"
+#include "carfac_common.h"
 
 struct CARCoeffs {
-  int n_ch_;
-  FPType velocity_scale_;
-  FPType v_offset_;
-  FloatArray r1_coeffs_;
-  FloatArray a0_coeffs_;
-  FloatArray c0_coeffs_;
-  FloatArray h_coeffs_;
-  FloatArray g0_coeffs_;
-  FloatArray zr_coeffs_;
+  int n_ch;
+  FPType velocity_scale;
+  FPType v_offset;
+  FloatArray r1_coeffs;
+  FloatArray a0_coeffs;
+  FloatArray c0_coeffs;
+  FloatArray h_coeffs;
+  FloatArray g0_coeffs;
+  FloatArray zr_coeffs;
 };
 
-#endif
+#endif  // CARFAC_CAR_COEFFS_H

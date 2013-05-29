@@ -20,26 +20,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_IHCCoeffs_h
-#define CARFAC_Open_Source_C__Library_IHCCoeffs_h
+#ifndef CARFAC_IHC_COEFFS_H
+#define CARFAC_IHC_COEFFS_H
 
-#include "ihc_params.h"
+#include "carfac_common.h"
 
 struct IHCCoeffs {
-  bool just_half_wave_rectify_;
-  bool one_capacitor_;
-  FPType lpf_coeff_;
-  FPType out1_rate_;
-  FPType in1_rate_;
-  FPType out2_rate_;
-  FPType in2_rate_;
-  FPType output_gain_;
-  FPType rest_output_;
-  FPType rest_cap1_;
-  FPType rest_cap2_;
-  FPType ac_coeff_;
-  FPType cap1_voltage_;
-  FPType cap2_voltage_;
+  bool just_half_wave_rectify;
+  bool one_capacitor;
+  FPType lpf_coeff;
+  FPType out1_rate;
+  FPType in1_rate;
+  FPType out2_rate;
+  FPType in2_rate;
+  FPType output_gain;
+  FPType rest_output;
+  FPType rest_cap1;
+  FPType rest_cap2;
+  FPType ac_coeff;
+  FPType cap1_voltage;
+  FPType cap2_voltage;
 };
 
-#endif
+#endif  // CARFAC_IHC_COEFFS_H

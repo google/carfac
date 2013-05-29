@@ -64,7 +64,7 @@ GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
 if GCC_VERSION.startswith('4.6'):
   env.MergeFlags(['-std=c++0x'])
 else:
-  env.MergeFlags(['-std=c++11x'])
+  env.MergeFlags(['-std=c++11'])
 
 env.Library(target = 'carfac', source = carfac_sources)
 

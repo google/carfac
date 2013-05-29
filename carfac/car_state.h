@@ -20,20 +20,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_CARState_h
-#define CARFAC_Open_Source_C__Library_CARState_h
+#ifndef CARFAC_CAR_STATE_H
+#define CARFAC_CAR_STATE_H
 
-#include "car_coeffs.h"
+#include "carfac_common.h"
 
 struct CARState {
-  FloatArray z1_memory_;
-  FloatArray z2_memory_;
-  FloatArray za_memory_;
-  FloatArray zb_memory_;
-  FloatArray dzb_memory_;
-  FloatArray zy_memory_;
-  FloatArray g_memory_;
-  FloatArray dg_memory_;
+  FloatArray z1_memory;
+  FloatArray z2_memory;
+  FloatArray za_memory;
+  FloatArray zb_memory;
+  FloatArray dzb_memory;
+  FloatArray zy_memory;
+  FloatArray g_memory;
+  FloatArray dg_memory;
 };
 
-#endif
+#endif  // CARFAC_CAR_STATE_H

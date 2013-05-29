@@ -20,27 +20,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_AGCCoeffs_h
-#define CARFAC_Open_Source_C__Library_AGCCoeffs_h
+#ifndef CARFAC_AGC_COEFFS_H
+#define CARFAC_AGC_COEFFS_H
 
-#include "agc_params.h"
+#include "carfac_common.h"
 
 struct AGCCoeffs {
-  int n_agc_stages_;
-  FPType agc_stage_gain_;
-  FPType agc_epsilon_;
-  int decimation_;
-  FPType agc_pole_z1_;
-  FPType agc_pole_z2_;
-  int agc_spatial_iterations_;
-  FPType agc_spatial_fir_left_;
-  FPType agc_spatial_fir_mid_;
-  FPType agc_spatial_fir_right_;
-  int agc_spatial_n_taps_;
-  FPType agc_mix_coeffs_;
-  FPType agc_gain_;
-  FPType detect_scale_;
-  FPType decim_;
+  int n_agc_stages;
+  FPType agc_stage_gain;
+  FPType agc_epsilon;
+  int decimation;
+  FPType agc_pole_z1;
+  FPType agc_pole_z2;
+  int agc_spatial_iterations;
+  FPType agc_spatial_fir_left;
+  FPType agc_spatial_fir_mid;
+  FPType agc_spatial_fir_right;
+  int agc_spatial_n_taps;
+  FPType agc_mix_coeffs;
+  FPType agc_gain;
+  FPType detect_scale;
+  FPType decim;
 };
 
-#endif
+#endif  // CARFAC_AGC_COEFFS_H

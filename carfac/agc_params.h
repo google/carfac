@@ -20,36 +20,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_AGCParams_h
-#define CARFAC_Open_Source_C__Library_AGCParams_h
+#ifndef CARFAC_AGC_PARAMS_H
+#define CARFAC_AGC_PARAMS_H
 
+#include <vector>
 #include "carfac_common.h"
 
 struct AGCParams {
   AGCParams() {
-    n_stages_ = 4;
-    agc_stage_gain_ = 2.0;
-    time_constants_.resize(n_stages_);
-    agc1_scales_.resize(n_stages_);
-    agc2_scales_.resize(n_stages_);
-    agc1_scales_[0] = 1.0;
-    agc2_scales_[0] = 1.65;
-    time_constants_[0] = 0.002;
-    for (int i = 1; i < n_stages_; ++i) {
-      agc1_scales_[i] = agc1_scales_[i - 1] * sqrt(2.0);
-      agc2_scales_[i] = agc2_scales_[i - 1] * sqrt(2.0);
-      time_constants_[i] = time_constants_[i - 1] * 4.0;
+    n_stages = 4;
+    agc_stage_gain = 2.0;
+    time_constants.resize(n_stages);
+    agc1_scales.resize(n_stages);
+    agc2_scales.resize(n_stages);
+    agc1_scales[0] = 1.0;
+    agc2_scales[0] = 1.65;
+    time_constants[0] = 0.002;
+    for (int i = 1; i < n_stages; ++i) {
+      agc1_scales[i] = agc1_scales[i - 1] * sqrt(2.0);
+      agc2_scales[i] = agc2_scales[i - 1] * sqrt(2.0);
+      time_constants[i] = time_constants[i - 1] * 4.0;
     }
-    decimation_ = {8, 2, 2, 2};
-    agc_mix_coeff_ = 0.5;
+    decimation = {8, 2, 2, 2};
+    agc_mix_coeff = 0.5;
   }
-  int n_stages_;
-  FPType agc_stage_gain_;
-  FPType agc_mix_coeff_;
-  std::vector<FPType> time_constants_;
-  std::vector<int> decimation_;
-  std::vector<FPType> agc1_scales_;
-  std::vector<FPType> agc2_scales_;
+  int n_stages;
+  FPType agc_stage_gain;
+  FPType agc_mix_coeff;
+  std::vector<FPType> time_constants;
+  std::vector<int> decimation;
+  std::vector<FPType> agc1_scales;
+  std::vector<FPType> agc2_scales;
 };
 
-#endif
+#endif  // CARFAC_AGC_PARAMS_H

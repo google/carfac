@@ -20,30 +20,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_IHCParams_h
-#define CARFAC_Open_Source_C__Library_IHCParams_h
+#ifndef CARFAC_IHC_PARAMS_H
+#define CARFAC_IHC_PARAMS_H
 
 #include "carfac_common.h"
 
 struct IHCParams {
   IHCParams() {
-    just_half_wave_rectify_ = false;
-    one_capacitor_ = true;
-    tau_lpf_ = 0.000080;
-    tau1_out_ = 0.0005;
-    tau1_in_ = 0.010;
-    tau2_out_ = 0.0025;
-    tau2_in_ = 0.005;
-    ac_corner_hz_ = 20.0;
+    just_half_wave_rectify = false;
+    one_capacitor = true;
+    tau_lpf = 0.000080;
+    tau1_out = 0.0005;
+    tau1_in = 0.010;
+    tau2_out = 0.0025;
+    tau2_in = 0.005;
+    ac_corner_hz = 20.0;
   };
-  bool just_half_wave_rectify_;
-  bool one_capacitor_;
-  FPType tau_lpf_;
-  FPType tau1_out_;
-  FPType tau1_in_;
-  FPType tau2_out_;
-  FPType tau2_in_;
-  FPType ac_corner_hz_;
+  bool just_half_wave_rectify;
+  bool one_capacitor;
+  FPType tau_lpf;
+  FPType tau1_out;
+  FPType tau1_in;
+  FPType tau2_out;
+  FPType tau2_in;
+  FPType ac_corner_hz;
 };
 
-#endif
+#endif  // CARFAC_IHC_PARAMS_H

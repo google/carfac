@@ -36,9 +36,18 @@
 // processing sound signals. These both take two dimensional Eigen float arrays
 // (samples x channels) as arguments and return CARFACOutput objects.
 
-#ifndef CARFAC_Open_Source_C__Library_CARFAC_h
-#define CARFAC_Open_Source_C__Library_CARFAC_h
+#ifndef CARFAC_CARFAC_H
+#define CARFAC_CARFAC_H
 
+#include <vector>
+#include "carfac_common.h"
+#include "car_params.h"
+#include "car_coeffs.h"
+#include "ihc_params.h"
+#include "ihc_coeffs.h"
+#include "agc_params.h"
+#include "agc_coeffs.h"
+#include "ear.h"
 #include "carfac_output.h"
 
 class CARFAC {
@@ -78,4 +87,4 @@ class CARFAC {
   FloatArray pole_freqs_;
 };
 
-#endif
+#endif  // CARFAC_CARFAC_H

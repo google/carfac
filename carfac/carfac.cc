@@ -19,6 +19,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include <assert.h>
 #include "carfac.h"
 using std::vector;
@@ -30,18 +31,18 @@ void CARFAC::Design(const int n_ears, const FPType fs,
   fs_ = fs;
   ears_.resize(n_ears_);
   n_ch_ = 0;
-  FPType pole_hz = car_params.first_pole_theta_ * fs / (2 * kPi);
-  while (pole_hz > car_params.min_pole_hz_) {
+  FPType pole_hz = car_params.first_pole_theta * fs / (2 * kPi);
+  while (pole_hz > car_params.min_pole_hz) {
     ++n_ch_;
-    pole_hz = pole_hz - car_params.erb_per_step_ *
-    ERBHz(pole_hz, car_params.erb_break_freq_, car_params.erb_q_);
+    pole_hz = pole_hz - car_params.erb_per_step *
+    ERBHz(pole_hz, car_params.erb_break_freq, car_params.erb_q);
   }
   pole_freqs_.resize(n_ch_);
-  pole_hz = car_params.first_pole_theta_ * fs / (2 * kPi);
+  pole_hz = car_params.first_pole_theta * fs / (2 * kPi);
   for (int ch = 0; ch < n_ch_; ++ch) {
     pole_freqs_(ch) = pole_hz;
-    pole_hz = pole_hz - car_params.erb_per_step_ *
-    ERBHz(pole_hz, car_params.erb_break_freq_, car_params.erb_q_);
+    pole_hz = pole_hz - car_params.erb_per_step *
+    ERBHz(pole_hz, car_params.erb_break_freq, car_params.erb_q);
   }
   max_channels_per_octave_ = log(2) / log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
@@ -151,44 +152,44 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params, const FPType fs,
                              const FloatArray& pole_freqs,
                              CARCoeffs* car_coeffs) {
   n_ch_ = pole_freqs.size();
-  car_coeffs->velocity_scale_ = car_params.velocity_scale_;
-  car_coeffs->v_offset_ = car_params.v_offset_;
-  car_coeffs->r1_coeffs_.resize(n_ch_);
-  car_coeffs->a0_coeffs_.resize(n_ch_);
-  car_coeffs->c0_coeffs_.resize(n_ch_);
-  car_coeffs->h_coeffs_.resize(n_ch_);
-  car_coeffs->g0_coeffs_.resize(n_ch_);
-  FPType f = car_params.zero_ratio_ * car_params.zero_ratio_ - 1.0;
+  car_coeffs->velocity_scale = car_params.velocity_scale;
+  car_coeffs->v_offset = car_params.v_offset;
+  car_coeffs->r1_coeffs.resize(n_ch_);
+  car_coeffs->a0_coeffs.resize(n_ch_);
+  car_coeffs->c0_coeffs.resize(n_ch_);
+  car_coeffs->h_coeffs.resize(n_ch_);
+  car_coeffs->g0_coeffs.resize(n_ch_);
+  FPType f = car_params.zero_ratio * car_params.zero_ratio - 1.0;
   FloatArray theta = pole_freqs * ((2.0 * kPi) / fs);
-  car_coeffs->c0_coeffs_ = theta.sin();
-  car_coeffs->a0_coeffs_ = theta.cos();
-  FPType ff = car_params.high_f_damping_compression_;
+  car_coeffs->c0_coeffs = theta.sin();
+  car_coeffs->a0_coeffs = theta.cos();
+  FPType ff = car_params.high_f_damping_compression;
   FloatArray x = theta / kPi;
-  car_coeffs->zr_coeffs_ = kPi * (x - (ff * (x*x*x)));
-  FPType max_zeta = car_params.max_zeta_;
-  FPType min_zeta = car_params.min_zeta_;
-  car_coeffs->r1_coeffs_ = (1.0 - (car_coeffs->zr_coeffs_ * max_zeta));
+  car_coeffs->zr_coeffs = kPi * (x - (ff * (x*x*x)));
+  FPType max_zeta = car_params.max_zeta;
+  FPType min_zeta = car_params.min_zeta;
+  car_coeffs->r1_coeffs = (1.0 - (car_coeffs->zr_coeffs * max_zeta));
   FloatArray erb_freqs(n_ch_);
   for (int ch=0; ch < n_ch_; ++ch) {
-    erb_freqs(ch) = ERBHz(pole_freqs(ch), car_params.erb_break_freq_,
-                          car_params.erb_q_);
+    erb_freqs(ch) = ERBHz(pole_freqs(ch), car_params.erb_break_freq,
+                          car_params.erb_q);
   }
   FloatArray min_zetas = min_zeta + (0.25 * ((erb_freqs / pole_freqs) -
                                              min_zeta));
-  car_coeffs->zr_coeffs_ *= max_zeta - min_zetas;
-  car_coeffs->h_coeffs_ = car_coeffs->c0_coeffs_ * f;
+  car_coeffs->zr_coeffs *= max_zeta - min_zetas;
+  car_coeffs->h_coeffs = car_coeffs->c0_coeffs * f;
   FloatArray relative_undamping = FloatArray::Ones(n_ch_);
-  FloatArray r = car_coeffs->r1_coeffs_ + (car_coeffs->zr_coeffs_ *
+  FloatArray r = car_coeffs->r1_coeffs + (car_coeffs->zr_coeffs *
                                            relative_undamping);
-  car_coeffs->g0_coeffs_ = (1.0 - (2.0 * r * car_coeffs->a0_coeffs_) + (r*r)) /
-    (1 - (2 * r * car_coeffs->a0_coeffs_) +
-    (car_coeffs->h_coeffs_ * r * car_coeffs->c0_coeffs_) + (r*r));
+  car_coeffs->g0_coeffs = (1.0 - (2.0 * r * car_coeffs->a0_coeffs) + (r*r)) /
+    (1 - (2 * r * car_coeffs->a0_coeffs) +
+    (car_coeffs->h_coeffs * r * car_coeffs->c0_coeffs) + (r*r));
 }
 
 void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
                              IHCCoeffs* ihc_coeffs) {
-  if (ihc_params.just_half_wave_rectify_) {
-    ihc_coeffs->just_half_wave_rectify_ = ihc_params.just_half_wave_rectify_;
+  if (ihc_params.just_half_wave_rectify) {
+    ihc_coeffs->just_half_wave_rectify = ihc_params.just_half_wave_rectify;
   } else {
     // This section calculates conductance values using two pre-defined scalars.
     FloatArray x(1);
@@ -199,78 +200,78 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
     x(0) = 0.0;
     x = CARFACDetect(x);
     conduct_at_0 = x(0);
-    if (ihc_params.one_capacitor_) {
+    if (ihc_params.one_capacitor) {
       FPType ro = 1 / conduct_at_10 ;
-      FPType c = ihc_params.tau1_out_ / ro;
-      FPType ri = ihc_params.tau1_in_ / c;
+      FPType c = ihc_params.tau1_out / ro;
+      FPType ri = ihc_params.tau1_in / c;
       FPType saturation_output = 1 / ((2 * ro) + ri);
       FPType r0 = 1 / conduct_at_0;
       FPType current = 1 / (ri + r0);
-      ihc_coeffs->cap1_voltage_ = 1 - (current * ri);
-      ihc_coeffs->just_half_wave_rectify_ = false;
-      ihc_coeffs->lpf_coeff_ = 1 - exp( -1 / (ihc_params.tau_lpf_ * fs));
-      ihc_coeffs->out1_rate_ = ro / (ihc_params.tau1_out_ * fs);
-      ihc_coeffs->in1_rate_ = 1 / (ihc_params.tau1_in_ * fs);
-      ihc_coeffs->one_capacitor_ = ihc_params.one_capacitor_;
-      ihc_coeffs->output_gain_ = 1 / (saturation_output - current);
-      ihc_coeffs->rest_output_ = current / (saturation_output - current);
-      ihc_coeffs->rest_cap1_ = ihc_coeffs->cap1_voltage_;
+      ihc_coeffs->cap1_voltage = 1 - (current * ri);
+      ihc_coeffs->just_half_wave_rectify = false;
+      ihc_coeffs->lpf_coeff = 1 - exp( -1 / (ihc_params.tau_lpf * fs));
+      ihc_coeffs->out1_rate = ro / (ihc_params.tau1_out * fs);
+      ihc_coeffs->in1_rate = 1 / (ihc_params.tau1_in * fs);
+      ihc_coeffs->one_capacitor = ihc_params.one_capacitor;
+      ihc_coeffs->output_gain = 1 / (saturation_output - current);
+      ihc_coeffs->rest_output = current / (saturation_output - current);
+      ihc_coeffs->rest_cap1 = ihc_coeffs->cap1_voltage;
     } else {
       FPType ro = 1 / conduct_at_10;
-      FPType c2 = ihc_params.tau2_out_ / ro;
-      FPType r2 = ihc_params.tau2_in_ / c2;
-      FPType c1 = ihc_params.tau1_out_ / r2;
-      FPType r1 = ihc_params.tau1_in_ / c1;
+      FPType c2 = ihc_params.tau2_out / ro;
+      FPType r2 = ihc_params.tau2_in / c2;
+      FPType c1 = ihc_params.tau1_out / r2;
+      FPType r1 = ihc_params.tau1_in / c1;
       FPType saturation_output = 1 / (2 * ro + r2 + r1);
       FPType r0 = 1 / conduct_at_0;
       FPType current = 1 / (r1 + r2 + r0);
-      ihc_coeffs->cap1_voltage_ = 1 - (current * r1);
-      ihc_coeffs->cap2_voltage_ = ihc_coeffs->cap1_voltage_ - (current * r2);
-      ihc_coeffs->just_half_wave_rectify_ = false;
-      ihc_coeffs->lpf_coeff_ = 1 - exp(-1 / (ihc_params.tau_lpf_ * fs));
-      ihc_coeffs->out1_rate_ = 1 / (ihc_params.tau1_out_ * fs);
-      ihc_coeffs->in1_rate_ = 1 / (ihc_params.tau1_in_ * fs);
-      ihc_coeffs->out2_rate_ = ro / (ihc_params.tau2_out_ * fs);
-      ihc_coeffs->in2_rate_ = 1 / (ihc_params.tau2_in_ * fs);
-      ihc_coeffs->one_capacitor_ = ihc_params.one_capacitor_;
-      ihc_coeffs->output_gain_ = 1 / (saturation_output - current);
-      ihc_coeffs->rest_output_ = current / (saturation_output - current);
-      ihc_coeffs->rest_cap1_ = ihc_coeffs->cap1_voltage_;
-      ihc_coeffs->rest_cap2_ = ihc_coeffs->cap2_voltage_;
+      ihc_coeffs->cap1_voltage = 1 - (current * r1);
+      ihc_coeffs->cap2_voltage = ihc_coeffs->cap1_voltage - (current * r2);
+      ihc_coeffs->just_half_wave_rectify = false;
+      ihc_coeffs->lpf_coeff = 1 - exp(-1 / (ihc_params.tau_lpf * fs));
+      ihc_coeffs->out1_rate = 1 / (ihc_params.tau1_out * fs);
+      ihc_coeffs->in1_rate = 1 / (ihc_params.tau1_in * fs);
+      ihc_coeffs->out2_rate = ro / (ihc_params.tau2_out * fs);
+      ihc_coeffs->in2_rate = 1 / (ihc_params.tau2_in * fs);
+      ihc_coeffs->one_capacitor = ihc_params.one_capacitor;
+      ihc_coeffs->output_gain = 1 / (saturation_output - current);
+      ihc_coeffs->rest_output = current / (saturation_output - current);
+      ihc_coeffs->rest_cap1 = ihc_coeffs->cap1_voltage;
+      ihc_coeffs->rest_cap2 = ihc_coeffs->cap2_voltage;
     }
   }
-  ihc_coeffs->ac_coeff_ = 2 * kPi * ihc_params.ac_corner_hz_ / fs;
+  ihc_coeffs->ac_coeff = 2 * kPi * ihc_params.ac_corner_hz / fs;
 }
 
 void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, const FPType fs,
                              vector<AGCCoeffs>* agc_coeffs) {
-  agc_coeffs->resize(agc_params.n_stages_);
+  agc_coeffs->resize(agc_params.n_stages);
   FPType previous_stage_gain = 0.0;
   FPType decim = 1.0;
-  for (int stage = 0; stage < agc_params.n_stages_; ++stage) {
+  for (int stage = 0; stage < agc_params.n_stages; ++stage) {
     AGCCoeffs& agc_coeff = agc_coeffs->at(stage);
-    agc_coeff.n_agc_stages_ = agc_params.n_stages_;
-    agc_coeff.agc_stage_gain_ = agc_params.agc_stage_gain_;
-    vector<FPType> agc1_scales = agc_params.agc1_scales_;
-    vector<FPType> agc2_scales = agc_params.agc2_scales_;
-    vector<FPType> time_constants = agc_params.time_constants_;
-    FPType mix_coeff = agc_params.agc_mix_coeff_;
-    agc_coeff.decimation_ = agc_params.decimation_[stage];
+    agc_coeff.n_agc_stages = agc_params.n_stages;
+    agc_coeff.agc_stage_gain = agc_params.agc_stage_gain;
+    vector<FPType> agc1_scales = agc_params.agc1_scales;
+    vector<FPType> agc2_scales = agc_params.agc2_scales;
+    vector<FPType> time_constants = agc_params.time_constants;
+    FPType mix_coeff = agc_params.agc_mix_coeff;
+    agc_coeff.decimation = agc_params.decimation[stage];
     FPType total_dc_gain = previous_stage_gain;
     // Here we calculate the parameters for the current stage.
     FPType tau = time_constants[stage];
-    agc_coeff.decim_ = decim;
-    agc_coeff.decim_ *= agc_coeff.decimation_;
-    agc_coeff.agc_epsilon_ = 1 - exp((-1 * agc_coeff.decim_) / (tau * fs));
-    FPType n_times = tau * (fs / agc_coeff.decim_);
+    agc_coeff.decim = decim;
+    agc_coeff.decim *= agc_coeff.decimation;
+    agc_coeff.agc_epsilon = 1 - exp((-1 * agc_coeff.decim) / (tau * fs));
+    FPType n_times = tau * (fs / agc_coeff.decim);
     FPType delay = (agc2_scales[stage] - agc1_scales[stage]) / n_times;
     FPType spread_sq = (pow(agc1_scales[stage], 2) +
                         pow(agc2_scales[stage], 2)) / n_times;
     FPType u = 1 + (1 / spread_sq);
     FPType p = u - sqrt(pow(u, 2) - 1);
     FPType dp = delay * (1 - (2 * p) + (p*p)) / 2;
-    agc_coeff.agc_pole_z1_ = p - dp;
-    agc_coeff.agc_pole_z2_ = p + dp;
+    agc_coeff.agc_pole_z1 = p - dp;
+    agc_coeff.agc_pole_z2 = p + dp;
     int n_taps = 0;
     bool fir_ok = false;
     int n_iterations = 1;
@@ -333,17 +334,17 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, const FPType fs,
     }
     // Once we have the FIR design for this stage we can assign it to the
     // appropriate data members.
-    agc_coeff.agc_spatial_iterations_ = n_iterations;
-    agc_coeff.agc_spatial_n_taps_ = n_taps;
-    agc_coeff.agc_spatial_fir_left_ = fir_left;
-    agc_coeff.agc_spatial_fir_mid_ = fir_mid;
-    agc_coeff.agc_spatial_fir_right_ = fir_right;
-    total_dc_gain += pow(agc_coeff.agc_stage_gain_, stage);
-    agc_coeff.agc_mix_coeffs_ = stage == 0 ? 0 : mix_coeff /
-    (tau * (fs / agc_coeff.decim_));
-    agc_coeff.agc_gain_ = total_dc_gain;
-    agc_coeff.detect_scale_ = 1 / total_dc_gain;
-    previous_stage_gain = agc_coeff.agc_gain_;
-    decim = agc_coeff.decim_;
+    agc_coeff.agc_spatial_iterations = n_iterations;
+    agc_coeff.agc_spatial_n_taps = n_taps;
+    agc_coeff.agc_spatial_fir_left = fir_left;
+    agc_coeff.agc_spatial_fir_mid = fir_mid;
+    agc_coeff.agc_spatial_fir_right = fir_right;
+    total_dc_gain += pow(agc_coeff.agc_stage_gain, stage);
+    agc_coeff.agc_mix_coeffs = stage == 0 ? 0 : mix_coeff /
+    (tau * (fs / agc_coeff.decim));
+    agc_coeff.agc_gain = total_dc_gain;
+    agc_coeff.detect_scale = 1 / total_dc_gain;
+    previous_stage_gain = agc_coeff.agc_gain;
+    decim = agc_coeff.decim;
   }
 }

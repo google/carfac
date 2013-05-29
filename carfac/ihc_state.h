@@ -20,19 +20,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_IHCState_h
-#define CARFAC_Open_Source_C__Library_IHCState_h
+#ifndef CARFAC_IHC_STATE_H
+#define CARFAC_IHC_STATE_H
 
-#include "ihc_coeffs.h"
+#include "carfac_common.h"
 
 struct IHCState {
-  FloatArray ihc_out_;
-  FloatArray ihc_accum_;
-  FloatArray cap1_voltage_;
-  FloatArray cap2_voltage_;
-  FloatArray lpf1_state_;
-  FloatArray lpf2_state_;
-  FloatArray ac_coupler_;
+  FloatArray ihc_out;
+  FloatArray ihc_accum;
+  FloatArray cap1_voltage;
+  FloatArray cap2_voltage;
+  FloatArray lpf1_state;
+  FloatArray lpf2_state;
+  FloatArray ac_coupler;
 };
 
-#endif
+#endif  // CARFAC_IHC_STATE_H

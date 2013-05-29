@@ -34,10 +34,12 @@
 // EarOutput sub-objects once the target data dimensions ears (n_ears), channels
 // (n_ch) and timepoints (n_tp) are known.
 
-#ifndef CARFAC_Open_Source_C__Library_carfac_output_h
-#define CARFAC_Open_Source_C__Library_carfac_output_h
+#ifndef CARFAC_CARFAC_OUTPUT_H
+#define CARFAC_CARFAC_OUTPUT_H
 
 #include <deque>
+#include <vector>
+#include "carfac_common.h"
 #include "ear.h"
 
 class CARFACOutput {
@@ -66,4 +68,4 @@ class CARFACOutput {
   std::deque<std::vector<FloatArray>> agc_;
 };
 
-#endif
+#endif  // CARFAC_CARFAC_OUTPUT_H

@@ -20,16 +20,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_AGCState_h
-#define CARFAC_Open_Source_C__Library_AGCState_h
+#ifndef CARFAC_AGC_STATE_H
+#define CARFAC_AGC_STATE_H
 
-#include "agc_coeffs.h"
+#include "carfac_common.h"
 
 struct AGCState {
-  int n_ch_;
-  FloatArray agc_memory_;
-  FloatArray input_accum_;
-  int decim_phase_;
+  int n_ch;
+  FloatArray agc_memory;
+  FloatArray input_accum;
+  int decim_phase;
 };
 
-#endif
+#endif  // CARFAC_AGC_STATE_H

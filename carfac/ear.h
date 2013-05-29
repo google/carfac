@@ -20,9 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_Open_Source_C__Library_Ear_h
-#define CARFAC_Open_Source_C__Library_Ear_h
+#ifndef CARFAC_EAR_H
+#define CARFAC_EAR_H
 
+#include <vector>
+#include "carfac_common.h"
+#include "car_coeffs.h"
+#include "ihc_coeffs.h"
+#include "agc_coeffs.h"
 #include "car_state.h"
 #include "ihc_state.h"
 #include "agc_state.h"
@@ -32,8 +37,8 @@ class Ear {
   // This is the primary initialization function that is called for each
   // Ear object in the CARFAC 'Design' method.
   void InitEar(const int n_ch, const FPType fs,
-               const CARCoeffs& car_params, const IHCCoeffs& ihc_params,
-               const std::vector<AGCCoeffs>& agc_params);
+               const CARCoeffs& car_coeffs, const IHCCoeffs& ihc_coeffs,
+               const std::vector<AGCCoeffs>& agc_coeffs);
   // These three methods apply the different stages of the model in sequence
   // to individual audio samples.
   void CARStep(const FPType input);
@@ -41,39 +46,39 @@ class Ear {
   bool AGCStep(const FloatArray& ihc_out);
   // These accessor functions return portions of the CAR state for storage in
   // the CAROutput structures.
-  const FloatArray& za_memory() { return car_state_.za_memory_; }
-  const FloatArray& zb_memory() { return car_state_.zb_memory_; }
+  const FloatArray& za_memory() { return car_state_.za_memory; }
+  const FloatArray& zb_memory() { return car_state_.zb_memory; }
   // The zy_memory_ of the CARState is equivalent to the CAR output. A second
   // accessor function is included for documentation purposes.
-  const FloatArray& zy_memory() { return car_state_.zy_memory_; }
-  const FloatArray& car_out() { return car_state_.zy_memory_; }
-  const FloatArray& g_memory() { return car_state_.g_memory_; }
+  const FloatArray& zy_memory() { return car_state_.zy_memory; }
+  const FloatArray& car_out() { return car_state_.zy_memory; }
+  const FloatArray& g_memory() { return car_state_.g_memory; }
   // This returns the IHC output for storage.
-  const FloatArray& ihc_out() { return ihc_state_.ihc_out_; }
-  const FloatArray& dzb_memory() { return car_state_.dzb_memory_; }
+  const FloatArray& ihc_out() { return ihc_state_.ihc_out; }
+  const FloatArray& dzb_memory() { return car_state_.dzb_memory; }
   // These accessor functions return CAR coefficients.
-  const FloatArray& zr_coeffs() { return car_coeffs_.zr_coeffs_; }
+  const FloatArray& zr_coeffs() { return car_coeffs_.zr_coeffs; }
   // These accessor functions return portions of the AGC state during the cross
   // coupling of the ears.
   const int agc_nstages() { return agc_coeffs_.size(); }
   const int agc_decim_phase(const int stage) {
-    return agc_state_[stage].decim_phase_; }
+    return agc_state_[stage].decim_phase; }
   const FPType agc_mix_coeff(const int stage) {
-    return agc_coeffs_[stage].agc_mix_coeffs_; }
+    return agc_coeffs_[stage].agc_mix_coeffs; }
   const FloatArray& agc_memory(const int stage) {
-    return agc_state_[stage].agc_memory_; }
+    return agc_state_[stage].agc_memory; }
   const int agc_decimation(const int stage) {
-    return agc_coeffs_[stage].decimation_; }
+    return agc_coeffs_[stage].decimation; }
   // This returns the stage G value during the closing of the AGC loop.
   FloatArray StageGValue(const FloatArray& undamping);
   // This function sets the AGC memory during the cross coupling stage.
   void set_agc_memory(const int stage, const FloatArray& new_values) {
-    agc_state_[stage].agc_memory_ = new_values; }
+    agc_state_[stage].agc_memory = new_values; }
   // These are the setter functions for the CAR memory states.
   void set_dzb_memory(const FloatArray& new_values) {
-    car_state_.dzb_memory_ = new_values; }
+    car_state_.dzb_memory = new_values; }
   void set_dg_memory(const FloatArray& new_values) {
-    car_state_.dg_memory_ = new_values; }
+    car_state_.dg_memory = new_values; }
 
  private:
   // These are the corresponding methods that initialize the model state
@@ -99,4 +104,4 @@ class Ear {
   int n_ch_;
 };
 
-#endif
+#endif  // CARFAC_EAR_H

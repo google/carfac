@@ -22,8 +22,11 @@
 
 #include <string>
 #include <fstream>
-// GoogleTest is now included for running unit tests
+#include <vector>
 #include <gtest/gtest.h>
+#include "car_params.h"
+#include "ihc_params.h"
+#include "agc_params.h"
 #include "carfac.h"
 
 using std::vector;
