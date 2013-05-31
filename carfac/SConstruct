@@ -43,22 +43,6 @@ To clean up binaries, run:
 import commands
 import os
 
-carfac_sources = [
-    'carfac_common.cc',
-    'agc_params.h',
-    'agc_coeffs.h',
-    'agc_state.h',
-    'carfac_output.cc',
-    'car_params.h',
-    'car_coeffs.h',
-    'ihc_params.h',
-    'car_state.h',
-    'ihc_coeffs.h',
-    'ihc_state.h',
-    'ear.cc',
-    'carfac.cc'
-    ]
-
 env = Environment(CPPPATH=[os.environ['EIGEN_PATH']])
 GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
 if GCC_VERSION.startswith('4.6'):
@@ -66,6 +50,22 @@ if GCC_VERSION.startswith('4.6'):
 else:
   env.MergeFlags(['-std=c++11'])
 
+carfac_sources = [
+    'agc_coeffs.h',
+    'agc_params.h',
+    'agc_state.h',
+    'car_coeffs.h',
+    'carfac.cc',
+    'carfac_common.cc',
+    'carfac_output.cc',
+    'car_params.h',
+    'car_state.h',
+    'ear.cc',
+    'ihc_coeffs.h',
+    'ihc_params.h',
+    'ihc_state.h',
+    'sai.cc',
+    ]
 env.Library(target = 'carfac', source = carfac_sources)
 
 env.Command('tmp/libgtest.a', [],
@@ -75,8 +75,12 @@ env.Command('tmp/libgtest.a', [],
                 'cd tmp && cmake . && make',
             ])
 
-test_program = env.Program(target = 'carfac_test',
-                           source = ['carfac_test.cc'],
+test_sources = [
+    'carfac_test.cc',
+    'sai_test.cc',
+    ]
+test_program = env.Program(target = 'test',
+                           source = test_sources,
                            LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
                            LIBPATH = ['.', 'tmp'])
 test_alias = Alias('test', [test_program], test_program[0].abspath)

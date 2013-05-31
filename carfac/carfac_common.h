@@ -60,6 +60,7 @@ typedef double FPType;
 // A typedef is used to define a one-dimensional Eigen array with the same
 // precision level as FPType.
 typedef Eigen::Array<FPType, Dynamic, 1> FloatArray;
+typedef Eigen::Array<FPType, Dynamic, Dynamic> Float2dArray;
 
 // A fixed value of PI is defined throughout the project.
 static const FPType kPi = 3.141592653589793238;
