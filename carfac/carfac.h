@@ -19,69 +19,76 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-// *****************************************************************************
-// Class: CARFAC
-// *****************************************************************************
-// The CARFAC class is the top-level class implementing the CAR-FAC C++ model.
-// A CARFAC object knows how to design its details from a modest set of
-// parameters, and knows how to process sound signals to produce "neural
-// activity patterns" (NAPs) which are contained in a CARFACOutput object.
-//
-// The 'Design' method is used to intialize the CARFAC model, and is passed
-// a set of CAR, IHC and AGC parameters along with sound file information
-// (channels and sample rate).
-//
-// The two methods 'Run' and 'RunSegment' are responsible for
-// processing sound signals. These both take two dimensional Eigen float arrays
-// (samples x channels) as arguments and return CARFACOutput objects.
 
 #ifndef CARFAC_CARFAC_H
 #define CARFAC_CARFAC_H
 
 #include <vector>
-#include "carfac_common.h"
-#include "car_params.h"
-#include "car_coeffs.h"
-#include "ihc_params.h"
-#include "ihc_coeffs.h"
-#include "agc_params.h"
-#include "agc_coeffs.h"
+
+#include "common.h"
+#include "carfac_util.h"
+#include "car.h"
+#include "ihc.h"
+#include "agc.h"
 #include "ear.h"
 #include "carfac_output.h"
 
+// This is the top-level class implementing the CAR-FAC C++ model. See the
+// chapter entitled 'The CAR-FAC Digital Cochlear Model' in Lyon's book "Human
+// and Machine Hearing" for an overview.
+//
+// A CARFAC object knows how to design its details from a modest set of
+// parameters, and knows how to process sound signals to produce "neural
+// activity patterns" (NAPs) which are stored in a CARFACOutput object during
+// the call to CARFAC::RunSegment.
 class CARFAC {
  public:
   // The 'Design' method takes a set of CAR, IHC and AGC parameters along with
   // arguments specifying the number of 'ears' (audio file channels) and sample
   // rate. This initializes a vector of 'Ear' objects -- one for mono, two for
-  // stereo, or more.  Each 'Ear' includes various sub-objects representing the
-  // parameters, designs (coeffs) ,and states of different parts of the CAR-FAC
-  // model.
-  void Design(const int n_ears, const FPType fs, const CARParams& car_params,
-              const IHCParams& ihc_params, const AGCParams& agc_params);
-  // The 'RunSegment' method processes individual sound segments
+  // stereo, or more.
+  CARFAC(const int num_ears, const FPType sample_rate,
+              const CARParams& car_params, const IHCParams& ihc_params,
+              const AGCParams& agc_params);
+  
+  // The 'RunSegment' method processes individual sound segments and stores the
+  // output of the model in a CARFACOutput object.
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
                   const int32_t start, const int32_t length,
                   const bool open_loop, CARFACOutput* seg_output);
+  void Reset();
 
  private:
-  void DesignCARCoeffs(const CARParams& car_params, const FPType fs,
-                       const FloatArray& pole_freqs, CARCoeffs* car_coeffs);
-  void DesignIHCCoeffs(const IHCParams& ihc_params, const FPType fs,
+  // TODO (alexbrandmeyer): figure out why this breaks object initialization.
+  //DISALLOW_COPY_AND_ASSIGN(CARFAC);
+  void DesignCARCoeffs(const CARParams& car_params, const FPType sample_rate,
+                       const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
+  void DesignIHCCoeffs(const IHCParams& ihc_params, const FPType sample_rate,
                        IHCCoeffs* ihc_coeffs);
-  void DesignAGCCoeffs(const AGCParams& agc_params, const FPType fs,
+  void DesignAGCCoeffs(const AGCParams& agc_params, const FPType sample_rate,
                        std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
+  
+  // Function: ERBHz
+  // Auditory filter nominal Equivalent Rectangular Bandwidth
+  // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
+  // See also the section 'Auditory Frequency Scales' of the chapter 'Acoustic
+  // Approaches and Auditory Influence' in "Human and Machine Hearing".
+  FPType ERBHz(const FPType center_frequency_hz, const FPType erb_break_freq,
+               const FPType erb_q);
 
-  int n_ears_;  // This is the number of ears.
-  FPType fs_;  // This is our current sample rate.
-  int n_ch_;  // This is the number of channels in the CARFAC model.
+  CARParams car_params_;
+  IHCParams ihc_params_;
+  AGCParams agc_params_;
+  int num_ears_;
+  FPType sample_rate_;
+  int num_channels_;
   FPType max_channels_per_octave_;
-  // We store an array of Ear objects for mono/stereo/multichannel processing:
+  
+  // We store a vector of Ear objects for mono/stereo/multichannel processing:
   std::vector<Ear> ears_;
-  FloatArray pole_freqs_;
+  ArrayX pole_freqs_;
 };
 
 #endif  // CARFAC_CARFAC_H

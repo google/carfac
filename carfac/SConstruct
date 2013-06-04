@@ -51,20 +51,15 @@ else:
   env.MergeFlags(['-std=c++11'])
 
 carfac_sources = [
-    'agc_coeffs.h',
-    'agc_params.h',
-    'agc_state.h',
-    'car_coeffs.h',
+    'agc.h',
+    'car.h',
+    'ihc.h',
     'carfac.cc',
-    'carfac_common.cc',
+    'common.h',
+    'carfac_util.h',
     'carfac_output.cc',
-    'car_params.h',
-    'car_state.h',
     'ear.cc',
-    'ihc_coeffs.h',
-    'ihc_params.h',
-    'ihc_state.h',
-    'sai.cc',
+    'sai.cc'
     ]
 env.Library(target = 'carfac', source = carfac_sources)
 

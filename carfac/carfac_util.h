@@ -1,5 +1,5 @@
 //
-//  car_state.h
+//  carfac_util.h
 //  CARFAC Open Source C++ Library
 //
 //  Created by Alex Brandmeyer on 5/10/13.
@@ -20,20 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_CAR_STATE_H
-#define CARFAC_CAR_STATE_H
+#ifndef CARFAC_CARFAC_UTIL_H
+#define CARFAC_CARFAC_UTIL_H
 
-#include "carfac_common.h"
+#include "common.h"
 
-struct CARState {
-  FloatArray z1_memory;
-  FloatArray z2_memory;
-  FloatArray za_memory;
-  FloatArray zb_memory;
-  FloatArray dzb_memory;
-  FloatArray zy_memory;
-  FloatArray g_memory;
-  FloatArray dg_memory;
-};
+// Function CARFACDetect
+// This returns the IHC detection nonilnearity function of the filter output
+// values.  This is here because it is called both in design and run phases.
+ArrayX CARFACDetect(const ArrayX& x);
 
-#endif  // CARFAC_CAR_STATE_H
+#endif  // CARFAC_CARFAC_UTIL_H

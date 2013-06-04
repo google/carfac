@@ -1,8 +1,8 @@
 //
-//  agc_params.h
+//  agc.h
 //  CARFAC Open Source C++ Library
 //
-//  Created by Alex Brandmeyer on 5/10/13.
+//  Created by Alex Brandmeyer on 5/30/13.
 //
 // This C++ file is part of an implementation of Lyon's cochlear model:
 // "Cascade of Asymmetric Resonators with Fast-Acting Compression"
@@ -20,23 +20,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_AGC_PARAMS_H
-#define CARFAC_AGC_PARAMS_H
+#ifndef CARFAC_AGC_H
+#define CARFAC_AGC_H
 
 #include <vector>
-#include "carfac_common.h"
+#include "common.h"
 
 struct AGCParams {
   AGCParams() {
-    n_stages = 4;
+    num_stages = 4;
     agc_stage_gain = 2.0;
-    time_constants.resize(n_stages);
-    agc1_scales.resize(n_stages);
-    agc2_scales.resize(n_stages);
+    time_constants.resize(num_stages);
+    agc1_scales.resize(num_stages);
+    agc2_scales.resize(num_stages);
     agc1_scales[0] = 1.0;
     agc2_scales[0] = 1.65;
     time_constants[0] = 0.002;
-    for (int i = 1; i < n_stages; ++i) {
+    for (int i = 1; i < num_stages; ++i) {
       agc1_scales[i] = agc1_scales[i - 1] * sqrt(2.0);
       agc2_scales[i] = agc2_scales[i - 1] * sqrt(2.0);
       time_constants[i] = time_constants[i - 1] * 4.0;
@@ -44,7 +44,7 @@ struct AGCParams {
     decimation = {8, 2, 2, 2};
     agc_mix_coeff = 0.5;
   }
-  int n_stages;
+  int num_stages;
   FPType agc_stage_gain;
   FPType agc_mix_coeff;
   std::vector<FPType> time_constants;
@@ -53,4 +53,28 @@ struct AGCParams {
   std::vector<FPType> agc2_scales;
 };
 
-#endif  // CARFAC_AGC_PARAMS_H
+struct AGCCoeffs {
+  int num_agc_stages;
+  FPType agc_stage_gain;
+  FPType agc_epsilon;
+  int decimation;
+  FPType agc_pole_z1;
+  FPType agc_pole_z2;
+  int agc_spatial_iterations;
+  FPType agc_spatial_fir_left;
+  FPType agc_spatial_fir_mid;
+  FPType agc_spatial_fir_right;
+  int agc_spatial_n_taps;
+  FPType agc_mix_coeffs;
+  FPType agc_gain;
+  FPType detect_scale;
+  FPType decim;
+};
+
+struct AGCState {
+  ArrayX agc_memory;
+  ArrayX input_accum;
+  int decim_phase;
+};
+
+#endif  // CARFAC_AGC_H

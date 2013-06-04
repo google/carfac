@@ -35,8 +35,8 @@ SAI::SAI(const SAIParams& params) : params_(params) {
       .sin();
 }
 
-void SAI::RunSegment(const std::vector<FloatArray>& input,
-                     Float2dArray* output_frame) {
+void SAI::RunSegment(const std::vector<ArrayX>& input,
+                     ArrayXX* output_frame) {
   assert(!input.empty() || input.size() <= params_.window_width &&
          "Unexpected input size.");
   assert(input[0].size() == params_.n_ch &&
@@ -60,8 +60,8 @@ void SAI::RunSegment(const std::vector<FloatArray>& input,
   *output_frame = output_buffer_;
 }
 
-void SAI::StabilizeSegment(const Float2dArray& input_buffer,
-                           Float2dArray* output_buffer) const {
+void SAI::StabilizeSegment(const ArrayXX& input_buffer,
+                           ArrayXX* output_buffer) const {
   // Windows are always approximately 50% overlapped.
   float window_hop = params_.window_width / 2;
   int window_start = (input_buffer.cols() - params_.window_width) -
@@ -72,14 +72,14 @@ void SAI::StabilizeSegment(const Float2dArray& input_buffer,
   for (int i = 0; i < params_.n_ch; ++i) {
     // TODO(ronw): Rename this here and in the Matlab code since the
     // input doesn't have to contain naps.
-    const FloatArray& nap_wave = input_buffer.row(i);
+    const ArrayX& nap_wave = input_buffer.row(i);
     // TODO(ronw): Smooth row.
 
     for (int w = 0; w < params_.n_window_pos; ++w) {
       int current_window_offset = w * window_hop;
       // Choose a trigger point.
       int trigger_time;
-      const FloatArray& trigger_window =
+      const ArrayX& trigger_window =
           nap_wave.segment(window_range_start + current_window_offset,
                            params_.window_width);
       FPType peak_val = (trigger_window * window_).maxCoeff(&trigger_time);

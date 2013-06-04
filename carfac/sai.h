@@ -22,8 +22,7 @@
 
 #include <vector>
 
-// TODO(ronw): Rename this file to common.h
-#include "carfac_common.h"
+#include "common.h"
 
 // Design parameters for a single SAI.
 struct SAIParams {
@@ -57,25 +56,25 @@ class SAI {
   //
   // The input should have dimensionality of params_.window_width by
   // params_.n_ch.  Inputs containing too few frames are zero-padded.
-  // FIXME: Float2DArray input type would be less awkward.
-  void RunSegment(const std::vector<FloatArray>& input,
-                  Float2dArray* output_output_frame);
+  // FIXME: ArrayXX input type would be less awkward.
+  void RunSegment(const std::vector<ArrayX>& input,
+                  ArrayXX* output_output_frame);
 
  private:
   // Process successive windows within input_buffer, choose trigger
   // points, and blend each window into output_buffer.
-  void StabilizeSegment(const Float2dArray& input_buffer,
-                        Float2dArray* output_buffer) const;
+  void StabilizeSegment(const ArrayXX& input_buffer,
+                        ArrayXX* output_buffer) const;
 
   SAIParams params_;
   // Window function to apply before selecting a trigger point.
   // Size: params_.window_width.
-  FloatArray window_;
+  ArrayX window_;
   // Buffer to store a large enough window of input frames to compute
   // a full SAI frame.  Size: params_.n_ch by params_.buffer_width.
-  Float2dArray input_buffer_;
+  ArrayXX input_buffer_;
   // Output frame buffer.  Size: params_.n_ch by params_.width.
-  Float2dArray output_buffer_;
+  ArrayXX output_buffer_;
 };
 
 #endif  // CARFAC_SAI_H_

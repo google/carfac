@@ -27,15 +27,15 @@
 using testing::Values;
 using std::vector;
 
-vector<FloatArray> CreateZeroSegment(int n_ch, int length) {
-  vector<FloatArray> segment;
+vector<ArrayX> CreateZeroSegment(int n_ch, int length) {
+  vector<ArrayX> segment;
   for (int i = 0; i < length; ++i) {
-    segment.push_back(FloatArray::Zero(n_ch));
+    segment.push_back(ArrayX::Zero(n_ch));
   }
   return segment;
 }
 
-bool HasPeakAt(const Float2dArray& frame, int index) {
+bool HasPeakAt(const ArrayXX& frame, int index) {
   if (index == 0) {
     return frame(index) > frame(index + 1);
   } else if (index == frame.size() - 1) {
@@ -57,7 +57,7 @@ class SAIPeriodicInputTest
 };
 
 TEST_P(SAIPeriodicInputTest, SingleChannelPulseTrain) {
-  vector<FloatArray> segment = CreateZeroSegment(1, 38);
+  vector<ArrayX> segment = CreateZeroSegment(1, 38);
   for (int i = phase_; i < segment.size(); i += period_) {
     segment[i](0) = 1;
   }
@@ -72,7 +72,7 @@ TEST_P(SAIPeriodicInputTest, SingleChannelPulseTrain) {
   sai_params.n_window_pos = 2;
 
   SAI sai(sai_params);
-  Float2dArray sai_frame;
+  ArrayXX sai_frame;
   sai.RunSegment(segment, &sai_frame);
 
   // The output should have peaks at the same positions, regardless of

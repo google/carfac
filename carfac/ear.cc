@@ -23,48 +23,40 @@
 #include <assert.h>
 #include "ear.h"
 
-// The 'InitEar' function takes a set of model parameters and initializes the
-// design coefficients and model state variables needed for running the model
-// on a single audio channel.
-void Ear::InitEar(const int n_ch, const FPType fs, const CARCoeffs& car_coeffs,
-                  const IHCCoeffs& ihc_coeffs,
-                  const std::vector<AGCCoeffs>& agc_coeffs) {
-  // The first section of code determines the number of channels that will be
-  // used in the model on the basis of the sample rate and the CAR parameters
-  // that have been passed to this function.
-  n_ch_ = n_ch;
+void Ear::Init(const int num_channels, const CARCoeffs& car_coeffs,
+               const IHCCoeffs& ihc_coeffs,
+               const std::vector<AGCCoeffs>& agc_coeffs) {
+  num_channels_ = num_channels;
   car_coeffs_ = car_coeffs;
   ihc_coeffs_ = ihc_coeffs;
   agc_coeffs_ = agc_coeffs;
-  // Once the coefficients have been determined, we can initialize the state
-  // variables that will be used during runtime.
   InitCARState();
   InitIHCState();
   InitAGCState();
 }
 
 void Ear::InitCARState() {
-  car_state_.z1_memory.setZero(n_ch_);
-  car_state_.z2_memory.setZero(n_ch_);
-  car_state_.za_memory.setZero(n_ch_);
+  car_state_.z1_memory.setZero(num_channels_);
+  car_state_.z2_memory.setZero(num_channels_);
+  car_state_.za_memory.setZero(num_channels_);
   car_state_.zb_memory = car_coeffs_.zr_coeffs;
-  car_state_.dzb_memory.setZero(n_ch_);
-  car_state_.zy_memory.setZero(n_ch_);
+  car_state_.dzb_memory.setZero(num_channels_);
+  car_state_.zy_memory.setZero(num_channels_);
   car_state_.g_memory = car_coeffs_.g0_coeffs;
-  car_state_.dg_memory.setZero(n_ch_);
+  car_state_.dg_memory.setZero(num_channels_);
 }
 
 void Ear::InitIHCState() {
-  ihc_state_.ihc_accum = FloatArray::Zero(n_ch_);
+  ihc_state_.ihc_accum = ArrayX::Zero(num_channels_);
   if (! ihc_coeffs_.just_half_wave_rectify) {
-    ihc_state_.ac_coupler.setZero(n_ch_);
-    ihc_state_.lpf1_state.setConstant(n_ch_, ihc_coeffs_.rest_output);
-    ihc_state_.lpf2_state.setConstant(n_ch_, ihc_coeffs_.rest_output);
+    ihc_state_.ac_coupler.setZero(num_channels_);
+    ihc_state_.lpf1_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
+    ihc_state_.lpf2_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
     if (ihc_coeffs_.one_capacitor) {
-      ihc_state_.cap1_voltage.setConstant(n_ch_, ihc_coeffs_.rest_cap1);
+      ihc_state_.cap1_voltage.setConstant(num_channels_, ihc_coeffs_.rest_cap1);
     } else {
-      ihc_state_.cap1_voltage.setConstant(n_ch_, ihc_coeffs_.rest_cap1);
-      ihc_state_.cap2_voltage.setConstant(n_ch_, ihc_coeffs_.rest_cap2);
+      ihc_state_.cap1_voltage.setConstant(num_channels_, ihc_coeffs_.rest_cap1);
+      ihc_state_.cap2_voltage.setConstant(num_channels_, ihc_coeffs_.rest_cap2);
     }
   }
 }
@@ -74,8 +66,8 @@ void Ear::InitAGCState() {
   agc_state_.resize(n_agc_stages);
   for (auto& stage_state : agc_state_) {
     stage_state.decim_phase = 0;
-    stage_state.agc_memory.setZero(n_ch_);
-    stage_state.input_accum.setZero(n_ch_);
+    stage_state.agc_memory.setZero(num_channels_);
+    stage_state.input_accum.setZero(num_channels_);
   }
 }
 
@@ -86,16 +78,15 @@ void Ear::CARStep(const FPType input) {
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
   // a delay of z2.
-  FloatArray nonlinear_fun(n_ch_);
-  FloatArray velocities = car_state_.z2_memory - car_state_.za_memory;
+  ArrayX nonlinear_fun(num_channels_);
+  ArrayX velocities = car_state_.z2_memory - car_state_.za_memory;
   OHCNonlinearFunction(velocities, &nonlinear_fun);
   // Here, zb_memory_ * nonlinear_fun is "undamping" delta r.
-  FloatArray r = car_coeffs_.r1_coeffs + (car_state_.zb_memory *
-                                           nonlinear_fun);
+  ArrayX r = car_coeffs_.r1_coeffs + (car_state_.zb_memory * nonlinear_fun);
   car_state_.za_memory = car_state_.z2_memory;
   // Here we reduce the CAR state by r and rotate with the fixed cos/sin coeffs.
-  FloatArray z1  = r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
-                        (car_coeffs_.c0_coeffs * car_state_.z2_memory));
+  ArrayX z1  = r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
+                    (car_coeffs_.c0_coeffs * car_state_.z2_memory));
   car_state_.z2_memory = r *
     ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
      (car_coeffs_.a0_coeffs * car_state_.z2_memory));
@@ -103,11 +94,12 @@ void Ear::CARStep(const FPType input) {
   // This section ripples the input-output path, to avoid delay...
   // It's the only part that doesn't get computed "in parallel":
   FPType in_out = input;
-  for (int ch = 0; ch < n_ch_; ch++) {
-    z1(ch) = z1(ch) + in_out;
+  for (int channel = 0; channel < num_channels_; channel++) {
+    z1(channel) = z1(channel) + in_out;
     // This performs the ripple, and saves the final channel outputs in zy.
-    in_out = car_state_.g_memory(ch) * (in_out + car_state_.zy_memory(ch));
-    car_state_.zy_memory(ch) = in_out;
+    in_out = car_state_.g_memory(channel) *
+      (in_out + car_state_.zy_memory(channel));
+    car_state_.zy_memory(channel) = in_out;
   }
   car_state_.z1_memory = z1;
 }
@@ -115,8 +107,8 @@ void Ear::CARStep(const FPType input) {
 // We start with a quadratic nonlinear function, and limit it via a
 // rational function. This makes the result go to zero at high
 // absolute velocities, so it will do nothing there.
-void Ear::OHCNonlinearFunction(const FloatArray& velocities,
-                               FloatArray* nonlinear_fun) {
+void Ear::OHCNonlinearFunction(const ArrayX& velocities,
+                               ArrayX* nonlinear_fun) {
   *nonlinear_fun = (1 + ((velocities * car_coeffs_.velocity_scale) +
                          car_coeffs_.v_offset).square()).inverse();
 }
@@ -124,19 +116,19 @@ void Ear::OHCNonlinearFunction(const FloatArray& velocities,
 // This step is a one sample-time update of the inner-hair-cell (IHC) model,
 // including the detection nonlinearity and either one or two capacitor state
 // variables.
-void Ear::IHCStep(const FloatArray& car_out) {
-  FloatArray ac_diff = car_out - ihc_state_.ac_coupler;
+void Ear::IHCStep(const ArrayX& car_out) {
+  ArrayX ac_diff = car_out - ihc_state_.ac_coupler;
   ihc_state_.ac_coupler = ihc_state_.ac_coupler +
     (ihc_coeffs_.ac_coeff * ac_diff);
   if (ihc_coeffs_.just_half_wave_rectify) {
-    FloatArray output(n_ch_);
-    for (int ch = 0; ch < n_ch_; ++ch) {
-      FPType a = (ac_diff(ch) > 0.0) ? ac_diff(ch) : 0.0;
-      output(ch) = (a < 2) ? a : 2;
+    ArrayX output(num_channels_);
+    for (int channel = 0; channel < num_channels_; ++channel) {
+      FPType a = (ac_diff(channel) > 0.0) ? ac_diff(channel) : 0.0;
+      output(channel) = (a < 2) ? a : 2;
     }
     ihc_state_.ihc_out = output;
   } else {
-    FloatArray conductance = CARFACDetect(ac_diff);
+    ArrayX conductance = CARFACDetect(ac_diff);
     if (ihc_coeffs_.one_capacitor) {
       ihc_state_.ihc_out = conductance * ihc_state_.cap1_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
@@ -164,15 +156,15 @@ void Ear::IHCStep(const FloatArray& car_out) {
   ihc_state_.ihc_accum += ihc_state_.ihc_out;
 }
 
-bool Ear::AGCStep(const FloatArray& ihc_out) {
+bool Ear::AGCStep(const ArrayX& ihc_out) {
   int stage = 0;
-  int n_stages = agc_coeffs_[0].n_agc_stages;
-  FPType detect_scale = agc_coeffs_[n_stages - 1].detect_scale;
+  int num_stages = agc_coeffs_[0].num_agc_stages;
+  FPType detect_scale = agc_coeffs_[num_stages - 1].detect_scale;
   bool updated = AGCRecurse(stage, detect_scale * ihc_out);
   return updated;
 }
 
-bool Ear::AGCRecurse(const int stage, FloatArray agc_in) {
+bool Ear::AGCRecurse(const int stage, ArrayX agc_in) {
   bool updated = true;
   const auto& agc_coeffs = agc_coeffs_[stage];
   auto& agc_state = agc_state_[stage];
@@ -191,7 +183,7 @@ bool Ear::AGCRecurse(const int stage, FloatArray agc_in) {
     // decimated at the next stage.
     agc_in = agc_state.input_accum / decim;
     // This resets the accumulator.
-    agc_state.input_accum = FloatArray::Zero(n_ch_);
+    agc_state.input_accum = ArrayX::Zero(num_channels_);
     if (stage < (agc_coeffs_.size() - 1)) {
       // Now we recurse to evaluate the next stage(s).
       updated = AGCRecurse(stage + 1, agc_in);
@@ -212,25 +204,27 @@ bool Ear::AGCRecurse(const int stage, FloatArray agc_in) {
 }
 
 void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
-                           FloatArray* stage_state) {
-  int n_iterations = agc_coeffs.agc_spatial_iterations;
+                           ArrayX* stage_state) {
+  int num_iterations = agc_coeffs.agc_spatial_iterations;
   bool use_fir;
-  use_fir = (n_iterations < 4) ? true : false;
+  use_fir = (num_iterations < 4) ? true : false;
   if (use_fir) {
     FPType fir_coeffs_left = agc_coeffs.agc_spatial_fir_left;
     FPType fir_coeffs_mid = agc_coeffs.agc_spatial_fir_mid;
     FPType fir_coeffs_right = agc_coeffs.agc_spatial_fir_right;
-    FloatArray ss_tap1(n_ch_);
-    FloatArray ss_tap2(n_ch_);
-    FloatArray ss_tap3(n_ch_);
-    FloatArray ss_tap4(n_ch_);
+    ArrayX ss_tap1(num_channels_);
+    ArrayX ss_tap2(num_channels_);
+    ArrayX ss_tap3(num_channels_);
+    ArrayX ss_tap4(num_channels_);
     int n_taps = agc_coeffs.agc_spatial_n_taps;
     // This initializes the first two taps of stage state, which are used for
     // both possible cases.
     ss_tap1(0) = (*stage_state)(0);
-    ss_tap1.block(1, 0, n_ch_ - 1, 1) = stage_state->block(0, 0, n_ch_ - 1, 1);
-    ss_tap2(n_ch_ - 1) = (*stage_state)(n_ch_ - 1);
-    ss_tap2.block(0, 0, n_ch_ - 1, 1) = stage_state->block(1, 0, n_ch_ - 1, 1);
+    ss_tap1.block(1, 0, num_channels_ - 1, 1) =
+      stage_state->block(0, 0, num_channels_ - 1, 1);
+    ss_tap2(num_channels_ - 1) = (*stage_state)(num_channels_ - 1);
+    ss_tap2.block(0, 0, num_channels_ - 1, 1) =
+      stage_state->block(1, 0, num_channels_ - 1, 1);
     switch (n_taps) {
       case 3:
         *stage_state = (fir_coeffs_left * ss_tap1) +
@@ -241,12 +235,12 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
         // for the 5-tap case.
         ss_tap3(0) = (*stage_state)(0);
         ss_tap3(1) = (*stage_state)(1);
-        ss_tap3.block(2, 0, n_ch_ - 2, 1) =
-          stage_state->block(0, 0, n_ch_ - 2, 1);
-        ss_tap4(n_ch_ - 2) = (*stage_state)(n_ch_ - 1);
-        ss_tap4(n_ch_ - 1) = (*stage_state)(n_ch_ - 2);
-        ss_tap4.block(0, 0, n_ch_ - 2, 1) =
-        stage_state->block(2, 0, n_ch_ - 2, 1);
+        ss_tap3.block(2, 0, num_channels_ - 2, 1) =
+          stage_state->block(0, 0, num_channels_ - 2, 1);
+        ss_tap4(num_channels_ - 2) = (*stage_state)(num_channels_ - 1);
+        ss_tap4(num_channels_ - 1) = (*stage_state)(num_channels_ - 2);
+        ss_tap4.block(0, 0, num_channels_ - 2, 1) =
+        stage_state->block(2, 0, num_channels_ - 2, 1);
         *stage_state = (fir_coeffs_left * (ss_tap3 + ss_tap1)) +
           (fir_coeffs_mid * *stage_state) +
           (fir_coeffs_right * (ss_tap2 + ss_tap4));
@@ -261,30 +255,31 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
   }
 }
 
-void Ear::AGCSmoothDoubleExponential(const FPType pole_z1,  const FPType pole_z2,
-                                FloatArray* stage_state) {
-  int32_t n_pts = stage_state->size();
+void Ear::AGCSmoothDoubleExponential(const FPType pole_z1,
+                                     const FPType pole_z2,
+                                     ArrayX* stage_state) {
+  int32_t num_points = stage_state->size();
   FPType input;
   FPType state = 0.0;
   // TODO (alexbrandmeyer): I'm assuming one dimensional input for now, but this
   // should be verified with Dick for the final version
-  for (int i = n_pts - 11; i < n_pts; ++i) {
+  for (int i = num_points - 11; i < num_points; ++i) {
     input = (*stage_state)(i);
     state = state + (1 - pole_z1) * (input - state);
   }
-  for (int i = n_pts - 1; i > -1; --i) {
+  for (int i = num_points - 1; i > -1; --i) {
     input = (*stage_state)(i);
     state = state + (1 - pole_z2) * (input - state);
   }
-  for (int i = 0; i < n_pts; ++i) {
+  for (int i = 0; i < num_points; ++i) {
     input = (*stage_state)(i);
     state = state + (1 - pole_z1) * (input - state);
     (*stage_state)(i) = state;
   }
 }
 
-FloatArray Ear::StageGValue(const FloatArray& undamping) {
-  FloatArray r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
+ArrayX Ear::StageGValue(const ArrayX& undamping) {
+  ArrayX r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
   return (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
     (1 - 2 * r * car_coeffs_.a0_coeffs + car_coeffs_.h_coeffs * r *
      car_coeffs_.c0_coeffs + (r * r));

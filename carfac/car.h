@@ -1,5 +1,5 @@
 //
-//  car_params.h
+//  car.h
 //  CARFAC Open Source C++ Library
 //
 //  Created by Alex Brandmeyer on 5/10/13.
@@ -20,11 +20,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef CARFAC_CAR_PARAMS_H
-#define CARFAC_CAR_PARAMS_H
+#ifndef CARFAC_CAR_H
+#define CARFAC_CAR_H
 
-#include "carfac_common.h"
+#include "common.h"
 
+// A CARParams structure stores the necessary information needed by a CARFAC
+// object to design the set of coefficients implementing 'The Cascade of
+// Asymmetric Resonators' described in the chapter of the same name in Lyon's
+// book "Human and Machine Hearing". 
 struct CARParams {
   // The constructor initializes using default parameter values.
   CARParams() {
@@ -54,4 +58,29 @@ struct CARParams {
   FPType erb_q;
 };
 
-#endif  // CARFAC_CAR_PARAMS_H
+// The CAR coefficients are designed by the CARFAC::DesignCARCoeffs method,
+// which is called during initial construction and resetting of a CARFAC object.
+struct CARCoeffs {
+  FPType velocity_scale;
+  FPType v_offset;
+  ArrayX r1_coeffs;
+  ArrayX a0_coeffs;
+  ArrayX c0_coeffs;
+  ArrayX h_coeffs;
+  ArrayX g0_coeffs;
+  ArrayX zr_coeffs;
+};
+
+
+struct CARState {
+  ArrayX z1_memory;
+  ArrayX z2_memory;
+  ArrayX za_memory;
+  ArrayX zb_memory;
+  ArrayX dzb_memory;
+  ArrayX zy_memory;
+  ArrayX g_memory;
+  ArrayX dg_memory;
+};
+
+#endif  // CARFAC_CAR_H

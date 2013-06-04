@@ -1,8 +1,8 @@
 //
-//  carfac_common.cc
+//  carfac_util.cc
 //  CARFAC Open Source C++ Library
 //
-//  Created by Alex Brandmeyer on 5/10/13.
+//  Created by Alex Brandmeyer on 6/3/13.
 //
 // This C++ file is part of an implementation of Lyon's cochlear model:
 // "Cascade of Asymmetric Resonators with Fast-Acting Compression"
@@ -20,15 +20,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "carfac_common.h"
+#include "carfac_util.h"
 
-FPType ERBHz (const FPType cf_hz, const FPType erb_break_freq,
-              const FPType erb_q) {
-  return (erb_break_freq + cf_hz) / erb_q;
-}
-
-FloatArray CARFACDetect (const FloatArray& x) {
-  FloatArray conductance, z, set;
+ArrayX CARFACDetect (const ArrayX& x) {
+  ArrayX conductance, z, set;
   FPType a = 0.175;
   // This offsets the low-end tail into negative x territory.
   // The parameter is adjusted for the book, to make the 20% DC response
