@@ -51,7 +51,7 @@ class SAI {
  public:
   explicit SAI(const SAIParams& params);
 
-  // Fill output_frame with a params_.n_ch by params_.width SAI frame
+  // Fills output_frame with a params_.n_ch by params_.width SAI frame
   // computed from the given input frames.
   //
   // The input should have dimensionality of params_.window_width by
@@ -61,7 +61,7 @@ class SAI {
                   ArrayXX* output_output_frame);
 
  private:
-  // Process successive windows within input_buffer, choose trigger
+  // Processes successive windows within input_buffer, choose trigger
   // points, and blend each window into output_buffer.
   void StabilizeSegment(const ArrayXX& input_buffer,
                         ArrayXX* output_buffer) const;

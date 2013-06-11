@@ -35,7 +35,7 @@ vector<ArrayX> CreateZeroSegment(int n_ch, int length) {
   return segment;
 }
 
-bool HasPeakAt(const ArrayXX& frame, int index) {
+bool HasPeakAt(const ArrayX& frame, int index) {
   if (index == 0) {
     return frame(index) > frame(index + 1);
   } else if (index == frame.size() - 1) {
@@ -49,22 +49,26 @@ class SAIPeriodicInputTest
  protected:
   void SetUp() {
     period_ = std::tr1::get<0>(GetParam());
-    phase_ = std::tr1::get<1>(GetParam());
+    n_ch_ = std::tr1::get<1>(GetParam());
   }
 
   int period_;
-  int phase_;
+  int n_ch_;
 };
 
-TEST_P(SAIPeriodicInputTest, SingleChannelPulseTrain) {
-  vector<ArrayX> segment = CreateZeroSegment(1, 38);
-  for (int i = phase_; i < segment.size(); i += period_) {
-    segment[i](0) = 1;
+TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
+  vector<ArrayX> segment = CreateZeroSegment(n_ch_, 38);
+  for (int i = 0; i < n_ch_; ++i) {
+    // Begin each channel at a different phase.
+    const int phase = i;
+    for (int j = phase; j < segment.size(); j += period_) {
+      segment[j](i) = 1;
+    }
   }
 
   SAIParams sai_params;
   sai_params.window_width = segment.size();
-  sai_params.n_ch = 1;
+  sai_params.n_ch = n_ch_;
   sai_params.width = 15;
   // Half of the SAI should come from the future.
   // sai_params.future_lags = sai_params.width / 2;
@@ -77,19 +81,30 @@ TEST_P(SAIPeriodicInputTest, SingleChannelPulseTrain) {
 
   // The output should have peaks at the same positions, regardless of
   // input phase.
-  for (int i = sai_frame.size() - 1; i >= 0 ; i -= period_) {
-    EXPECT_TRUE(HasPeakAt(sai_frame, i));
+  for (int i = 0; i < n_ch_; ++i) {
+    const ArrayX& sai_channel = sai_frame.row(i);
+    for (int j = sai_channel.size() - 1; j >= 0; j -= period_) {
+      EXPECT_TRUE(HasPeakAt(sai_channel, j));
+    }
   }
 
-  for (int i = 0; i < segment.size(); ++i) {
-    std::cout << segment[i](0) << " ";
+  std::cout << "Input:\n";
+  for (int i = 0; i < n_ch_; ++i) {
+    for (int j = 0; j < segment.size(); ++j) {
+      std::cout << segment[j](i) << " ";
+    }
+    std::cout << "\n";
   }
-  std::cout << "\n";
-  for (int i = 0; i < sai_frame.size(); ++i) {
-    std::cout << sai_frame(i) << " ";
+
+  std::cout << "Output:\n";
+  for (int i = 0; i < sai_frame.rows(); ++i) {
+    for (int j = 0; j < sai_frame.cols(); ++j) {
+      std::cout << sai_frame(i, j) << " ";
+    }
+    std::cout << "\n";
   }
   std::cout << "\n";
 }
 INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
                         testing::Combine(Values(25, 10, 5, 2),  // periods.
-                                         Values(0, 3)));  // phases.
+                                         Values(1, 2, 15)));  // n_ch.
