@@ -23,19 +23,25 @@
 #include <assert.h>
 #include "ear.h"
 
-void Ear::Init(const int num_channels, const CARCoeffs& car_coeffs,
-               const IHCCoeffs& ihc_coeffs,
-               const std::vector<AGCCoeffs>& agc_coeffs) {
+Ear::Ear(const int num_channels, const CARCoeffs& car_coeffs,
+         const IHCCoeffs& ihc_coeffs,
+         const std::vector<AGCCoeffs>& agc_coeffs) {
+  Reset(num_channels, car_coeffs, ihc_coeffs, agc_coeffs);
+}
+
+void Ear::Reset(const int num_channels, const CARCoeffs& car_coeffs,
+                const IHCCoeffs& ihc_coeffs,
+                const std::vector<AGCCoeffs>& agc_coeffs) {
   num_channels_ = num_channels;
   car_coeffs_ = car_coeffs;
   ihc_coeffs_ = ihc_coeffs;
   agc_coeffs_ = agc_coeffs;
-  InitCARState();
-  InitIHCState();
-  InitAGCState();
+  ResetCARState();
+  ResetIHCState();
+  ResetAGCState();
 }
 
-void Ear::InitCARState() {
+void Ear::ResetCARState() {
   car_state_.z1_memory.setZero(num_channels_);
   car_state_.z2_memory.setZero(num_channels_);
   car_state_.za_memory.setZero(num_channels_);
@@ -46,7 +52,7 @@ void Ear::InitCARState() {
   car_state_.dg_memory.setZero(num_channels_);
 }
 
-void Ear::InitIHCState() {
+void Ear::ResetIHCState() {
   ihc_state_.ihc_accum = ArrayX::Zero(num_channels_);
   if (! ihc_coeffs_.just_half_wave_rectify) {
     ihc_state_.ac_coupler.setZero(num_channels_);
@@ -61,7 +67,7 @@ void Ear::InitIHCState() {
   }
 }
 
-void Ear::InitAGCState() {
+void Ear::ResetAGCState() {
   int n_agc_stages = agc_coeffs_.size();
   agc_state_.resize(n_agc_stages);
   for (auto& stage_state : agc_state_) {

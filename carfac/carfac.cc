@@ -27,18 +27,19 @@
 using std::vector;
 
 CARFAC::CARFAC(const int num_ears, const FPType sample_rate,
-                    const CARParams& car_params, const IHCParams& ihc_params,
-                    const AGCParams& agc_params) {
+               const CARParams& car_params, const IHCParams& ihc_params,
+               const AGCParams& agc_params) {
+  Reset(num_ears, sample_rate, car_params, ihc_params, agc_params);
+}
+
+void CARFAC::Reset(const int num_ears, const FPType sample_rate,
+                   const CARParams& car_params, const IHCParams& ihc_params,
+                   const AGCParams& agc_params) {
   num_ears_ = num_ears;
   sample_rate_ = sample_rate;
-  ears_.resize(num_ears_);
   car_params_ = car_params;
   ihc_params_ = ihc_params;
   agc_params_ = agc_params;
-  Reset();
-}
-
-void CARFAC::Reset() {
   num_channels_ = 0;
   FPType pole_hz = car_params_.first_pole_theta * sample_rate_ / (2 * kPi);
   while (pole_hz > car_params_.min_pole_hz) {
@@ -62,8 +63,10 @@ void CARFAC::Reset() {
   // This code initializes the coefficients for each of the AGC stages.
   DesignAGCCoeffs(agc_params_, sample_rate_, &agc_coeffs);
   // Once we have the coefficient structure we can design the ears.
-  for (auto& ear : ears_) {
-    ear.Init(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs);
+  ears_.clear();
+  ears_.reserve(num_ears_);
+  for (int i = 0; i < num_ears_; ++i) {
+    ears_.push_back(new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
   }
 }
 
@@ -76,15 +79,15 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
   for (int32_t timepoint = 0; timepoint < length; ++timepoint) {
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
       // First we create a reference to the current Ear object.
-      Ear& ear = ears_[audio_channel];
+      Ear* ear = ears_[audio_channel];
       // This stores the audio sample currently being processed.
       FPType input = sound_data[audio_channel][start + timepoint];
 
       // Now we apply the three stages of the model in sequence to the current
       // audio sample.
-      ear.CARStep(input);
-      ear.IHCStep(ear.car_out());
-      updated = ear.AGCStep(ear.ihc_out());
+      ear->CARStep(input);
+      ear->IHCStep(ear->car_out());
+      updated = ear->AGCStep(ear->ihc_out());
     }
     seg_output->AppendOutput(ears_);
     if (updated) {
@@ -99,23 +102,23 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
 }
 
 void CARFAC::CrossCouple() {
-  for (int stage = 0; stage < ears_[0].agc_num_stages(); ++stage) {
-    if (ears_[0].agc_decim_phase(stage) > 0) {
+  for (int stage = 0; stage < ears_[0]->agc_num_stages(); ++stage) {
+    if (ears_[0]->agc_decim_phase(stage) > 0) {
       break;
     } else {
-      FPType mix_coeff = ears_[0].agc_mix_coeff(stage);
+      FPType mix_coeff = ears_[0]->agc_mix_coeff(stage);
       if (mix_coeff > 0) {
         ArrayX stage_state;
         ArrayX this_stage_values = ArrayX::Zero(num_channels_);
-        for (auto& ear : ears_) {
-          stage_state = ear.agc_memory(stage);
+        for (const auto& ear : ears_) {
+          stage_state = ear->agc_memory(stage);
           this_stage_values += stage_state;
         }
         this_stage_values /= num_ears_;
-        for (auto& ear : ears_) {
-          stage_state = ear.agc_memory(stage);
-          ear.set_agc_memory(stage, stage_state + mix_coeff *
-                             (this_stage_values - stage_state));
+        for (const auto& ear : ears_) {
+          stage_state = ear->agc_memory(stage);
+          ear->set_agc_memory(stage, stage_state + mix_coeff *
+                              (this_stage_values - stage_state));
         }
       }
     }
@@ -123,13 +126,13 @@ void CARFAC::CrossCouple() {
 }
 
 void CARFAC::CloseAGCLoop() {
-  for (auto& ear: ears_) {
-    ArrayX undamping = 1 - ear.agc_memory(0);
+  for (auto& ear : ears_) {
+    ArrayX undamping = 1 - ear->agc_memory(0);
     // This updates the target stage gain for the new damping.
-    ear.set_dzb_memory((ear.zr_coeffs() * undamping - ear.zb_memory()) /
-                       ear.agc_decimation(0));
-    ear.set_dg_memory((ear.StageGValue(undamping) - ear.g_memory()) /
-                      ear.agc_decimation(0));
+    ear->set_dzb_memory((ear->zr_coeffs() * undamping - ear->zb_memory()) /
+                        ear->agc_decimation(0));
+    ear->set_dg_memory((ear->StageGValue(undamping) - ear->g_memory()) /
+                       ear->agc_decimation(0));
   }
 }
 

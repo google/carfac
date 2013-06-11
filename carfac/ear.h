@@ -33,27 +33,33 @@
 
 // The Ear object carries out the three steps of the CARFAC model on a single
 // channel of audio data, and stores information about the CAR, IHC and AGC
-// coefficients and states. 
+// coefficients and states.
 class Ear {
  public:
-  
-  // This is the primary initialization function that is called for each
-  // Ear object by the CARFAC::Design method.
-  void Init(const int num_channels, const CARCoeffs& car_coeffs,
-            const IHCCoeffs& ihc_coeffs,
-            const std::vector<AGCCoeffs>& agc_coeffs);
-  
+  Ear(const int num_channels, const CARCoeffs& car_coeffs,
+      const IHCCoeffs& ihc_coeffs,
+      const std::vector<AGCCoeffs>& agc_coeffs);
+
+  void Reset(const int num_channels, const CARCoeffs& car_coeffs,
+             const IHCCoeffs& ihc_coeffs,
+             const std::vector<AGCCoeffs>& agc_coeffs);
+
   // These three methods apply the different steps of the model in sequence
   // to individual audio samples during the call to CARFAC::RunSegment.
   void CARStep(const FPType input);
+  // TODO(ronw): Consider changing the interface for the following two
+  // methods to access the internal state members directly instead of
+  // requiring callers to confusingly have to call an accessor method
+  // just to pass internal data back into the same object as in:
+  //   ear.IHCStep(ear.car_out());
   void IHCStep(const ArrayX& car_out);
   bool AGCStep(const ArrayX& ihc_out);
-  
+
   // These accessor functions return portions of the CAR state for storage in
   // the CAROutput structures.
   const ArrayX& za_memory() const { return car_state_.za_memory; }
   const ArrayX& zb_memory() const { return car_state_.zb_memory; }
-  
+
   // The zy_memory_ of the CARState is equivalent to the CAR output. A second
   // accessor function is included for documentation purposes.
   const ArrayX& zy_memory() const { return car_state_.zy_memory; }
@@ -62,7 +68,7 @@ class Ear {
   const ArrayX& ihc_out() const { return ihc_state_.ihc_out; }
   const ArrayX& dzb_memory() const { return car_state_.dzb_memory; }
   const ArrayX& zr_coeffs() const { return car_coeffs_.zr_coeffs; }
-  
+
   // These accessor functions return portions of the AGC state during the cross
   // coupling of the ears.
   const int agc_num_stages() const { return agc_coeffs_.size(); }
@@ -74,14 +80,14 @@ class Ear {
     return agc_state_[stage].agc_memory; }
   const int agc_decimation(const int stage) const {
     return agc_coeffs_[stage].decimation; }
-  
+
   // This returns the stage G value during the closing of the AGC loop.
   ArrayX StageGValue(const ArrayX& undamping);
-  
+
   // This function sets the AGC memory during the cross coupling stage.
   void set_agc_memory(const int stage, const ArrayX& new_values) {
     agc_state_[stage].agc_memory = new_values; }
-  
+
   // These are the setter functions for the CAR memory states.
   void set_dzb_memory(const ArrayX& new_values) {
     car_state_.dzb_memory = new_values; }
@@ -89,14 +95,11 @@ class Ear {
     car_state_.dg_memory = new_values; }
 
  private:
-  // TODO (alexbrandmeyer): figure out why this breaks object initialization.
-  //DISALLOW_COPY_AND_ASSIGN(Ear);
-  
   // These methodsinitialize the model state variables prior to runtime.
-  void InitIHCState();
-  void InitAGCState();
-  void InitCARState();
-  
+  void ResetIHCState();
+  void ResetAGCState();
+  void ResetCARState();
+
   // These are the helper sub-functions called during the model runtime.
   void OHCNonlinearFunction(const ArrayX& velocities,
                             ArrayX* nonlinear_fun);
@@ -109,12 +112,14 @@ class Ear {
   CARState car_state_;
   IHCCoeffs ihc_coeffs_;
   IHCState ihc_state_;
-  
+
   // The AGC coefficient and state variables are both stored in vectors
-  // containing one element for each stage (default = 4). 
+  // containing one element for each stage (default = 4).
   std::vector<AGCCoeffs> agc_coeffs_;
   std::vector<AGCState> agc_state_;
   int num_channels_;
+
+  DISALLOW_COPY_AND_ASSIGN(Ear);
 };
 
 #endif  // CARFAC_EAR_H

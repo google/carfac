@@ -37,28 +37,28 @@ class CARFACOutput {
   // The constructor takes five boolean values as arguments which indicate
   // the portions of the CARFAC model's output to be stored.
   CARFACOutput(const bool store_nap, const bool  store_nap_decim,
-            const bool store_bm, const bool store_ohc, const bool store_agc);
-  
+               const bool store_bm, const bool store_ohc, const bool store_agc);
+
   // The AppendOutput method is called on a sample by sample basis by the
   // CARFAC::RunSegemtn method, appending a single frame of n_ears x n_channels
   // data to the end of the individual data members selected for storage.
-  void AppendOutput(const std::vector<Ear>& ears);
+  void AppendOutput(const std::vector<Ear*>& ears);
+
   const std::deque<std::vector<ArrayX>>& nap() const { return nap_; }
   const std::deque<std::vector<ArrayX>>& bm() const { return bm_; }
   const std::deque<std::vector<ArrayX>>& nap_decim() const {
-    return nap_decim_; }
+    return nap_decim_;
+  }
   const std::deque<std::vector<ArrayX>>& ohc() const { return ohc_; }
   const std::deque<std::vector<ArrayX>>& agc() const { return agc_; }
 
  private:
-  // TODO (alexbrandmeyer): figure out why this breaks object initialization.
-  //DISALLOW_COPY_AND_ASSIGN(CARFACOutput);
   bool store_nap_;
   bool store_nap_decim_;
   bool store_bm_;
   bool store_ohc_;
   bool store_agc_;
-  
+
   // CARFAC outputs are stored in nested containers with dimensions:
   // n_frames x n_ears x n_channels.
   std::deque<std::vector<ArrayX>> nap_;
@@ -66,6 +66,8 @@ class CARFACOutput {
   std::deque<std::vector<ArrayX>> bm_;
   std::deque<std::vector<ArrayX>> ohc_;
   std::deque<std::vector<ArrayX>> agc_;
+
+  DISALLOW_COPY_AND_ASSIGN(CARFACOutput);
 };
 
 #endif  // CARFAC_CARFAC_OUTPUT_H

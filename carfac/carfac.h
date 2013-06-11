@@ -48,19 +48,20 @@ class CARFAC {
   // rate. This initializes a vector of 'Ear' objects -- one for mono, two for
   // stereo, or more.
   CARFAC(const int num_ears, const FPType sample_rate,
-              const CARParams& car_params, const IHCParams& ihc_params,
-              const AGCParams& agc_params);
-  
+         const CARParams& car_params, const IHCParams& ihc_params,
+         const AGCParams& agc_params);
+
+  void Reset(const int num_ears, const FPType sample_rate,
+             const CARParams& car_params, const IHCParams& ihc_params,
+             const AGCParams& agc_params);
+
   // The 'RunSegment' method processes individual sound segments and stores the
   // output of the model in a CARFACOutput object.
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
                   const int32_t start, const int32_t length,
                   const bool open_loop, CARFACOutput* seg_output);
-  void Reset();
 
  private:
-  // TODO (alexbrandmeyer): figure out why this breaks object initialization.
-  //DISALLOW_COPY_AND_ASSIGN(CARFAC);
   void DesignCARCoeffs(const CARParams& car_params, const FPType sample_rate,
                        const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
   void DesignIHCCoeffs(const IHCParams& ihc_params, const FPType sample_rate,
@@ -69,7 +70,7 @@ class CARFAC {
                        std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
-  
+
   // Function: ERBHz
   // Auditory filter nominal Equivalent Rectangular Bandwidth
   // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
@@ -85,10 +86,12 @@ class CARFAC {
   FPType sample_rate_;
   int num_channels_;
   FPType max_channels_per_octave_;
-  
+
   // We store a vector of Ear objects for mono/stereo/multichannel processing:
-  std::vector<Ear> ears_;
+  std::vector<Ear*> ears_;
   ArrayX pole_freqs_;
+
+  DISALLOW_COPY_AND_ASSIGN(CARFAC);
 };
 
 #endif  // CARFAC_CARFAC_H

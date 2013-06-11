@@ -25,8 +25,8 @@
 using std::vector;
 
 CARFACOutput::CARFACOutput(const bool store_nap, const bool store_nap_decim,
-                        const bool store_bm, const bool store_ohc,
-                        const bool store_agc) {
+                           const bool store_bm, const bool store_ohc,
+                           const bool store_agc) {
   store_nap_ = store_nap;
   store_nap_decim_ = store_nap_decim;
   store_bm_ = store_bm;
@@ -35,29 +35,29 @@ CARFACOutput::CARFACOutput(const bool store_nap, const bool store_nap_decim,
 
 }
 
-void CARFACOutput::AppendOutput(const vector<Ear>& ears) {
+void CARFACOutput::AppendOutput(const vector<Ear*>& ears) {
   if (store_nap_) {
     nap_.push_back(vector<ArrayX>());
-    for (auto ear : ears) {
-      nap_.back().push_back(ear.ihc_out());
+    for (const auto& ear : ears) {
+      nap_.back().push_back(ear->ihc_out());
     }
   }
   if (store_ohc_) {
     ohc_.push_back(vector<ArrayX>());
-    for (auto ear : ears) {
-      ohc_.back().push_back(ear.za_memory());
+    for (const auto& ear : ears) {
+      ohc_.back().push_back(ear->za_memory());
     }
   }
   if (store_agc_) {
     agc_.push_back(vector<ArrayX>());
-    for (auto ear : ears) {
-      agc_.back().push_back(ear.zb_memory());
+    for (const auto& ear : ears) {
+      agc_.back().push_back(ear->zb_memory());
     }
   }
   if (store_bm_) {
     bm_.push_back(vector<ArrayX>());
-    for (auto ear : ears) {
-      bm_.back().push_back(ear.zy_memory());
+    for (const auto& ear : ears) {
+      bm_.back().push_back(ear->zy_memory());
     }
   }
 }
