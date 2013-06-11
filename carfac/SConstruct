@@ -53,12 +53,12 @@ else:
 carfac_sources = [
     'agc.h',
     'car.h',
-    'ihc.h',
     'carfac.cc',
-    'common.h',
-    'carfac_util.h',
     'carfac_output.cc',
+    'carfac_util.cc',
+    'common.h',
     'ear.cc',
+    'ihc.h',
     'sai.cc'
     ]
 env.Library(target = 'carfac', source = carfac_sources)

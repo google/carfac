@@ -79,7 +79,7 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
       Ear& ear = ears_[audio_channel];
       // This stores the audio sample currently being processed.
       FPType input = sound_data[audio_channel][start + timepoint];
-      
+
       // Now we apply the three stages of the model in sequence to the current
       // audio sample.
       ear.CARStep(input);
@@ -337,7 +337,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
   }
 }
 
-FPType CARFAC::ERBHz (const FPType center_frequency_hz,
-                      const FPType erb_break_freq, const FPType erb_q) {
+FPType CARFAC::ERBHz(const FPType center_frequency_hz,
+                     const FPType erb_break_freq, const FPType erb_q) {
   return (erb_break_freq + center_frequency_hz) / erb_q;
 }

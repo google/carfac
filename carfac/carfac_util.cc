@@ -22,7 +22,7 @@
 
 #include "carfac_util.h"
 
-ArrayX CARFACDetect (const ArrayX& x) {
+ArrayX CARFACDetect(const ArrayX& x) {
   ArrayX conductance, z, set;
   FPType a = 0.175;
   // This offsets the low-end tail into negative x territory.
