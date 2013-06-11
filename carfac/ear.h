@@ -25,15 +25,15 @@
 
 #include <vector>
 
-#include "common.h"
-#include "carfac_util.h"
-#include "car.h"
 #include "agc.h"
+#include "car.h"
+#include "carfac_util.h"
+#include "common.h"
 #include "ihc.h"
 
 // The Ear object carries out the three steps of the CARFAC model on a single
 // channel of audio data, and stores information about the CAR, IHC and AGC
-// coefficients and states.
+// filter coefficients and states.
 class Ear {
  public:
   Ear(const int num_channels, const CARCoeffs& car_coeffs,
@@ -73,40 +73,47 @@ class Ear {
   // coupling of the ears.
   const int agc_num_stages() const { return agc_coeffs_.size(); }
   const int agc_decim_phase(const int stage) const {
-    return agc_state_[stage].decim_phase; }
+    return agc_state_[stage].decim_phase;
+  }
   const FPType agc_mix_coeff(const int stage) const {
-    return agc_coeffs_[stage].agc_mix_coeffs; }
+    return agc_coeffs_[stage].agc_mix_coeffs;
+  }
   const ArrayX& agc_memory(const int stage) const {
-    return agc_state_[stage].agc_memory; }
+    return agc_state_[stage].agc_memory;
+  }
   const int agc_decimation(const int stage) const {
-    return agc_coeffs_[stage].decimation; }
+    return agc_coeffs_[stage].decimation;
+  }
 
-  // This returns the stage G value during the closing of the AGC loop.
-  ArrayX StageGValue(const ArrayX& undamping);
+  // Returns the stage G value during the closing of the AGC loop.
+  ArrayX StageGValue(const ArrayX& undamping) const;
 
-  // This function sets the AGC memory during the cross coupling stage.
+  // Sets the AGC memory during the cross coupling stage.
   void set_agc_memory(const int stage, const ArrayX& new_values) {
-    agc_state_[stage].agc_memory = new_values; }
+    agc_state_[stage].agc_memory = new_values;
+  }
 
-  // These are the setter functions for the CAR memory states.
+  // Setter functions for the CAR memory states.
   void set_dzb_memory(const ArrayX& new_values) {
-    car_state_.dzb_memory = new_values; }
+    car_state_.dzb_memory = new_values;
+  }
   void set_dg_memory(const ArrayX& new_values) {
-    car_state_.dg_memory = new_values; }
+    car_state_.dg_memory = new_values;
+  }
 
  private:
-  // These methodsinitialize the model state variables prior to runtime.
+  // Initializes the model state variables prior to runtime.
   void ResetIHCState();
   void ResetAGCState();
   void ResetCARState();
 
-  // These are the helper sub-functions called during the model runtime.
+  // Helper sub-functions called during the model runtime.
   void OHCNonlinearFunction(const ArrayX& velocities,
-                            ArrayX* nonlinear_fun);
+                            ArrayX* nonlinear_fun) const;
   bool AGCRecurse(const int stage, ArrayX agc_in);
-  void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs , ArrayX* stage_state);
+  void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state) const;
   void AGCSmoothDoubleExponential(const FPType pole_z1, const FPType pole_z2,
-                                  ArrayX* stage_state);
+                                  ArrayX* stage_state) const;
 
   CARCoeffs car_coeffs_;
   CARState car_state_;

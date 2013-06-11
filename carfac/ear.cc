@@ -21,6 +21,7 @@
 // limitations under the License.
 
 #include <assert.h>
+
 #include "ear.h"
 
 Ear::Ear(const int num_channels, const CARCoeffs& car_coeffs,
@@ -54,7 +55,7 @@ void Ear::ResetCARState() {
 
 void Ear::ResetIHCState() {
   ihc_state_.ihc_accum = ArrayX::Zero(num_channels_);
-  if (! ihc_coeffs_.just_half_wave_rectify) {
+  if (!ihc_coeffs_.just_half_wave_rectify) {
     ihc_state_.ac_coupler.setZero(num_channels_);
     ihc_state_.lpf1_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
     ihc_state_.lpf2_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
@@ -78,9 +79,9 @@ void Ear::ResetAGCState() {
 }
 
 void Ear::CARStep(const FPType input) {
-  // This interpolates g.
+  // Interpolates g.
   car_state_.g_memory = car_state_.g_memory + car_state_.dg_memory;
-  // This calculates the AGC interpolation state.
+  // Calculates the AGC interpolation state.
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
   // a delay of z2.
@@ -114,7 +115,7 @@ void Ear::CARStep(const FPType input) {
 // rational function. This makes the result go to zero at high
 // absolute velocities, so it will do nothing there.
 void Ear::OHCNonlinearFunction(const ArrayX& velocities,
-                               ArrayX* nonlinear_fun) {
+                               ArrayX* nonlinear_fun) const {
   *nonlinear_fun = (1 + ((velocities * car_coeffs_.velocity_scale) +
                          car_coeffs_.v_offset).square()).inverse();
 }
@@ -210,7 +211,7 @@ bool Ear::AGCRecurse(const int stage, ArrayX agc_in) {
 }
 
 void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
-                           ArrayX* stage_state) {
+                           ArrayX* stage_state) const {
   int num_iterations = agc_coeffs.agc_spatial_iterations;
   bool use_fir;
   use_fir = (num_iterations < 4) ? true : false;
@@ -263,11 +264,11 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
 
 void Ear::AGCSmoothDoubleExponential(const FPType pole_z1,
                                      const FPType pole_z2,
-                                     ArrayX* stage_state) {
+                                     ArrayX* stage_state) const {
   int32_t num_points = stage_state->size();
   FPType input;
   FPType state = 0.0;
-  // TODO (alexbrandmeyer): I'm assuming one dimensional input for now, but this
+  // TODO(alexbrandmeyer): I'm assuming one dimensional input for now, but this
   // should be verified with Dick for the final version
   for (int i = num_points - 11; i < num_points; ++i) {
     input = (*stage_state)(i);
@@ -284,7 +285,7 @@ void Ear::AGCSmoothDoubleExponential(const FPType pole_z1,
   }
 }
 
-ArrayX Ear::StageGValue(const ArrayX& undamping) {
+ArrayX Ear::StageGValue(const ArrayX& undamping) const {
   ArrayX r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
   return (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
     (1 - 2 * r * car_coeffs_.a0_coeffs + car_coeffs_.h_coeffs * r *

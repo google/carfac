@@ -24,8 +24,11 @@
 #define CARFAC_AGC_H
 
 #include <vector>
+
 #include "common.h"
 
+// Automatic gain control (AGC) parameters, which are used to design the AGC
+// filters.
 struct AGCParams {
   AGCParams() {
     num_stages = 4;
@@ -53,6 +56,8 @@ struct AGCParams {
   std::vector<FPType> agc2_scales;
 };
 
+// Automatic gain control filter coefficients, which are derived from a set of
+// AGCParams.
 struct AGCCoeffs {
   int num_agc_stages;
   FPType agc_stage_gain;
@@ -71,6 +76,7 @@ struct AGCCoeffs {
   FPType decim;
 };
 
+// Automatic gain control filter state.
 struct AGCState {
   ArrayX agc_memory;
   ArrayX input_accum;

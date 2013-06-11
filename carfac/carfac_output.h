@@ -29,42 +29,44 @@
 #include "common.h"
 #include "ear.h"
 
-// A CARFACOutput object can store up to 5 different types of output from a
-// CARFAC model, and is provided as an argument to the CARFAC::RunSegment
-// method.
+// Container for the different types of output from a CARFAC model.  See the
+// private members below for details.
 class CARFACOutput {
  public:
-  // The constructor takes five boolean values as arguments which indicate
-  // the portions of the CARFAC model's output to be stored.
-  CARFACOutput(const bool store_nap, const bool  store_nap_decim,
-               const bool store_bm, const bool store_ohc, const bool store_agc);
+  // The boolean argument indicate which portions of the CARFAC model's output
+  // should be stored by subsequent calls to AppendOutput.
+  //
+  // TODO(ronw): Consider removing store_nap, unless there is a reasonable use
+  // case for setting it to false?
+  CARFACOutput(const bool store_nap, const bool store_bm, const bool store_ohc,
+               const bool store_agc);
 
-  // The AppendOutput method is called on a sample by sample basis by the
-  // CARFAC::RunSegemtn method, appending a single frame of n_ears x n_channels
-  // data to the end of the individual data members selected for storage.
+  // Appends a single frame of n_ears x n_channels data to the end of the
+  // individual data members selected for storage.  This is called on a sample
+  // by sample basis by CARFAC::RunSegment.
   void AppendOutput(const std::vector<Ear*>& ears);
 
   const std::deque<std::vector<ArrayX>>& nap() const { return nap_; }
   const std::deque<std::vector<ArrayX>>& bm() const { return bm_; }
-  const std::deque<std::vector<ArrayX>>& nap_decim() const {
-    return nap_decim_;
-  }
   const std::deque<std::vector<ArrayX>>& ohc() const { return ohc_; }
   const std::deque<std::vector<ArrayX>>& agc() const { return agc_; }
 
  private:
   bool store_nap_;
-  bool store_nap_decim_;
   bool store_bm_;
   bool store_ohc_;
   bool store_agc_;
 
   // CARFAC outputs are stored in nested containers with dimensions:
   // n_frames x n_ears x n_channels.
+
+  // Neural activity pattern rates.
   std::deque<std::vector<ArrayX>> nap_;
-  std::deque<std::vector<ArrayX>> nap_decim_;
+  // Basilar membrane displacement.
   std::deque<std::vector<ArrayX>> bm_;
+  // Outer hair cell state.
   std::deque<std::vector<ArrayX>> ohc_;
+  // Automatic gain control state.
   std::deque<std::vector<ArrayX>> agc_;
 
   DISALLOW_COPY_AND_ASSIGN(CARFACOutput);

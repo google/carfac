@@ -60,25 +60,29 @@ void CARFAC::Reset(const int num_ears, const FPType sample_rate,
   std::vector<AGCCoeffs> agc_coeffs;
   DesignCARCoeffs(car_params_, sample_rate_, pole_freqs_, &car_coeffs);
   DesignIHCCoeffs(ihc_params_, sample_rate_, &ihc_coeffs);
-  // This code initializes the coefficients for each of the AGC stages.
   DesignAGCCoeffs(agc_params_, sample_rate_, &agc_coeffs);
   // Once we have the coefficient structure we can design the ears.
-  ears_.clear();
   ears_.reserve(num_ears_);
   for (int i = 0; i < num_ears_; ++i) {
-    ears_.push_back(new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
+    if (ears_.size() > i && ears_[i] != NULL) {
+      // Reset any existing ears.
+      ears_[i]->Reset(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs);
+    } else {
+      ears_.push_back(
+          new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
+    }
   }
 }
 
 void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
                         const int32_t start, const int32_t length,
                         const bool open_loop, CARFACOutput* seg_output) {
+  assert(sound_data.size() == num_ears_);
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
   bool updated;  // This variable is used by the AGC stage.
   for (int32_t timepoint = 0; timepoint < length; ++timepoint) {
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
-      // First we create a reference to the current Ear object.
       Ear* ear = ears_[audio_channel];
       // This stores the audio sample currently being processed.
       FPType input = sound_data[audio_channel][start + timepoint];
@@ -94,7 +98,7 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
       if (num_ears_ > 1) {
         CrossCouple();
       }
-      if (! open_loop) {
+      if (!open_loop) {
         CloseAGCLoop();
       }
     }
@@ -190,7 +194,7 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params,
     x = CARFACDetect(x);
     conduct_at_0 = x(0);
     if (ihc_params.one_capacitor) {
-      FPType ro = 1 / conduct_at_10 ;
+      FPType ro = 1 / conduct_at_10;
       FPType c = ihc_params.tau1_out / ro;
       FPType ri = ihc_params.tau1_in / c;
       FPType saturation_output = 1 / ((2 * ro) + ri);
@@ -198,7 +202,7 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params,
       FPType current = 1 / (ri + r0);
       ihc_coeffs->cap1_voltage = 1 - (current * ri);
       ihc_coeffs->just_half_wave_rectify = false;
-      ihc_coeffs->lpf_coeff = 1 - exp( -1 / (ihc_params.tau_lpf * sample_rate));
+      ihc_coeffs->lpf_coeff = 1 - exp(-1 / (ihc_params.tau_lpf * sample_rate));
       ihc_coeffs->out1_rate = ro / (ihc_params.tau1_out * sample_rate);
       ihc_coeffs->in1_rate = 1 / (ihc_params.tau1_in * sample_rate);
       ihc_coeffs->one_capacitor = ihc_params.one_capacitor;
@@ -248,7 +252,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
     FPType mix_coeff = agc_params.agc_mix_coeff;
     agc_coeff.decimation = agc_params.decimation[stage];
     FPType total_dc_gain = previous_stage_gain;
-    // Here we calculate the parameters for the current stage.
+    // Calculate the parameters for the current stage.
     FPType tau = time_constants[stage];
     agc_coeff.decim = decim;
     agc_coeff.decim *= agc_coeff.decimation;
@@ -266,9 +270,9 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
     int n_taps = 0;
     bool fir_ok = false;
     int n_iterations = 1;
-    // This section initializes the FIR coeffs settings at each stage.
+    // Initialize the FIR coefficient settings at each stage.
     FPType fir_left, fir_mid, fir_right;
-    while (! fir_ok) {
+    while (!fir_ok) {
       switch (n_taps) {
         case 0:
           n_taps = 3;
@@ -341,6 +345,6 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
 }
 
 FPType CARFAC::ERBHz(const FPType center_frequency_hz,
-                     const FPType erb_break_freq, const FPType erb_q) {
+                     const FPType erb_break_freq, const FPType erb_q) const {
   return (erb_break_freq + center_frequency_hz) / erb_q;
 }

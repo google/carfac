@@ -25,6 +25,7 @@
 
 #include "common.h"
 
+// Inner hair cell (IHC) parameters, which are used to design the IHC filters.
 struct IHCParams {
   IHCParams() {
     just_half_wave_rectify = false;
@@ -35,7 +36,8 @@ struct IHCParams {
     tau2_out = 0.0025;
     tau2_in = 0.005;
     ac_corner_hz = 20.0;
-  };
+  }
+
   bool just_half_wave_rectify;
   bool one_capacitor;
   FPType tau_lpf;
@@ -46,6 +48,8 @@ struct IHCParams {
   FPType ac_corner_hz;
 };
 
+// Inner hair cell filter coefficients, which are derived from a set of
+// IHCParams.
 struct IHCCoeffs {
   bool just_half_wave_rectify;
   bool one_capacitor;
@@ -63,6 +67,7 @@ struct IHCCoeffs {
   FPType cap2_voltage;
 };
 
+// Inner hair cell filter state.
 struct IHCState {
   ArrayX ihc_out;
   ArrayX ihc_accum;

@@ -26,11 +26,10 @@
 #include "common.h"
 
 // A CARParams structure stores the necessary information needed by a CARFAC
-// object to design the set of coefficients implementing 'The Cascade of
+// object to design the set of CARCoeffs implementing 'The Cascade of
 // Asymmetric Resonators' described in the chapter of the same name in Lyon's
-// book "Human and Machine Hearing". 
+// book "Human and Machine Hearing".
 struct CARParams {
-  // The constructor initializes using default parameter values.
   CARParams() {
     velocity_scale = 0.1;
     v_offset = 0.04;
@@ -41,14 +40,15 @@ struct CARParams {
     high_f_damping_compression = 0.5;
     erb_per_step = 0.5;
     min_pole_hz = 30;
-    erb_break_freq = 165.3;  // This is the Greenwood map's break frequency.
-    // This represents Glassberg and Moore's high-cf ratio.
-    erb_q = 1000/(24.7*4.37);
-  };
-  FPType velocity_scale; // This is used for the velocity nonlinearity.
+    erb_break_freq = 165.3;  // The Greenwood map's break frequency in Hertz.
+    // Glassberg and Moore's high-cf ratio.
+    erb_q = 1000 / (24.7 * 4.37);
+  }
+
+  FPType velocity_scale;  // Used for the velocity nonlinearity.
   FPType v_offset;  // The offset gives us quadratic part.
-  FPType min_zeta;  // This is the minimum damping factor in mid-freq channels.
-  FPType max_zeta;  // This is the maximum damping factor in mid-freq channels.
+  FPType min_zeta;  // The minimum damping factor in mid-freq channels.
+  FPType max_zeta;  // The maximum damping factor in mid-freq channels.
   FPType first_pole_theta;
   FPType zero_ratio;  // This is how far zero is above the pole.
   FPType high_f_damping_compression;  // A range from 0 to 1 to compress theta.
@@ -58,8 +58,7 @@ struct CARParams {
   FPType erb_q;
 };
 
-// The CAR coefficients are designed by the CARFAC::DesignCARCoeffs method,
-// which is called during initial construction and resetting of a CARFAC object.
+// CAR filter coefficients, which are derived from a set of CARParams.
 struct CARCoeffs {
   FPType velocity_scale;
   FPType v_offset;
@@ -72,6 +71,7 @@ struct CARCoeffs {
 };
 
 
+// CAR filter state.
 struct CARState {
   ArrayX z1_memory;
   ArrayX z2_memory;

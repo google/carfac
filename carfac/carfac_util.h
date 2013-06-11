@@ -25,9 +25,8 @@
 
 #include "common.h"
 
-// Function CARFACDetect
-// This returns the IHC detection nonilnearity function of the filter output
-// values.  This is here because it is called both in design and run phases.
+// Returns the IHC detection nonilnearity function of the filter output values.
+// This is here because it is called both in design and run phases.
 ArrayX CARFACDetect(const ArrayX& x);
 
 #endif  // CARFAC_CARFAC_UTIL_H

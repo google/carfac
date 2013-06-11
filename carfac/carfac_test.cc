@@ -20,22 +20,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
 #include <fstream>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
 
-#include "car.h"
-#include "ihc.h"
 #include "agc.h"
+#include "car.h"
 #include "carfac.h"
 #include "common.h"
+#include "ihc.h"
 
-using std::vector;
-using std::string;
 using std::ifstream;
 using std::ofstream;
+using std::string;
+using std::vector;
 
 // This is the 'test_data' subdirectory of aimc/carfac that specifies where to
 // locate the text files produced by 'CARFAC_GenerateTestData.m' for comparing
@@ -47,7 +47,8 @@ static const float kPrecisionLevel = 1.0e-2;
 // Three helper functions are defined here for loading the test data generated
 // by the Matlab version of CARFAC.
 // This loads one-dimensional ArrayXs from single-column text files.
-void WriteNAPOutput(CARFACOutput& output, const string filename, int ear) {
+void WriteNAPOutput(const CARFACOutput& output, const string filename,
+                    int ear) {
   string fullfile = kTestSourceDir + filename;
   ofstream ofile(fullfile.c_str());
   int32_t num_timepoints = output.nap().size();
@@ -56,7 +57,7 @@ void WriteNAPOutput(CARFACOutput& output, const string filename, int ear) {
     for (int32_t i = 0; i < num_timepoints; ++i) {
       for (int j = 0; j < channels; ++j) {
         ofile << output.nap()[i][ear](j);
-        if ( j < channels - 1) {
+        if (j < channels - 1) {
           ofile << " ";
         }
       }
@@ -145,7 +146,7 @@ TEST(CARFACTest, Binaural_Output_test) {
   IHCParams ihc_params;
   AGCParams agc_params;
   CARFAC mycf(num_ears, 22050, car_params, ihc_params, agc_params);
-  CARFACOutput my_output(true, false, true, false, false);
+  CARFACOutput my_output(true, true, false, false);
   const bool kOpenLoop = false;
   const int length = sound_data[0].size();
   mycf.RunSegment(sound_data, 0, length, kOpenLoop, &my_output);
@@ -197,7 +198,7 @@ TEST(CARFACTest, Long_Output_test) {
   IHCParams ihc_params;
   AGCParams agc_params;
   CARFAC mycf(num_ears, 44100, car_params, ihc_params, agc_params);
-  CARFACOutput my_output(true, false, true, false, false);
+  CARFACOutput my_output(true, true, false, false);
   const bool kOpenLoop = false;
   const int length = sound_data[0].size();
   mycf.RunSegment(sound_data, 0, length, kOpenLoop, &my_output);

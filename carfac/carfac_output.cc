@@ -24,15 +24,12 @@
 
 using std::vector;
 
-CARFACOutput::CARFACOutput(const bool store_nap, const bool store_nap_decim,
-                           const bool store_bm, const bool store_ohc,
-                           const bool store_agc) {
+CARFACOutput::CARFACOutput(const bool store_nap, const bool store_bm,
+                           const bool store_ohc, const bool store_agc) {
   store_nap_ = store_nap;
-  store_nap_decim_ = store_nap_decim;
   store_bm_ = store_bm;
   store_ohc_ = store_ohc;
   store_agc_ = store_agc;
-
 }
 
 void CARFACOutput::AppendOutput(const vector<Ear*>& ears) {
