@@ -20,9 +20,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "carfac.h"
+
 #include <assert.h>
 
-#include "carfac.h"
+#include "carfac_output.h"
+#include "carfac_util.h"
+#include "ear.h"
 
 using std::vector;
 

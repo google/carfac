@@ -27,11 +27,11 @@
 
 #include "agc.h"
 #include "car.h"
-#include "carfac_output.h"
-#include "carfac_util.h"
 #include "common.h"
-#include "ear.h"
 #include "ihc.h"
+
+class CARFACOutput;
+class Ear;
 
 // Top-level class implementing the CAR-FAC C++ model. See the chapter entitled
 // 'The CAR-FAC Digital Cochlear Model' in Lyon's book "Human and Machine

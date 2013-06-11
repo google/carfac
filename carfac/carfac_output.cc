@@ -21,6 +21,7 @@
 // limitations under the License.
 
 #include "carfac_output.h"
+#include "ear.h"
 
 using std::vector;
 

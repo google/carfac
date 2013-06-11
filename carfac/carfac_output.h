@@ -27,7 +27,8 @@
 #include <vector>
 
 #include "common.h"
-#include "ear.h"
+
+class Ear;
 
 // Container for the different types of output from a CARFAC model.  See the
 // private members below for details.

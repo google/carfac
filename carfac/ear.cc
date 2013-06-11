@@ -20,9 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "ear.h"
+
 #include <assert.h>
 
-#include "ear.h"
+#include "carfac_util.h"
 
 Ear::Ear(const int num_channels, const CARCoeffs& car_coeffs,
          const IHCCoeffs& ihc_coeffs,
@@ -152,7 +154,7 @@ void Ear::IHCStep(const ArrayX& car_out) {
         ((ihc_state_.cap1_voltage - ihc_state_.cap2_voltage)
          * ihc_coeffs_.in2_rate);
     }
-    // Here we smooth the output twice using a LPF.
+    // Smooth the output twice using an LPF.
     ihc_state_.ihc_out *= ihc_coeffs_.output_gain;
     ihc_state_.lpf1_state += ihc_coeffs_.lpf_coeff *
       (ihc_state_.ihc_out - ihc_state_.lpf1_state);

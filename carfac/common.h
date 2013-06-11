@@ -23,15 +23,9 @@
 #ifndef CARFAC_COMMON_H
 #define CARFAC_COMMON_H
 
-// This macro disallows the copy constructor and operator= functions.
-// This should be used in the private: declarations for a class.
-#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName&);               \
-  void operator=(const TypeName&)
-
 // The Eigen library is used extensively for floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 // The 'FPType' typedef is used to enable easy switching in precision level.
 // It's currently set to double for during the unit testing phase of the
@@ -42,7 +36,12 @@ typedef float FPType;
 typedef Eigen::Array<FPType, Eigen::Dynamic, 1> ArrayX;
 typedef Eigen::Array<FPType, Eigen::Dynamic, Eigen::Dynamic> ArrayXX;
 
-// A fixed value of PI is defined throughout the project.
 static const FPType kPi = 3.141592653589793238;
+
+// This macro disallows the copy constructor and operator= functions.
+// This should be used in the private: declarations for a class.
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName&);               \
+  void operator=(const TypeName&)
 
 #endif  // CARFAC_COMMON_H

@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "carfac.h"
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -28,7 +30,7 @@
 
 #include "agc.h"
 #include "car.h"
-#include "carfac.h"
+#include "carfac_output.h"
 #include "common.h"
 #include "ihc.h"
 
