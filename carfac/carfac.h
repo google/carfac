@@ -47,6 +47,7 @@ class CARFAC {
   CARFAC(const int num_ears, const FPType sample_rate,
          const CARParams& car_params, const IHCParams& ihc_params,
          const AGCParams& agc_params);
+  ~CARFAC();
 
   void Reset(const int num_ears, const FPType sample_rate,
              const CARParams& car_params, const IHCParams& ihc_params,

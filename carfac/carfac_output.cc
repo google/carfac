@@ -36,25 +36,25 @@ CARFACOutput::CARFACOutput(const bool store_nap, const bool store_bm,
 void CARFACOutput::AppendOutput(const vector<Ear*>& ears) {
   if (store_nap_) {
     nap_.push_back(vector<ArrayX>());
-    for (const auto& ear : ears) {
+    for (Ear* ear : ears) {
       nap_.back().push_back(ear->ihc_out());
     }
   }
   if (store_ohc_) {
     ohc_.push_back(vector<ArrayX>());
-    for (const auto& ear : ears) {
+    for (Ear* ear : ears) {
       ohc_.back().push_back(ear->za_memory());
     }
   }
   if (store_agc_) {
     agc_.push_back(vector<ArrayX>());
-    for (const auto& ear : ears) {
+    for (Ear* ear : ears) {
       agc_.back().push_back(ear->zb_memory());
     }
   }
   if (store_bm_) {
     bm_.push_back(vector<ArrayX>());
-    for (const auto& ear : ears) {
+    for (Ear* ear : ears) {
       bm_.back().push_back(ear->zy_memory());
     }
   }

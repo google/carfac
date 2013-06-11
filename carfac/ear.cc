@@ -73,7 +73,7 @@ void Ear::ResetIHCState() {
 void Ear::ResetAGCState() {
   int n_agc_stages = agc_coeffs_.size();
   agc_state_.resize(n_agc_stages);
-  for (auto& stage_state : agc_state_) {
+  for (AGCState& stage_state : agc_state_) {
     stage_state.decim_phase = 0;
     stage_state.agc_memory.setZero(num_channels_);
     stage_state.input_accum.setZero(num_channels_);
@@ -175,8 +175,8 @@ bool Ear::AGCStep(const ArrayX& ihc_out) {
 
 bool Ear::AGCRecurse(const int stage, ArrayX agc_in) {
   bool updated = true;
-  const auto& agc_coeffs = agc_coeffs_[stage];
-  auto& agc_state = agc_state_[stage];
+  const AGCCoeffs& agc_coeffs = agc_coeffs_[stage];
+  AGCState& agc_state = agc_state_[stage];
   // This is the decim factor for this stage, relative to input or prev. stage:
   int decim = agc_coeffs.decimation;
   // This is the decim phase of this stage (do work on phase 0 only):

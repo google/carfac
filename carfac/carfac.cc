@@ -36,6 +36,12 @@ CARFAC::CARFAC(const int num_ears, const FPType sample_rate,
   Reset(num_ears, sample_rate, car_params, ihc_params, agc_params);
 }
 
+CARFAC::~CARFAC() {
+  for (Ear* ear : ears_) {
+    delete ear;
+  }
+}
+
 void CARFAC::Reset(const int num_ears, const FPType sample_rate,
                    const CARParams& car_params, const IHCParams& ihc_params,
                    const AGCParams& agc_params) {
@@ -118,12 +124,12 @@ void CARFAC::CrossCouple() {
       if (mix_coeff > 0) {
         ArrayX stage_state;
         ArrayX this_stage_values = ArrayX::Zero(num_channels_);
-        for (const auto& ear : ears_) {
+        for (Ear* ear : ears_) {
           stage_state = ear->agc_memory(stage);
           this_stage_values += stage_state;
         }
         this_stage_values /= num_ears_;
-        for (const auto& ear : ears_) {
+        for (Ear* ear : ears_) {
           stage_state = ear->agc_memory(stage);
           ear->set_agc_memory(stage, stage_state + mix_coeff *
                               (this_stage_values - stage_state));
@@ -134,7 +140,7 @@ void CARFAC::CrossCouple() {
 }
 
 void CARFAC::CloseAGCLoop() {
-  for (auto& ear : ears_) {
+  for (Ear* ear : ears_) {
     ArrayX undamping = 1 - ear->agc_memory(0);
     // This updates the target stage gain for the new damping.
     ear->set_dzb_memory((ear->zr_coeffs() * undamping - ear->zb_memory()) /

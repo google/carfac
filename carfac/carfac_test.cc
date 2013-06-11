@@ -86,13 +86,13 @@ ArrayX LoadTestData(const string filename, const int number_points) {
 
 // This loads a vector of ArrayXs from multi-column text files.
 vector<ArrayX> Load2dTestData(const string filename, const int rows,
-                            const int columns) {
+                              const int columns) {
   string fullfile = kTestSourceDir + filename;
   ifstream file(fullfile.c_str());
   FPType myarray[rows][columns];
   vector<ArrayX> output;
   output.resize(rows);
-  for (auto& timepoint : output) {
+  for (ArrayX& timepoint : output) {
     timepoint.resize(columns);
   }
   if (file.is_open()) {
