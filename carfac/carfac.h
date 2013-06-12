@@ -49,9 +49,14 @@ class CARFAC {
          const AGCParams& agc_params);
   ~CARFAC();
 
-  void Reset(const int num_ears, const FPType sample_rate,
-             const CARParams& car_params, const IHCParams& ihc_params,
-             const AGCParams& agc_params);
+  // Reinitialize using the specified parameters.
+  void Redesign(const int num_ears, const FPType sample_rate,
+                const CARParams& car_params, const IHCParams& ihc_params,
+                const AGCParams& agc_params);
+
+  // Reset the internal state so that subsequent calls to RunSegment are
+  // independent of previous calls.  Does not modify the filterbank design.
+  void Reset();
 
   // Processes an individual sound segment and copies the model output to
   // seg_output.

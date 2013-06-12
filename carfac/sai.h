@@ -51,6 +51,12 @@ class SAI {
  public:
   explicit SAI(const SAIParams& params);
 
+  // Reinitialize using the specified parameters.
+  void Redesign(const SAIParams& params);
+
+  // Reset the internal state.
+  void Reset();
+
   // Fills output_frame with a params_.n_ch by params_.width SAI frame
   // computed from the given input frames.
   //

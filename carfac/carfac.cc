@@ -33,7 +33,7 @@ using std::vector;
 CARFAC::CARFAC(const int num_ears, const FPType sample_rate,
                const CARParams& car_params, const IHCParams& ihc_params,
                const AGCParams& agc_params) {
-  Reset(num_ears, sample_rate, car_params, ihc_params, agc_params);
+  Redesign(num_ears, sample_rate, car_params, ihc_params, agc_params);
 }
 
 CARFAC::~CARFAC() {
@@ -42,9 +42,9 @@ CARFAC::~CARFAC() {
   }
 }
 
-void CARFAC::Reset(const int num_ears, const FPType sample_rate,
-                   const CARParams& car_params, const IHCParams& ihc_params,
-                   const AGCParams& agc_params) {
+void CARFAC::Redesign(const int num_ears, const FPType sample_rate,
+                      const CARParams& car_params, const IHCParams& ihc_params,
+                      const AGCParams& agc_params) {
   num_ears_ = num_ears;
   sample_rate_ = sample_rate;
   car_params_ = car_params;
@@ -55,14 +55,14 @@ void CARFAC::Reset(const int num_ears, const FPType sample_rate,
   while (pole_hz > car_params_.min_pole_hz) {
     ++num_channels_;
     pole_hz = pole_hz - car_params_.erb_per_step *
-    ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
+        ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
   }
   pole_freqs_.resize(num_channels_);
   pole_hz = car_params_.first_pole_theta * sample_rate_ / (2 * kPi);
   for (int channel = 0; channel < num_channels_; ++channel) {
     pole_freqs_(channel) = pole_hz;
     pole_hz = pole_hz - car_params_.erb_per_step *
-    ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
+        ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
   }
   max_channels_per_octave_ = log(2) / log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
@@ -75,12 +75,18 @@ void CARFAC::Reset(const int num_ears, const FPType sample_rate,
   ears_.reserve(num_ears_);
   for (int i = 0; i < num_ears_; ++i) {
     if (ears_.size() > i && ears_[i] != NULL) {
-      // Reset any existing ears.
-      ears_[i]->Reset(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs);
+      // Reinitialize any existing ears.
+      ears_[i]->Redesign(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs);
     } else {
       ears_.push_back(
           new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
     }
+  }
+}
+
+void CARFAC::Reset() {
+  for (Ear* ear : ears_) {
+    ear->Reset();
   }
 }
 

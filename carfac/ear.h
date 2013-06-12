@@ -39,9 +39,13 @@ class Ear {
       const IHCCoeffs& ihc_coeffs,
       const std::vector<AGCCoeffs>& agc_coeffs);
 
-  void Reset(const int num_channels, const CARCoeffs& car_coeffs,
-             const IHCCoeffs& ihc_coeffs,
-             const std::vector<AGCCoeffs>& agc_coeffs);
+  // Reinitialize using the specified parameters.
+  void Redesign(const int num_channels, const CARCoeffs& car_coeffs,
+                const IHCCoeffs& ihc_coeffs,
+                const std::vector<AGCCoeffs>& agc_coeffs);
+
+  // Reset the internal state.
+  void Reset();
 
   // These three methods apply the different steps of the model in sequence
   // to individual audio samples during the call to CARFAC::RunSegment.
@@ -102,9 +106,9 @@ class Ear {
 
  private:
   // Initializes the model state variables prior to runtime.
-  void ResetIHCState();
-  void ResetAGCState();
-  void ResetCARState();
+  void InitIHCState();
+  void InitAGCState();
+  void InitCARState();
 
   // Helper sub-functions called during the model runtime.
   void OHCNonlinearFunction(const ArrayX& velocities,

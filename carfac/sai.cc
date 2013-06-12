@@ -22,6 +22,10 @@
 #include <assert.h>
 
 SAI::SAI(const SAIParams& params) : params_(params) {
+  Redesign(params);
+}
+
+void SAI::Redesign(const SAIParams& params) {
   assert(params_.window_width > params_.width &&
          "SAI window_width must be larger than width.");
 
@@ -33,6 +37,11 @@ SAI::SAI(const SAIParams& params) : params_(params) {
 
   window_.setLinSpaced(params_.window_width, kPi / params_.window_width, kPi)
       .sin();
+}
+
+void SAI::Reset() {
+  input_buffer_.setZero();
+  output_buffer_.setZero();
 }
 
 void SAI::RunSegment(const std::vector<ArrayX>& input,
