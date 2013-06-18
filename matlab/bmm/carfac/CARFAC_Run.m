@@ -141,14 +141,16 @@ for seg_num = 1:n_segs
   
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
+    maxmax = 0;
     for ear = 1:n_ears
-      maxes(ear) = max(CF.ears(ear).AGC_state.AGC_memory(:));
       hold on
       for stage = 1:4;
-        plot(2^(stage-1) * CF.ears(ear).AGC_state.AGC_memory(:, stage));
+        stage_response = 2^(stage-1) * CF.ears(ear).AGC_state(stage).AGC_memory;
+        plot(stage_response);
+        maxmax = max(maxmax, max(stage_response));
       end
     end
-    axis([0, CF.n_ch+1, 0.0, max(maxes) * 1.01 + 0.002]);
+    axis([0, CF.n_ch+1, 0.0, maxmax * 1.01 + 0.002]);
     drawnow
   end
 
