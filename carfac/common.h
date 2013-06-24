@@ -30,7 +30,7 @@
 // The 'FPType' typedef is used to enable easy switching in precision level.
 // It's currently set to double for during the unit testing phase of the
 // project.
-typedef float FPType;
+typedef double FPType;
 // A typedef is used to define a one-dimensional Eigen array with the same
 // precision level as FPType.
 typedef Eigen::Array<FPType, Eigen::Dynamic, 1> ArrayX;
