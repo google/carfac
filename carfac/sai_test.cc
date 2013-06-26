@@ -22,7 +22,16 @@
 #include <iostream>
 #include <vector>
 
+#include <Eigen/Core>
+
 #include "gtest/gtest.h"
+
+#include "agc.h"
+#include "car.h"
+#include "carfac.h"
+#include "carfac_output.h"
+#include "common.h"
+#include "ihc.h"
 
 using testing::Values;
 using std::vector;
@@ -33,6 +42,25 @@ vector<ArrayX> CreateZeroSegment(int n_ch, int length) {
     segment.push_back(ArrayX::Zero(n_ch));
   }
   return segment;
+}
+
+void PrintSAIInput(const vector<ArrayX>& input) {
+  for (int i = 0; i < input[0].size(); ++i) {
+    for (int j = 0; j < input.size(); ++j) {
+      std::cout << input[j](i) << " ";
+    }
+    std::cout << "\n";
+  }
+}
+
+void PrintSAIFrame(const ArrayXX& sai_frame) {
+  for (int i = 0; i < sai_frame.rows(); ++i) {
+    for (int j = 0; j < sai_frame.cols(); ++j) {
+      std::cout << sai_frame(i, j) << " ";
+    }
+    std::cout << "\n";
+  }
+  std::cout << "\n";
 }
 
 bool HasPeakAt(const ArrayX& frame, int index) {
@@ -89,22 +117,49 @@ TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
   }
 
   std::cout << "Input:\n";
-  for (int i = 0; i < n_ch_; ++i) {
-    for (int j = 0; j < segment.size(); ++j) {
-      std::cout << segment[j](i) << " ";
-    }
-    std::cout << "\n";
-  }
-
+  PrintSAIInput(segment);
   std::cout << "Output:\n";
-  for (int i = 0; i < sai_frame.rows(); ++i) {
-    for (int j = 0; j < sai_frame.cols(); ++j) {
-      std::cout << sai_frame(i, j) << " ";
-    }
-    std::cout << "\n";
-  }
-  std::cout << "\n";
+  PrintSAIFrame(sai_frame);
 }
 INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
                         testing::Combine(Values(25, 10, 5, 2),  // periods.
                                          Values(1, 2, 15)));  // n_ch.
+
+TEST(SAITest, CARFACIntegration) {
+  const int n_ears = 1;
+  const int length = 300;
+  vector<vector<float>> segment(n_ears, vector<float>(length, 0.0));
+
+  // Sinusoid input.
+  const float kFrequency = 10;
+  Eigen::Map<Eigen::ArrayXf> segment_array(&segment[0][0], segment[0].size());
+  segment_array.setLinSpaced(length, 0.0, 2 * kFrequency * kPi);
+  segment_array.sin();
+
+  CARParams car_params;
+  IHCParams ihc_params;
+  AGCParams agc_params;
+  CARFAC carfac(n_ears, 800, car_params, ihc_params, agc_params);
+  CARFACOutput output(true, false, false, false);
+  const bool kOpenLoop = false;
+  carfac.RunSegment(segment, 0, length, kOpenLoop, &output);
+
+  vector<ArrayX> nap_segment;
+  nap_segment.reserve(output.nap().size());
+  for (const vector<ArrayX>& frame : output.nap()) {
+    nap_segment.push_back(frame[0]);
+  }
+
+  SAIParams sai_params;
+  sai_params.window_width = length;
+  sai_params.n_ch = carfac.num_channels();
+  sai_params.width = 20;
+  // Half of the SAI should come from the future.
+  sai_params.future_lags = sai_params.width / 2;
+  sai_params.n_window_pos = 2;
+  SAI sai(sai_params);
+  ArrayXX sai_frame;
+  sai.RunSegment(nap_segment, &sai_frame);
+
+  // TODO(ronw): Test something about the output.
+}

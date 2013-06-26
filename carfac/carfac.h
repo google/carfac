@@ -67,6 +67,8 @@ class CARFAC {
                   const int32_t start, const int32_t length,
                   const bool open_loop, CARFACOutput* seg_output);
 
+  int num_channels() const { return num_channels_; }
+
  private:
   void DesignCARCoeffs(const CARParams& car_params, const FPType sample_rate,
                        const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
