@@ -49,6 +49,7 @@ void WriteNAPOutput(const CARFACOutput& output, const string& filename,
                     int ear) {
   string fullfile = kTestDataDir + filename;
   ofstream ofile(fullfile.c_str());
+  ofile.precision(9);
   int32_t num_timepoints = output.nap().size();
   int channels = output.nap()[0][0].size();
   if (ofile.is_open()) {
