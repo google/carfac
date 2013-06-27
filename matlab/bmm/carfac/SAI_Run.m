@@ -17,8 +17,8 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [frame_rate, num_frames] = SAI_Run(CF, input_waves)
-% function [CF, SAI_movie] = SAI_Run(CF, input_waves)
+function [frame_rate, num_frames] = SAI_Run(CF, sai_struct, input_waves)
+% function [frame_rate, num_frames] = SAI_Run(CF, sai_struct, input_waves)
 % This function runs the CARFAC and display an SAI movie.
 
 n_ch = CF.n_ch;
@@ -32,19 +32,10 @@ seglen = round(fs / 30);  % Pick about 30 fps
 frame_rate = fs / seglen;
 n_segs = ceil(n_samp / seglen);
 
-% Design the SAI parameters.
-sai_struct.width = 256;
-sai_struct.future_lags = sai_struct.width / 2;
-sai_struct.window_width = seglen;
-n_triggers = 2;
-sai_struct.n_window_pos = n_triggers;
-sai_struct.channel_smoothing_scale = 0;
-
-
 % State stored in sai_struct.
 % Make the history buffer.
 buffer_width = sai_struct.width + ...
-    floor((1 + (n_triggers - 1)/2) * sai_struct.window_width);
+    floor((1 + (sai_struct.n_window_pos - 1)/2) * sai_struct.window_width);
 sai_struct.nap_buffer = zeros(buffer_width, n_ch);
 % The SAI frame is transposed to be image-like.
 sai_struct.frame = zeros(n_ch, sai_struct.width);
@@ -76,7 +67,7 @@ for seg_num = 1:n_segs
   
   cmap = 1 - gray;  % jet
   figure(10)
-  image(32 * sai_struct.frame);
+  imagesc(32 * sai_struct.frame);
   colormap(cmap);
   colorbar
 
