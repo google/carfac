@@ -27,7 +27,7 @@
 // Design parameters for a single SAI.
 struct SAIParams {
   // Number of channels (height) of the SAI.
-  int n_ch;
+  int num_channels;
 
   // TODO(ronw): Consider parameterizing this as past_lags and
   // future_lags, with width == past_lags + 1 + future_lags.
@@ -37,7 +37,7 @@ struct SAIParams {
   // Number of lag samples that should come from the future.
   int future_lags;
   // Number of windows (triggers) to consider during each SAI frame.
-  int n_window_pos;
+  int num_window_pos;
 
   // TODO(ronw): more carefully define terms "window" and "frame"
 
@@ -57,11 +57,11 @@ class SAI {
   // Reset the internal state.
   void Reset();
 
-  // Fills output_frame with a params_.n_ch by params_.width SAI frame
+  // Fills output_frame with a params_.num_channels by params_.width SAI frame
   // computed from the given input frames.
   //
   // The input should have dimensionality of params_.window_width by
-  // params_.n_ch.  Inputs containing too few frames are zero-padded.
+  // params_.num_channels.  Inputs containing too few frames are zero-padded.
   // FIXME: ArrayXX input type would be less awkward.
   void RunSegment(const std::vector<ArrayX>& input,
                   ArrayXX* output_output_frame);
@@ -77,9 +77,9 @@ class SAI {
   // Size: params_.window_width.
   ArrayX window_;
   // Buffer to store a large enough window of input frames to compute
-  // a full SAI frame.  Size: params_.n_ch by params_.buffer_width.
+  // a full SAI frame.  Size: params_.num_channels by params_.buffer_width.
   ArrayXX input_buffer_;
-  // Output frame buffer.  Size: params_.n_ch by params_.width.
+  // Output frame buffer.  Size: params_.num_channels by params_.width.
   ArrayXX output_buffer_;
 };
 

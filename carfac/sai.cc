@@ -30,10 +30,10 @@ void SAI::Redesign(const SAIParams& params) {
          "SAI window_width must be larger than width.");
 
   int buffer_width = params_.width +
-      static_cast<int>((1 + static_cast<float>(params_.n_window_pos - 1)/2) *
+      static_cast<int>((1 + static_cast<float>(params_.num_window_pos - 1)/2) *
                        params_.window_width);
-  input_buffer_.setZero(params_.n_ch, buffer_width);
-  output_buffer_.setZero(params_.n_ch, params_.width);
+  input_buffer_.setZero(params_.num_channels, buffer_width);
+  output_buffer_.setZero(params_.num_channels, params_.width);
 
   window_.setLinSpaced(params_.window_width, kPi / params_.window_width, kPi)
       .sin();
@@ -48,21 +48,21 @@ void SAI::RunSegment(const std::vector<ArrayX>& input,
                      ArrayXX* output_frame) {
   assert(!input.empty() || input.size() <= params_.window_width &&
          "Unexpected input size.");
-  assert(input[0].size() == params_.n_ch &&
+  assert(input[0].size() == params_.num_channels &&
          "Unexpected input frame size.");
 
   // Append new data to the input buffer.
-  int n_shift = input.size();
-  int shift_width = input_buffer_.cols() - n_shift;
-  input_buffer_.topLeftCorner(params_.n_ch, shift_width).swap(
-      input_buffer_.block(0, n_shift, params_.n_ch, shift_width));
+  int num_shift = input.size();
+  int shift_width = input_buffer_.cols() - num_shift;
+  input_buffer_.topLeftCorner(params_.num_channels, shift_width).swap(
+      input_buffer_.block(0, num_shift, params_.num_channels, shift_width));
   for (int i = 0; i < input.size(); ++i) {
     input_buffer_.block(0, shift_width + i, input[i].size(), 1) = input[i];
   }
   // Zero-pad the buffer if necessary.
   if (input.size() < params_.window_width) {
     int pad_width = params_.window_width - input.size();
-    input_buffer_.topRightCorner(params_.n_ch, pad_width).setZero();
+    input_buffer_.topRightCorner(params_.num_channels, pad_width).setZero();
   }
 
   StabilizeSegment(input_buffer_, &output_buffer_);
@@ -74,17 +74,17 @@ void SAI::StabilizeSegment(const ArrayXX& input_buffer,
   // Windows are always approximately 50% overlapped.
   float window_hop = params_.window_width / 2;
   int window_start = (input_buffer.cols() - params_.window_width) -
-      (params_.n_window_pos - 1) * window_hop;
+      (params_.num_window_pos - 1) * window_hop;
   int window_range_start = window_start - params_.future_lags - 1;
   int offset_range_start = window_start - params_.width;
   assert(offset_range_start >= 0);
-  for (int i = 0; i < params_.n_ch; ++i) {
+  for (int i = 0; i < params_.num_channels; ++i) {
     // TODO(ronw): Rename this here and in the Matlab code since the
     // input doesn't have to contain naps.
     const ArrayX& nap_wave = input_buffer.row(i);
     // TODO(ronw): Smooth row.
 
-    for (int w = 0; w < params_.n_window_pos; ++w) {
+    for (int w = 0; w < params_.num_window_pos; ++w) {
       int current_window_offset = w * window_hop;
       // Choose a trigger point.
       int trigger_time;
