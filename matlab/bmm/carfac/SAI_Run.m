@@ -55,15 +55,7 @@ for seg_num = 1:n_segs
   % NOTE: This might not be necessary.
   seg_naps = max(0, seg_naps);  
 
-  if seg_num == n_segs  % pad out the last result
-    seg_naps = [seg_naps; zeros(seglen - size(seg_naps,1), size(seg_naps, 2))];
-  end
- 
-  % Shift new data into the buffer.
-  n_shift = size(seg_naps, 1);
-  sai_struct.nap_buffer = [sai_struct.nap_buffer((1 + n_shift):end,:); seg_naps];
-
-  sai_struct = SAI_StabilizeLayer(sai_struct);
+  sai_struct = SAI_Run_Segment(sai_struct, seg_naps);
   
   cmap = 1 - gray;  % jet
   figure(10)

@@ -26,7 +26,7 @@ if any(offset_range < 0)
 end
 
 % smooth across channels; more in later layers
-smoothed_buffer =  smooth1d(nap_buffer', layer_struct.channel_smoothing_scale)';
+smoothed_buffer = smooth1d(nap_buffer', layer_struct.channel_smoothing_scale)';
 
 % For each buffer column (channel), pick a trigger and align into SAI_frame
 for ch = 1:n_ch
