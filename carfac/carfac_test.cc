@@ -42,12 +42,12 @@ using std::vector;
 
 // Location of the text files produced by 'CARFAC_GenerateTestData.m' for
 // comparing the ouput of the Matlab implementation with the one used here.
-static const char* kTestSourceDir = "./test_data/";
+static const char* kTestDataDir = "./test_data/";
 
 // Writes the CARFAC NAP output to a text file.
 void WriteNAPOutput(const CARFACOutput& output, const string& filename,
                     int ear) {
-  string fullfile = kTestSourceDir + filename;
+  string fullfile = kTestDataDir + filename;
   ofstream ofile(fullfile.c_str());
   int32_t num_timepoints = output.nap().size();
   int channels = output.nap()[0][0].size();
@@ -70,7 +70,7 @@ void WriteNAPOutput(const CARFACOutput& output, const string& filename,
 template <typename Container = ArrayX, bool ColMajor = true>
 vector<Container> Load2dTestData(const string& filename, int rows,
                                  int columns) {
-  string fullfile = kTestSourceDir + filename;
+  string fullfile = kTestDataDir + filename;
   ifstream file(fullfile.c_str());
   vector<Container> output;
   if (ColMajor) {
@@ -145,7 +145,7 @@ TEST_F(CARFACTest, BinauralData) {
   const int kNumEars = 2;
   const int kNumChannels = 71;
   vector<vector<float>> sound_data =
-      Load2dAudioVector("file_signal_binaural_test.txt", kNumSamples, kNumEars);
+      Load2dAudioVector("binaural_test-audio.txt", kNumSamples, kNumEars);
   CARFAC carfac(kNumEars, 22050, car_params_, ihc_params_, agc_params_);
   CARFACOutput output(true, true, false, false);
   const bool kOpenLoop = false;
@@ -154,15 +154,15 @@ TEST_F(CARFACTest, BinauralData) {
 
   // TODO(ronw): Don't unconditionally overwrite files that are
   // checked in to the repository on every test run.
-  WriteNAPOutput(output, "cpp_nap_output_1_binaural_test.txt", 0);
-  WriteNAPOutput(output, "cpp_nap_output_2_binaural_test.txt", 1);
+  WriteNAPOutput(output, "binaural_test-cpp-nap1.txt", 0);
+  WriteNAPOutput(output, "binaural_test-cpp-nap2.txt", 1);
 
-  deque<vector<ArrayX>> expected_nap =
-      LoadTestData("binaural_test_nap", kNumSamples, kNumEars, kNumChannels);
+  deque<vector<ArrayX>> expected_nap = LoadTestData(
+      "binaural_test-matlab-nap", kNumSamples, kNumEars, kNumChannels);
   AssertCARFACOutputNear(expected_nap, output.nap(),
                          kNumSamples, kNumEars, kNumChannels);
-  deque<vector<ArrayX>> expected_bm =
-      LoadTestData("binaural_test_bm", kNumSamples, kNumEars, kNumChannels);
+  deque<vector<ArrayX>> expected_bm = LoadTestData(
+      "binaural_test-matlab-bm", kNumSamples, kNumEars, kNumChannels);
   AssertCARFACOutputNear(expected_bm, output.bm(),
                          kNumSamples, kNumEars, kNumChannels);
 }
@@ -172,7 +172,7 @@ TEST_F(CARFACTest, LongBinauralData) {
   const int kNumEars = 2;
   const int kNumChannels = 83;
   vector<vector<float>> sound_data =
-      Load2dAudioVector("file_signal_long_test.txt", kNumSamples, kNumEars);
+      Load2dAudioVector("long_test-audio.txt", kNumSamples, kNumEars);
   CARFAC carfac(kNumEars, 44100, car_params_, ihc_params_, agc_params_);
   CARFACOutput output(true, true, false, false);
   const bool kOpenLoop = false;
@@ -181,15 +181,15 @@ TEST_F(CARFACTest, LongBinauralData) {
 
   // TODO(ronw): Don't unconditionally overwrite files that are
   // checked in to the repository on every test run.
-  WriteNAPOutput(output, "cpp_nap_output_1_long_test.txt", 0);
-  WriteNAPOutput(output, "cpp_nap_output_2_long_test.txt", 1);
+  WriteNAPOutput(output, "long_test-cpp-nap1.txt", 0);
+  WriteNAPOutput(output, "long_test-cpp-nap2.txt", 1);
 
-  deque<vector<ArrayX>> expected_nap =
-      LoadTestData("long_test_nap", kNumSamples, kNumEars, kNumChannels);
+  deque<vector<ArrayX>> expected_nap = LoadTestData(
+      "long_test-matlab-nap", kNumSamples, kNumEars, kNumChannels);
   AssertCARFACOutputNear(expected_nap, output.nap(),
                          kNumSamples, kNumEars, kNumChannels);
-  deque<vector<ArrayX>> expected_bm =
-      LoadTestData("long_test_bm", kNumSamples, kNumEars, kNumChannels);
+  deque<vector<ArrayX>> expected_bm = LoadTestData(
+      "long_test-matlab-bm", kNumSamples, kNumEars, kNumChannels);
   AssertCARFACOutputNear(expected_bm, output.bm(),
                          kNumSamples, kNumEars, kNumChannels);
 }

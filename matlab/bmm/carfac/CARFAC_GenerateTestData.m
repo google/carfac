@@ -21,90 +21,59 @@ function CARFAC_GenerateTestData()
 % This function generates a set of text files in the AIMC repository that
 % can be used to compare the output of the C++ version of CARFAC with that
 % of the Matlab version.
+%
+% Naming convention for files containing audio samples for file test_name.wav:
+%   test_name-audio.txt
+% Each line contains a space-separated list of samples from each channel.
+%
+% Naming convention for files containing CARFAC/SAI outputs:
+%   test_name-{matlab,cpp}-signal_name(optional_channel_number).txt
+% Each line contains a space-separated list of elements from a single row.
 
 % This designates a subdirectory of the C++ CARFAC folder to store the
-% test data
-data_dir = '../../../carfac/test_data/';
-precision_level = 9;
+% test data.
+test_data_dir = '../../../carfac/test_data/';
 
+test_name = 'binaural_test';
+samples_to_read = [9000, 9903];  % Trim for a faster test.
+signal = wavread([test_data_dir test_name '.wav'], samples_to_read);
+assert(size(signal, 2) == 1, 'Expected mono signal.');
+% Construct a binaural signal by delaying the signal between the ears.
+itd_offset = 22;  % about 1 ms
+signal = [signal((itd_offset+1):end), signal(1:(end-itd_offset))] / 10;
+n_ears = size(signal, 2);
+CF_struct = CARFAC_Design(n_ears);
+WriteTestData(test_data_dir, 'binaural_test', signal, CF_struct);
+
+
+test_name = 'long_test';
+samples_to_read = [80001, 82000];  % Trim for a faster test.
+[signal, fs] = wavread([test_data_dir test_name '.wav'], samples_to_read);
+assert(size(signal, 2) == 2, 'Expected stereo signal.');
+n_ears = size(signal, 2);
+CF_struct = CARFAC_Design(n_ears, fs);
+WriteTestData(test_data_dir, 'long_test', signal, CF_struct);
+
+
+function WriteTestData(test_data_dir, test_name, signal, CF_struct)
 % The following section generates data for the binaural test of the C++
 % version of CARFAC.
-n_ears = 2;
- 
-file_signal = wavread('plan.wav');
-file_signal = file_signal(9000:9903);  % trim for a faster test
- 
-itd_offset = 22;  % about 1 ms
-test_signal = [file_signal((itd_offset+1):end), ...
-               file_signal(1:(end-itd_offset))] / 10;
-           
-filename = 'file_signal_binaural_test.txt'
-data = test_signal;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
-           
-CF_struct = CARFAC_Design(n_ears);
+filename_prefix = [test_data_dir test_name];
+
+WriteMatrixToFile([filename_prefix '-audio.txt'], signal);
+
 CF_struct = CARFAC_Init(CF_struct);         
-[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, test_signal);
+[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal);
  
-%Store the data for each each as individual 2d text data.
-nap1 = nap(:,:,1);
-nap2 = nap(:,:,2);
-bm1 = bm(:,:,1);
-bm2 = bm(:,:,2);
- 
-filename = 'binaural_test_nap1.txt'
-data = nap1;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'binaural_test_bm1.txt'
-data = bm1;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'binaural_test_nap2.txt'
-data = nap2;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'binaural_test_bm2.txt'
-data = bm2;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
+% Store the data for each ear of each output signal in a separate file.
+for ear = 1:CF_struct.n_ears
+  WriteMatrixToFile([filename_prefix '-matlab-nap' num2str(ear) '.txt'], ...
+                    nap(:,:,ear));
+  WriteMatrixToFile([filename_prefix '-matlab-bm' num2str(ear) '.txt'], ...
+                    bm(:,:,ear));
+end
 
 
-% Longer audio segment test
-
-n_ears = 2;
-start = 80001;
-n_timepoints = 2000;
- 
-[test_signal, fs] = wavread([data_dir 'Anka_SLTS.wav']);
-test_signal = test_signal(start:start+n_timepoints-1,:);
-size(test_signal)
- 
-filename = 'file_signal_long_test.txt'
-data = test_signal;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
-           
-CF_struct = CARFAC_Design(n_ears, fs);
-CF_struct = CARFAC_Init(CF_struct);         
-[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, test_signal);
- 
-%Store the data for each each as individual 2d text data.
-nap1 = nap(:,:,1);
-nap2 = nap(:,:,2);
-bm1 = bm(:,:,1);
-bm2 = bm(:,:,2);
- 
-filename = 'long_test_nap1.txt'
-data = nap1;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'long_test_bm1.txt'
-data = bm1;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'long_test_nap2.txt'
-data = nap2;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
- 
-filename = 'long_test_bm2.txt'
-data = bm2;
-dlmwrite([data_dir filename],data,'precision', precision_level,'delimiter',' ');
+function WriteMatrixToFile(filename, matrix)
+precision_level = 9;
+dlmwrite(filename, matrix, 'precision', precision_level, 'delimiter', ' ');
