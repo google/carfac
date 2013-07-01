@@ -70,13 +70,15 @@ env.Command('tmp/libgtest.a', [],
                 'cd tmp && cmake . && make',
             ])
 
-test_sources = [
-    'carfac_test.cc',
-    'sai_test.cc',
+test_targets = [
+    'carfac_test',
+    'sai_test',
     ]
-test_program = env.Program(target = 'test',
-                           source = test_sources,
-                           LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
-                           LIBPATH = ['.', 'tmp'])
-test_alias = Alias('test', [test_program], test_program[0].abspath)
-AlwaysBuild(test_alias)
+test_programs = [env.Program(target = test_target,
+                             source = ['%s.cc' % test_target],
+                             LIBS = ['carfac', 'gtest', 'gtest_main', 'pthread'],
+                             LIBPATH = ['.', 'tmp'])
+                 for test_target in test_targets]
+run_all_tests = env.Command('test',
+                            test_programs,
+                            ['./%s' % x for x in test_targets])
