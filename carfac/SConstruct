@@ -26,7 +26,7 @@ SConstruct file for the CARFAC Open Source C++ Library.
 To install dependencies on Ubuntu, run:
 
   sudo apt-get install libeigen3-dev scons \
-    cmake libgtest-dev libsndfile-dev  # For testing.
+    cmake libgtest-dev  # For testing.
   export EIGEN_PATH=/usr/include/eigen3
   export GTEST_SOURCE=/usr/src/gtest
 
@@ -61,7 +61,8 @@ carfac_sources = [
     'ihc.h',
     'sai.cc'
     ]
-env.Library(target = 'carfac', source = carfac_sources)
+carfac = env.Library(target = 'carfac', source = carfac_sources)
+Default(carfac)
 
 env.Command('tmp/libgtest.a', [],
             [

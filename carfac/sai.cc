@@ -52,17 +52,17 @@ void SAI::RunSegment(const std::vector<ArrayX>& input,
          "Unexpected input frame size.");
 
   // Append new data to the input buffer.
-  int num_shift = input.size();
+  int num_shift = params_.window_width;
   int shift_width = input_buffer_.cols() - num_shift;
-  input_buffer_.topLeftCorner(params_.num_channels, shift_width).swap(
-      input_buffer_.block(0, num_shift, params_.num_channels, shift_width));
+  input_buffer_.leftCols(shift_width).swap(
+      input_buffer_.rightCols(shift_width));
   for (int i = 0; i < input.size(); ++i) {
     input_buffer_.block(0, shift_width + i, input[i].size(), 1) = input[i];
   }
   // Zero-pad the buffer if necessary.
   if (input.size() < params_.window_width) {
     int pad_width = params_.window_width - input.size();
-    input_buffer_.topRightCorner(params_.num_channels, pad_width).setZero();
+    input_buffer_.rightCols(pad_width).setZero();
   }
 
   StabilizeSegment(input_buffer_, &output_buffer_);

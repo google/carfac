@@ -28,6 +28,8 @@
 
 #include <Eigen/Core>
 
+#include "gtest/gtest.h"
+
 #include "common.h"
 
 // Location of the text files produced by 'CARFAC_GenerateTestData.m' for
@@ -62,9 +64,27 @@ std::vector<Container> LoadMatrix(const std::string& filename, int rows,
   return output;
 }
 
-bool ArraysNear(const ArrayX& expected, const ArrayX& actual,
-                double precision) {
-  return (expected - actual).cwiseAbs().maxCoeff() <= precision;
+void WriteMatrix(const std::string& filename, const ArrayXX& matrix) {
+  std::string fullfile = kTestDataDir + filename;
+  std::ofstream ofile(fullfile.c_str());
+  const int kPrecision = 9;
+  ofile.precision(kPrecision);
+  if (ofile.is_open()) {
+    Eigen::IOFormat ioformat(kPrecision, Eigen::DontAlignCols);
+    ofile << matrix.format(ioformat) << std::endl;
+  }
+  ofile.close();
+}
+
+void AssertArrayNear(const ArrayX& expected, const ArrayX& actual,
+                     double precision) {
+  ArrayX abs_difference = (expected - actual).cwiseAbs();
+  ASSERT_TRUE(abs_difference.maxCoeff() <= precision)
+      << "expected differs from actual by more than " << precision
+      << "\n  max(abs(expected - actual)) = " << abs_difference.maxCoeff()
+      << "\n  max(abs(expected)) = " << expected.cwiseAbs().maxCoeff()
+      << "\n  max(abs(actual)) = " << actual.cwiseAbs().maxCoeff()
+      << "\n" << abs_difference;
 }
 
 #endif  // CARFAC_TEST_UTIL_H

@@ -22,7 +22,6 @@
 
 #include "carfac.h"
 
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -38,7 +37,6 @@
 #include "test_util.h"
 
 using std::deque;
-using std::ofstream;
 using std::string;
 using std::vector;
 
@@ -52,19 +50,14 @@ vector<vector<float>> LoadAudio(const string& filename, int timepoints,
 // Writes the CARFAC NAP output to a text file.
 void WriteNAPOutput(const CARFACOutput& output, const string& filename,
                     int ear) {
-  string fullfile = kTestDataDir + filename;
-  ofstream ofile(fullfile.c_str());
-  const int kPrecision = 9;
-  ofile.precision(kPrecision);
-  int32_t num_timepoints = output.nap().size();
-  int channels = output.nap()[0][0].size();
-  Eigen::IOFormat ioformat(kPrecision, Eigen::DontAlignCols);
-  if (ofile.is_open()) {
-    for (int32_t i = 0; i < num_timepoints; ++i) {
-      ofile << output.nap()[i][ear].transpose().format(ioformat) << std::endl;
-    }
+  const int num_samples = output.nap().size();
+  const int num_channels = output.nap()[0][0].size();
+  ArrayXX nap_matrix(num_samples, num_channels);
+  for (int i = 0; i < num_samples; ++i) {
+    nap_matrix.row(i) = output.nap()[i][ear];
   }
-  ofile.close();
+
+  WriteMatrix(filename, nap_matrix);
 }
 
 class CARFACTest : public testing::Test {
@@ -91,9 +84,8 @@ class CARFACTest : public testing::Test {
     for (int timepoint = 0; timepoint < num_samples; ++timepoint) {
       for (int ear = 0; ear < num_ears; ++ear) {
         const float kPrecisionLevel = 1.0e-7;
-        ASSERT_TRUE(ArraysNear(expected[timepoint][ear],
-                               actual[timepoint][ear],
-                               kPrecisionLevel));
+        AssertArrayNear(expected[timepoint][ear], actual[timepoint][ear],
+                        kPrecisionLevel);
         }
       }
   }
