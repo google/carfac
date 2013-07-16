@@ -52,7 +52,6 @@ n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears);
 WriteTestData(test_data_dir, 'binaural_test', signal, CF_struct, sai_struct);
 
-
 test_name = 'long_test';
 samples_to_read = [80001, 82000];  % Trim for a faster test.
 [signal, fs] = wavread([test_data_dir test_name '.wav'], samples_to_read);

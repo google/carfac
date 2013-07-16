@@ -157,6 +157,7 @@ TEST(SAITest, DISABLED_MatchesMatlabOnBinauralData) {
   const int kNumChannels = 71;
   vector<ArrayX> input_segment =
       LoadMatrix(kTestName + "-matlab-nap1.txt", kNumSamples, kNumChannels);
+
   const int kWindowWidth = 2000;
   const int kSAIWidth = 500;
   SAIParams sai_params = CreateSAIParams(kNumChannels, kWindowWidth, kSAIWidth);
