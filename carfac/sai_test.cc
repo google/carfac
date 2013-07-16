@@ -50,7 +50,7 @@ vector<ArrayX> CreatePulseTrain(int num_channels, int num_samples, int period) {
   vector<ArrayX> segment = CreateZeroSegment(num_channels, num_samples);
   for (int i = 0; i < num_channels; ++i) {
     // Begin each channel at a different phase.
-    const int phase = i;
+    const int phase = i % period;
     for (int j = phase; j < segment.size(); j += period) {
       segment[j](i) = 1;
     }
@@ -148,10 +148,10 @@ TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
   EXPECT_TRUE((sai_frame != 0).any());
   const int kZeroLagIndex = kSAIWidth / 2 - 1;
   EXPECT_TRUE(HasPeakAt(sai_frame.row(0), kZeroLagIndex));
-  EXPECT_TRUE(HasPeakAt(sai_frame.row(0), kZeroLagIndex - kPeriod));
+  EXPECT_TRUE(HasPeakAt(sai_frame.row(0), kZeroLagIndex + kPeriod));
 }
 
-TEST(SAITest, DISABLED_MatchesMatlabOnBinauralData) {
+TEST(SAITest, MatchesMatlabOnBinauralData) {
   const std::string kTestName = "binaural_test";
   const int kNumSamples = 882;
   const int kNumChannels = 71;
@@ -168,7 +168,7 @@ TEST(SAITest, DISABLED_MatchesMatlabOnBinauralData) {
   vector<ArrayX> expected_sai_frame =
      LoadMatrix(kTestName + "-matlab-sai1.txt", kNumChannels, sai_params.width);
   for (int channel = 0; channel < kNumChannels; ++channel) {
-    const float kPrecisionLevel = 1.0e-7;
+    const float kPrecisionLevel = 1.0e-8;
     AssertArrayNear(expected_sai_frame[channel].transpose(),
                     sai_frame.row(channel),
                     kPrecisionLevel);

@@ -35,7 +35,8 @@ void SAI::Redesign(const SAIParams& params) {
   input_buffer_.setZero(params_.num_channels, buffer_width);
   output_buffer_.setZero(params_.num_channels, params_.width);
 
-  window_.setLinSpaced(params_.window_width, kPi / params_.window_width, kPi)
+  window_ =
+      ArrayX::LinSpaced(params_.window_width, kPi / params_.window_width, kPi)
       .sin();
 }
 
@@ -74,9 +75,9 @@ void SAI::StabilizeSegment(const ArrayXX& input_buffer,
   float window_hop = params_.window_width / 2;
   int window_start = (input_buffer.cols() - params_.window_width) -
       (params_.num_window_pos - 1) * window_hop;
-  int window_range_start = window_start - params_.future_lags - 1;
-  int offset_range_start = window_start - params_.width;
-  assert(offset_range_start >= 0);
+  int window_range_start = window_start - params_.future_lags;
+  int offset_range_start = 1 + window_start - params_.width;
+  assert(offset_range_start > 0);
   for (int i = 0; i < params_.num_channels; ++i) {
     // TODO(ronw): Rename this here and in the Matlab code since the
     // input doesn't have to contain naps.
