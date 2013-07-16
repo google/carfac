@@ -1,8 +1,8 @@
 % Author: Alex Brandmeyer
 %
-% This Matlab file is part of an implementation of Lyon's cochlear model:
+% This file is part of an implementation of Lyon's cochlear model:
 % "Cascade of Asymmetric Resonators with Fast-Acting Compression"
-% to supplement Lyon's upcoming book "Human and Machine Hearing"
+% to supplement Lyon's upcoming book "Human and Machine Hearing".
 %
 % Licensed under the Apache License, Version 2.0 (the "License");
 % you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ assert(size(signal, 2) == 2, 'Expected stereo signal.');
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears, fs);
 WriteTestData(test_data_dir, 'long_test', signal, CF_struct, sai_struct);
-
+20
 
 function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct)
 % The following section generates data for the binaural test of the C++

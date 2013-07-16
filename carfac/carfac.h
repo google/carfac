@@ -1,12 +1,8 @@
+// Author: Alex Brandmeyer
 //
-//  carfac.h
-//  CARFAC Open Source C++ Library
-//
-//  Created by Alex Brandmeyer on 5/10/13.
-//
-// This C++ file is part of an implementation of Lyon's cochlear model:
+// This file is part of an implementation of Lyon's cochlear model:
 // "Cascade of Asymmetric Resonators with Fast-Acting Compression"
-// to supplement Lyon's upcoming book "Human and Machine Hearing"
+// to supplement Lyon's upcoming book "Human and Machine Hearing".
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +15,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
+
 // This header declares the main interface for the CARFAC cochlear model.
 
 #ifndef CARFAC_CARFAC_H
