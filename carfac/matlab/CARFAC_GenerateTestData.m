@@ -32,7 +32,7 @@ function CARFAC_GenerateTestData()
 
 % This designates a subdirectory of the C++ CARFAC folder to store the
 % test data.
-test_data_dir = '../../../carfac/test_data/';
+test_data_dir = '../test_data/';
 
 sai_struct = struct('width', 500, ...
                     'future_lags', 250, ...

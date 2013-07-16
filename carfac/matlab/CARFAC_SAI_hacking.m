@@ -27,9 +27,7 @@ system('mkdir frames');
 
 dB_list = -40; %  -60:20:0
 
-wav_fn = 'plan.wav';
-wav_fn = 'Stiletto44.wav';
-wav_fn = 'You Can Call Me Al.wav';
+wav_fn = '../test_data/binaural_test.wav';
 
 if ~exist(['./', wav_fn], 'file')
   error('wav file not found')

@@ -25,7 +25,7 @@ agc_plot_fig_num = 1;
 
 tic
 
-file_signal = wavread('plan.wav');
+file_signal = wavread('../test_data/binaural_test.wav');
 file_signal = file_signal(9000+(1:15000));  % trim for a faster test
 
 itd_offset = 22;  % about 1 ms

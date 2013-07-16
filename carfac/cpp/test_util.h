@@ -34,7 +34,7 @@
 
 // Location of the text files produced by 'CARFAC_GenerateTestData.m' for
 // comparing the ouput of the Matlab implementation with the C++ one.
-static const char* kTestDataDir = "./test_data/";
+static const char* kTestDataDir = "../test_data/";
 
 // Reads a matrix (size rows vector of size columns Container objects)
 // from a text file written using the Matlab dlmwrite function.

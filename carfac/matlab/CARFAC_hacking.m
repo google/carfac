@@ -27,7 +27,7 @@ use_wav_file = 1;
 dB_list = -40;  % -60:20:40
 
 if use_wav_file
-  wav_fn = 'plan.wav';
+  wav_fn = '../test_data/binaural_test.wav';
   
   wav_fn
   file_signal = wavread(wav_fn);
