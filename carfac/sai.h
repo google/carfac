@@ -47,14 +47,19 @@ struct SAIParams {
   FPType channel_smoothing_scale;
 };
 
+// Top-level class implementing the Stabilized Auditory Image.
+//
+// Repeated calls to the RunSegment menthod compute a sort of running
+// autocorrelation of a multi-channel input signal, typically a segment of the
+// neural activity pattern (NAP) outputs of the CARFAC filterbank.
 class SAI {
  public:
   explicit SAI(const SAIParams& params);
 
-  // Reinitialize using the specified parameters.
+  // Reinitializes using the specified parameters.
   void Redesign(const SAIParams& params);
 
-  // Reset the internal state.
+  // Resets the internal state.
   void Reset();
 
   // Fills output_frame with a params_.num_channels by params_.width SAI frame
@@ -67,8 +72,8 @@ class SAI {
                   ArrayXX* output_output_frame);
 
  private:
-  // Processes successive windows within input_buffer, choose trigger
-  // points, and blend each window into output_buffer.
+  // Processes successive windows within input_buffer, chooses trigger
+  // points, and blends each window into output_buffer.
   void StabilizeSegment(const ArrayXX& input_buffer,
                         ArrayXX* output_buffer) const;
 

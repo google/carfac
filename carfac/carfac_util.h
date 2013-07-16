@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Shared CARFAC utility functions.
+
 #ifndef CARFAC_CARFAC_UTIL_H
 #define CARFAC_CARFAC_UTIL_H
 

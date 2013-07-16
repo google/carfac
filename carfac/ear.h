@@ -39,12 +39,12 @@ class Ear {
       const IHCCoeffs& ihc_coeffs,
       const std::vector<AGCCoeffs>& agc_coeffs);
 
-  // Reinitialize using the specified parameters.
+  // Reinitializes using the specified parameters.
   void Redesign(const int num_channels, const CARCoeffs& car_coeffs,
                 const IHCCoeffs& ihc_coeffs,
                 const std::vector<AGCCoeffs>& agc_coeffs);
 
-  // Reset the internal state.
+  // Resets the internal state.
   void Reset();
 
   // These three methods apply the different steps of the model in sequence
@@ -96,7 +96,7 @@ class Ear {
     agc_state_[stage].agc_memory = new_values;
   }
 
-  // Setter functions for the CAR memory states.
+  // Sets the CAR memory states.
   void set_dzb_memory(const ArrayX& new_values) {
     car_state_.dzb_memory = new_values;
   }

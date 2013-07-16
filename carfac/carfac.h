@@ -19,6 +19,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// This header declares the main interface for the CARFAC cochlear model.
 
 #ifndef CARFAC_CARFAC_H
 #define CARFAC_CARFAC_H
@@ -33,13 +35,14 @@
 class CARFACOutput;
 class Ear;
 
-// Top-level class implementing the CAR-FAC C++ model. See the chapter entitled
-// 'The CAR-FAC Digital Cochlear Model' in Lyon's book "Human and Machine
-// Hearing" for an overview.
+// Top-level class implementing the Cascade of Asymmetric Resonators
+// with Fast-Acting Compression (CARFAC) cochlear model. See the chapter
+// entitled 'The CAR-FAC Digital Cochlear Model' in Lyon's book "Human
+// and Machine Hearing" for an overview.
 //
 // A CARFAC object knows how to design its details from a modest set of
 // parameters, and knows how to process sound signals to produce "neural
-// activity patterns" (NAPs) using CARFAC::RunSegment.
+// activity patterns" (NAPs) using the RunSegment method.
 class CARFAC {
  public:
   // Constructs a vector of Ear objects, one for each input audio channel,
@@ -49,12 +52,12 @@ class CARFAC {
          const AGCParams& agc_params);
   ~CARFAC();
 
-  // Reinitialize using the specified parameters.
+  // Reinitializes using the specified parameters.
   void Redesign(const int num_ears, const FPType sample_rate,
                 const CARParams& car_params, const IHCParams& ihc_params,
                 const AGCParams& agc_params);
 
-  // Reset the internal state so that subsequent calls to RunSegment are
+  // Resets the internal state so that subsequent calls to RunSegment are
   // independent of previous calls.  Does not modify the filterbank design.
   void Reset();
 

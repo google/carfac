@@ -30,8 +30,7 @@
 
 class Ear;
 
-// Container for the different types of output from a CARFAC model.  See the
-// private members below for details.
+// Container for the different types of output from a CARFAC model.
 class CARFACOutput {
  public:
   // The boolean argument indicate which portions of the CARFAC model's output
