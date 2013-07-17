@@ -2,7 +2,6 @@
 //
 // This file is part of an implementation of Lyon's cochlear model:
 // "Cascade of Asymmetric Resonators with Fast-Acting Compression"
-// to supplement Lyon's upcoming book "Human and Machine Hearing".
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,9 +31,7 @@ class CARFACOutput;
 class Ear;
 
 // Top-level class implementing the Cascade of Asymmetric Resonators
-// with Fast-Acting Compression (CARFAC) cochlear model. See the chapter
-// entitled 'The CAR-FAC Digital Cochlear Model' in Lyon's book "Human
-// and Machine Hearing" for an overview.
+// with Fast-Acting Compression (CARFAC) cochlear model.
 //
 // A CARFAC object knows how to design its details from a modest set of
 // parameters, and knows how to process sound signals to produce "neural
@@ -81,8 +78,6 @@ class CARFAC {
   // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
   // filter at the given center frequency.
   // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  // See also the section 'Auditory Frequency Scales' of the chapter 'Acoustic
-  // Approaches and Auditory Influence' in "Human and Machine Hearing".
   FPType ERBHz(const FPType center_frequency_hz, const FPType erb_break_freq,
                const FPType erb_q) const;
 

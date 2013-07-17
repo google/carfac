@@ -2,7 +2,6 @@
 //
 // This file is part of an implementation of Lyon's cochlear model:
 // "Cascade of Asymmetric Resonators with Fast-Acting Compression"
-// to supplement Lyon's upcoming book "Human and Machine Hearing".
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

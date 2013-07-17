@@ -1,4 +1,4 @@
-# Carfac.py - Cochlear filter model based on Dick Lyons work.  This material taken from his Hearing book (to be published)
+# Carfac.py - Cochlear filter model based on Dick Lyons work. 
 # Author: Al Strelzoff: strelz@mit.edu
 
 # The point of this file is to extract some of the formulas from the book and practice with them so as to better understand the filters.
