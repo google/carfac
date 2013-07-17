@@ -18,7 +18,7 @@
 # limitations under the License.
 
 """@package SConstruct
-SConstruct file for the CARFAC Open Source C++ Library.
+SConstruct file for the CARFAC C++ Library.
 
 To install dependencies on Ubuntu, run:
 
@@ -28,7 +28,7 @@ To install dependencies on Ubuntu, run:
   export GTEST_SOURCE=/usr/src/gtest
 
 To build all libraries, run:
- scons
+  scons
 
 To run unit tests, run:
   scons test
