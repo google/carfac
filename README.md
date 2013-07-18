@@ -11,6 +11,13 @@ model as well as code for computing Stabilized Auditory Images (SAIs).
 See CARFAC_Design_Doc.txt for a more detailed discussion of the
 software design.
 
+Links
+-----
+
+Project homepage: https://github.com/google/carfac
+Mailing list: carfac-dev@googlegroups.com or on the web at
+http://groups.google.com/group/carfac-dev
+
 Requirements
 ------------
 
