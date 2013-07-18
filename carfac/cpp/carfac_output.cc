@@ -1,3 +1,4 @@
+// Copyright 2013 The CARFAC Authors. All Rights Reserved.
 // Author: Alex Brandmeyer
 //
 // This file is part of an implementation of Lyon's cochlear model:

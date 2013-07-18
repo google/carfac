@@ -1,4 +1,4 @@
-% Copyright 2010, Google, Inc. All Rights Reserved.
+% Copyright 2010 The CARFAC Authors. All Rights Reserved.
 % Author Richard F. Lyon
 %
 % This file is part of an implementation of Lyon's cochlear model:
