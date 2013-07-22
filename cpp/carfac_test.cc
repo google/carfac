@@ -33,18 +33,17 @@
 #include "test_util.h"
 
 using std::deque;
-using std::string;
 using std::vector;
 
 // Reads a two dimensional vector of audio data from a text file
 // containing the output of the Matlab wavread() function.
-vector<vector<float>> LoadAudio(const string& filename, int timepoints,
+vector<vector<float>> LoadAudio(const std::string& filename, int timepoints,
                                 int num_channels) {
   return LoadMatrix<vector<float>, false>(filename, timepoints, num_channels);
 }
 
 // Writes the CARFAC NAP output to a text file.
-void WriteNAPOutput(const CARFACOutput& output, const string& filename,
+void WriteNAPOutput(const CARFACOutput& output, const std::string& filename,
                     int ear) {
   const int num_samples = output.nap().size();
   const int num_channels = output.nap()[0][0].size();
@@ -58,13 +57,13 @@ void WriteNAPOutput(const CARFACOutput& output, const string& filename,
 
 class CARFACTest : public testing::Test {
  protected:
-  deque<vector<ArrayX>> LoadTestData(const string& basename,
+  deque<vector<ArrayX>> LoadTestData(const std::string& basename,
                                      int num_samples,
                                      int num_ears,
                                      int num_channels) const {
     deque<vector<ArrayX>> test_data(num_samples, vector<ArrayX>(num_ears));
     for (int ear = 0; ear < num_ears; ++ear) {
-      string filename = basename + std::to_string(ear + 1) + ".txt";
+      std::string filename = basename + std::to_string(ear + 1) + ".txt";
       vector<ArrayX> data = LoadMatrix(filename, num_samples, num_channels);
       for (int i = 0; i < num_samples; ++i) {
         test_data[i][ear] = data[i];
@@ -86,7 +85,7 @@ class CARFACTest : public testing::Test {
       }
   }
 
-  void RunCARFACAndCompareWithMatlab(const string& test_name,
+  void RunCARFACAndCompareWithMatlab(const std::string& test_name,
                                      int num_samples,
                                      int num_ears,
                                      int num_channels,

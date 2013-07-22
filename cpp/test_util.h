@@ -48,14 +48,13 @@ std::vector<Container> LoadMatrix(const std::string& filename, int rows,
   } else {
     output.assign(columns, Container(rows));
   }
-  if (file.is_open()) {
-    for (int i = 0; i < rows; ++i) {
-      for (int j = 0; j < columns; ++j) {
-        if (ColMajor) {
-          file >> output[i][j];
-        } else {
-          file >> output[j][i];
-        }
+  assert(file.is_open());
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (ColMajor) {
+        file >> output[i][j];
+      } else {
+        file >> output[j][i];
       }
     }
   }
