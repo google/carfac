@@ -41,15 +41,13 @@ class CARFAC {
  public:
   // Constructs a vector of Ear objects, one for each input audio channel,
   // using the given CAR, IHC and AGC parameters.
-  CARFAC(const int num_ears, const FPType sample_rate,
-         const CARParams& car_params, const IHCParams& ihc_params,
-         const AGCParams& agc_params);
+  CARFAC(int num_ears, FPType sample_rate, const CARParams& car_params,
+         const IHCParams& ihc_params, const AGCParams& agc_params);
   ~CARFAC();
 
   // Reinitializes using the specified parameters.
-  void Redesign(const int num_ears, const FPType sample_rate,
-                const CARParams& car_params, const IHCParams& ihc_params,
-                const AGCParams& agc_params);
+  void Redesign(int num_ears, FPType sample_rate, const CARParams& car_params,
+                const IHCParams& ihc_params, const AGCParams& agc_params);
 
   // Resets the internal state so that subsequent calls to RunSegment are
   // independent of previous calls.  Does not modify the filterbank design.
@@ -62,16 +60,16 @@ class CARFAC {
   // each ear, i.e. the outer vector should have size num_ears, and
   // the inner vector should have size num_samples.
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
-                  const bool open_loop, CARFACOutput* output);
+                  bool open_loop, CARFACOutput* output);
 
   int num_channels() const { return num_channels_; }
 
  private:
-  void DesignCARCoeffs(const CARParams& car_params, const FPType sample_rate,
+  void DesignCARCoeffs(const CARParams& car_params, FPType sample_rate,
                        const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
-  void DesignIHCCoeffs(const IHCParams& ihc_params, const FPType sample_rate,
+  void DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
                        IHCCoeffs* ihc_coeffs);
-  void DesignAGCCoeffs(const AGCParams& agc_params, const FPType sample_rate,
+  void DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
                        std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
@@ -79,8 +77,8 @@ class CARFAC {
   // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
   // filter at the given center frequency.
   // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  FPType ERBHz(const FPType center_frequency_hz, const FPType erb_break_freq,
-               const FPType erb_q) const;
+  FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
+               FPType erb_q) const;
 
   CARParams car_params_;
   IHCParams ihc_params_;

@@ -31,13 +31,13 @@
 // filter coefficients and states.
 class Ear {
  public:
-  Ear(const int num_channels,
+  Ear(int num_channels,
       const CARCoeffs& car_coeffs,
       const IHCCoeffs& ihc_coeffs,
       const std::vector<AGCCoeffs>& agc_coeffs);
 
   // Reinitializes using the specified parameters.
-  void Redesign(const int num_channels,
+  void Redesign(int num_channels,
                 const CARCoeffs& car_coeffs,
                 const IHCCoeffs& ihc_coeffs,
                 const std::vector<AGCCoeffs>& agc_coeffs);
@@ -47,7 +47,7 @@ class Ear {
 
   // These three methods apply the different steps of the model in sequence
   // to individual audio samples during the call to CARFAC::RunSegment.
-  void CARStep(const FPType input);
+  void CARStep(FPType input);
   // TODO(ronw): Consider changing the interface for the following two
   // methods to access the internal state members directly instead of
   // requiring callers to confusingly have to call an accessor method
@@ -73,25 +73,21 @@ class Ear {
 
   // These accessor functions return portions of the AGC state during the cross
   // coupling of the ears.
-  const int agc_num_stages() const { return agc_coeffs_.size(); }
-  const int agc_decim_phase(const int stage) const {
-    return agc_state_[stage].decim_phase;
-  }
-  const FPType agc_mix_coeff(const int stage) const {
+  int agc_num_stages() const { return agc_coeffs_.size(); }
+  int agc_decim_phase(int stage) const { return agc_state_[stage].decim_phase; }
+  FPType agc_mix_coeff(int stage) const {
     return agc_coeffs_[stage].agc_mix_coeffs;
   }
-  const ArrayX& agc_memory(const int stage) const {
+  const ArrayX& agc_memory(int stage) const {
     return agc_state_[stage].agc_memory;
   }
-  const int agc_decimation(const int stage) const {
-    return agc_coeffs_[stage].decimation;
-  }
+  int agc_decimation(int stage) const { return agc_coeffs_[stage].decimation; }
 
   // Returns the stage G value during the closing of the AGC loop.
   ArrayX StageGValue(const ArrayX& undamping) const;
 
   // Sets the AGC memory during the cross coupling stage.
-  void set_agc_memory(const int stage, const ArrayX& new_values) {
+  void set_agc_memory(int stage, const ArrayX& new_values) {
     agc_state_[stage].agc_memory = new_values;
   }
 
@@ -113,9 +109,9 @@ class Ear {
   void OHCNonlinearFunction(const ArrayX& velocities,
                             ArrayX* nonlinear_fun) const;
   // Returns true iff the AGC memory is updated.
-  bool AGCRecurse(const int stage, ArrayX agc_in);
+  bool AGCRecurse(int stage, ArrayX agc_in);
   void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state) const;
-  void AGCSmoothDoubleExponential(const FPType pole_z1, const FPType pole_z2,
+  void AGCSmoothDoubleExponential(FPType pole_z1, FPType pole_z2,
                                   ArrayX* stage_state) const;
 
   CARCoeffs car_coeffs_;

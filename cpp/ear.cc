@@ -22,14 +22,14 @@
 
 #include "carfac_util.h"
 
-Ear::Ear(const int num_channels,
+Ear::Ear(int num_channels,
          const CARCoeffs& car_coeffs,
          const IHCCoeffs& ihc_coeffs,
          const std::vector<AGCCoeffs>& agc_coeffs) {
   Redesign(num_channels, car_coeffs, ihc_coeffs, agc_coeffs);
 }
 
-void Ear::Redesign(const int num_channels,
+void Ear::Redesign(int num_channels,
                    const CARCoeffs& car_coeffs,
                    const IHCCoeffs& ihc_coeffs,
                    const std::vector<AGCCoeffs>& agc_coeffs) {
@@ -82,7 +82,7 @@ void Ear::InitAGCState() {
   }
 }
 
-void Ear::CARStep(const FPType input) {
+void Ear::CARStep(FPType input) {
   // Interpolates g.
   car_state_.g_memory = car_state_.g_memory + car_state_.dg_memory;
   // Calculates the AGC interpolation state.
@@ -175,7 +175,7 @@ bool Ear::AGCStep(const ArrayX& ihc_out) {
   return updated;
 }
 
-bool Ear::AGCRecurse(const int stage, ArrayX agc_in) {
+bool Ear::AGCRecurse(int stage, ArrayX agc_in) {
   bool updated = true;
   const AGCCoeffs& agc_coeffs = agc_coeffs_[stage];
   AGCState& agc_state = agc_state_[stage];
@@ -266,8 +266,8 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
   }
 }
 
-void Ear::AGCSmoothDoubleExponential(const FPType pole_z1,
-                                     const FPType pole_z2,
+void Ear::AGCSmoothDoubleExponential(FPType pole_z1,
+                                     FPType pole_z2,
                                      ArrayX* stage_state) const {
   int32_t num_points = stage_state->size();
   FPType input;

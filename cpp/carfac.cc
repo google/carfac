@@ -26,9 +26,8 @@
 
 using std::vector;
 
-CARFAC::CARFAC(const int num_ears, const FPType sample_rate,
-               const CARParams& car_params, const IHCParams& ihc_params,
-               const AGCParams& agc_params) {
+CARFAC::CARFAC(int num_ears, FPType sample_rate, const CARParams& car_params,
+               const IHCParams& ihc_params, const AGCParams& agc_params) {
   Redesign(num_ears, sample_rate, car_params, ihc_params, agc_params);
 }
 
@@ -38,7 +37,7 @@ CARFAC::~CARFAC() {
   }
 }
 
-void CARFAC::Redesign(const int num_ears, const FPType sample_rate,
+void CARFAC::Redesign(int num_ears, FPType sample_rate,
                       const CARParams& car_params, const IHCParams& ihc_params,
                       const AGCParams& agc_params) {
   num_ears_ = num_ears;
@@ -87,9 +86,9 @@ void CARFAC::Reset() {
 }
 
 void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
-                        const bool open_loop, CARFACOutput* output) {
+                        bool open_loop, CARFACOutput* output) {
   assert(sound_data.size() == num_ears_);
-  int num_samples = sound_data[0].size();
+  const int num_samples = sound_data[0].size();
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
   bool agc_memory_updated = false;
@@ -151,7 +150,7 @@ void CARFAC::CloseAGCLoop() {
 }
 
 void CARFAC::DesignCARCoeffs(const CARParams& car_params,
-                             const FPType sample_rate,
+                             FPType sample_rate,
                              const ArrayX& pole_freqs,
                              CARCoeffs* car_coeffs) {
   num_channels_ = pole_freqs.size();
@@ -189,8 +188,8 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params,
     (car_coeffs->h_coeffs * r * car_coeffs->c0_coeffs) + (r*r));
 }
 
-void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params,
-                             const FPType sample_rate, IHCCoeffs* ihc_coeffs) {
+void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
+                             IHCCoeffs* ihc_coeffs) {
   if (ihc_params.just_half_wave_rectify) {
     ihc_coeffs->just_half_wave_rectify = ihc_params.just_half_wave_rectify;
   } else {
@@ -246,8 +245,7 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params,
   ihc_coeffs->ac_coeff = 2 * kPi * ihc_params.ac_corner_hz / sample_rate;
 }
 
-void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
-                             const FPType sample_rate,
+void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
                              vector<AGCCoeffs>* agc_coeffs) {
   agc_coeffs->resize(agc_params.num_stages);
   FPType previous_stage_gain = 0.0;
@@ -354,7 +352,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params,
   }
 }
 
-FPType CARFAC::ERBHz(const FPType center_frequency_hz,
-                     const FPType erb_break_freq, const FPType erb_q) const {
+FPType CARFAC::ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
+                     FPType erb_q) const {
   return (erb_break_freq + center_frequency_hz) / erb_q;
 }
