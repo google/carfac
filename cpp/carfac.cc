@@ -87,26 +87,24 @@ void CARFAC::Reset() {
 }
 
 void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
-                        const int32_t start, const int32_t length,
-                        const bool open_loop, CARFACOutput* seg_output) {
+                        const bool open_loop, CARFACOutput* output) {
   assert(sound_data.size() == num_ears_);
+  int num_samples = sound_data[0].size();
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
-  bool updated;  // This variable is used by the AGC stage.
-  for (int32_t timepoint = 0; timepoint < length; ++timepoint) {
+  bool agc_memory_updated = false;
+  for (int32_t timepoint = 0; timepoint < num_samples; ++timepoint) {
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
-      Ear* ear = ears_[audio_channel];
-      // This stores the audio sample currently being processed.
-      FPType input = sound_data[audio_channel][start + timepoint];
+      FPType input_sample = sound_data[audio_channel][timepoint];
 
-      // Now we apply the three stages of the model in sequence to the current
-      // audio sample.
-      ear->CARStep(input);
+      Ear* ear = ears_[audio_channel];
+      // Apply the three stages of the model in sequence to the current sample.
+      ear->CARStep(input_sample);
       ear->IHCStep(ear->car_out());
-      updated = ear->AGCStep(ear->ihc_out());
+      agc_memory_updated = ear->AGCStep(ear->ihc_out());
     }
-    seg_output->AppendOutput(ears_);
-    if (updated) {
+    output->AppendOutput(ears_);
+    if (agc_memory_updated) {
       if (num_ears_ > 1) {
         CrossCouple();
       }

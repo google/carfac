@@ -193,7 +193,7 @@ TEST(SAITest, CARFACIntegration) {
   CARFAC carfac(kNumEars, 800, car_params, ihc_params, agc_params);
   CARFACOutput output(true, false, false, false);
   const bool kOpenLoop = false;
-  carfac.RunSegment(segment, 0, kNumSamples, kOpenLoop, &output);
+  carfac.RunSegment(segment, kOpenLoop, &output);
 
   vector<ArrayX> nap_segment;
   nap_segment.reserve(output.nap().size());

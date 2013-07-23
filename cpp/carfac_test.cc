@@ -99,8 +99,7 @@ class CARFACTest : public testing::Test {
     CARFAC carfac(num_ears, sample_rate, car_params, ihc_params, agc_params);
     CARFACOutput output(true, true, false, false);
     const bool kOpenLoop = false;
-    const int length = sound_data[0].size();
-    carfac.RunSegment(sound_data, 0, length, kOpenLoop, &output);
+    carfac.RunSegment(sound_data, kOpenLoop, &output);
 
     // TODO(ronw): Don't unconditionally overwrite files that are
     // checked in to the repository on every test run.

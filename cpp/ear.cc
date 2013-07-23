@@ -22,13 +22,15 @@
 
 #include "carfac_util.h"
 
-Ear::Ear(const int num_channels, const CARCoeffs& car_coeffs,
+Ear::Ear(const int num_channels,
+         const CARCoeffs& car_coeffs,
          const IHCCoeffs& ihc_coeffs,
          const std::vector<AGCCoeffs>& agc_coeffs) {
   Redesign(num_channels, car_coeffs, ihc_coeffs, agc_coeffs);
 }
 
-void Ear::Redesign(const int num_channels, const CARCoeffs& car_coeffs,
+void Ear::Redesign(const int num_channels,
+                   const CARCoeffs& car_coeffs,
                    const IHCCoeffs& ihc_coeffs,
                    const std::vector<AGCCoeffs>& agc_coeffs) {
   num_channels_ = num_channels;

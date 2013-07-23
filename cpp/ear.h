@@ -31,12 +31,14 @@
 // filter coefficients and states.
 class Ear {
  public:
-  Ear(const int num_channels, const CARCoeffs& car_coeffs,
+  Ear(const int num_channels,
+      const CARCoeffs& car_coeffs,
       const IHCCoeffs& ihc_coeffs,
       const std::vector<AGCCoeffs>& agc_coeffs);
 
   // Reinitializes using the specified parameters.
-  void Redesign(const int num_channels, const CARCoeffs& car_coeffs,
+  void Redesign(const int num_channels,
+                const CARCoeffs& car_coeffs,
                 const IHCCoeffs& ihc_coeffs,
                 const std::vector<AGCCoeffs>& agc_coeffs);
 
@@ -52,6 +54,7 @@ class Ear {
   // just to pass internal data back into the same object as in:
   //   ear.IHCStep(ear.car_out());
   void IHCStep(const ArrayX& car_out);
+  // Returns true iff the AGC memory is updated.
   bool AGCStep(const ArrayX& ihc_out);
 
   // These accessor functions return portions of the CAR state for storage in
@@ -109,6 +112,7 @@ class Ear {
   // Helper sub-functions called during the model runtime.
   void OHCNonlinearFunction(const ArrayX& velocities,
                             ArrayX* nonlinear_fun) const;
+  // Returns true iff the AGC memory is updated.
   bool AGCRecurse(const int stage, ArrayX agc_in);
   void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state) const;
   void AGCSmoothDoubleExponential(const FPType pole_z1, const FPType pole_z2,

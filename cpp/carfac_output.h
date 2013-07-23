@@ -34,8 +34,7 @@ class CARFACOutput {
   //
   // TODO(ronw): Consider removing store_nap, unless there is a reasonable use
   // case for setting it to false?
-  CARFACOutput(const bool store_nap, const bool store_bm, const bool store_ohc,
-               const bool store_agc);
+  CARFACOutput(bool store_nap, bool store_bm, bool store_ohc, bool store_agc);
 
   // Appends a single frame of n_ears x n_channels data to the end of the
   // individual data members selected for storage.  This is called on a sample

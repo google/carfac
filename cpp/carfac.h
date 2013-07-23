@@ -55,14 +55,14 @@ class CARFAC {
   // independent of previous calls.  Does not modify the filterbank design.
   void Reset();
 
-  // Processes an individual sound segment and copies the model output to
-  // seg_output.
+  // Processes an individual sound segment and stores the model output in
+  // output.  Consumes the entire input signal.
   //
-  // The input sound_data should contain a vector of audio samples for each
-  // ear.
+  // The input sound_data should contain a vector of audio samples for
+  // each ear, i.e. the outer vector should have size num_ears, and
+  // the inner vector should have size num_samples.
   void RunSegment(const std::vector<std::vector<float>>& sound_data,
-                  const int32_t start, const int32_t length,
-                  const bool open_loop, CARFACOutput* seg_output);
+                  const bool open_loop, CARFACOutput* output);
 
   int num_channels() const { return num_channels_; }
 
