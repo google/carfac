@@ -63,6 +63,9 @@ class CARFAC {
                   bool open_loop, CARFACOutput* output);
 
   int num_channels() const { return num_channels_; }
+  // Returns an array of pole/center frequencies in Hertz for each output
+  // channel.
+  const ArrayX& pole_frequencies() const { return pole_freqs_; }
 
  private:
   static void DesignCARCoeffs(const CARParams& car_params, FPType sample_rate,
