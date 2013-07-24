@@ -99,8 +99,8 @@ void Ear::CARStep(FPType input) {
   ArrayX z1  = r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
                     (car_coeffs_.c0_coeffs * car_state_.z2_memory));
   car_state_.z2_memory = r *
-    ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
-     (car_coeffs_.a0_coeffs * car_state_.z2_memory));
+      ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
+       (car_coeffs_.a0_coeffs * car_state_.z2_memory));
   car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
   // This section ripples the input-output path, to avoid delay...
   // It's the only part that doesn't get computed "in parallel":
@@ -109,7 +109,7 @@ void Ear::CARStep(FPType input) {
     z1(channel) = z1(channel) + in_out;
     // This performs the ripple, and saves the final channel outputs in zy.
     in_out = car_state_.g_memory(channel) *
-      (in_out + car_state_.zy_memory(channel));
+        (in_out + car_state_.zy_memory(channel));
     car_state_.zy_memory(channel) = in_out;
   }
   car_state_.z1_memory = z1;
@@ -143,25 +143,25 @@ void Ear::IHCStep(const ArrayX& car_out) {
     if (ihc_coeffs_.one_capacitor) {
       ihc_state_.ihc_out = conductance * ihc_state_.cap1_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
-        (ihc_state_.ihc_out * ihc_coeffs_.out1_rate) +
-        ((1 - ihc_state_.cap1_voltage) * ihc_coeffs_.in1_rate);
+          (ihc_state_.ihc_out * ihc_coeffs_.out1_rate) +
+          ((1 - ihc_state_.cap1_voltage) * ihc_coeffs_.in1_rate);
     } else {
       ihc_state_.ihc_out = conductance * ihc_state_.cap2_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
-        ((ihc_state_.cap1_voltage - ihc_state_.cap2_voltage)
-         * ihc_coeffs_.out1_rate) + ((1 - ihc_state_.cap1_voltage) *
-                                      ihc_coeffs_.in1_rate);
+          ((ihc_state_.cap1_voltage - ihc_state_.cap2_voltage)
+           * ihc_coeffs_.out1_rate) + ((1 - ihc_state_.cap1_voltage) *
+                                       ihc_coeffs_.in1_rate);
       ihc_state_.cap2_voltage = ihc_state_.cap2_voltage -
-        (ihc_state_.ihc_out * ihc_coeffs_.out2_rate) +
-        ((ihc_state_.cap1_voltage - ihc_state_.cap2_voltage)
-         * ihc_coeffs_.in2_rate);
+          (ihc_state_.ihc_out * ihc_coeffs_.out2_rate) +
+          ((ihc_state_.cap1_voltage - ihc_state_.cap2_voltage)
+           * ihc_coeffs_.in2_rate);
     }
     // Smooth the output twice using an LPF.
     ihc_state_.ihc_out *= ihc_coeffs_.output_gain;
     ihc_state_.lpf1_state += ihc_coeffs_.lpf_coeff *
-      (ihc_state_.ihc_out - ihc_state_.lpf1_state);
+        (ihc_state_.ihc_out - ihc_state_.lpf1_state);
     ihc_state_.lpf2_state += ihc_coeffs_.lpf_coeff *
-      (ihc_state_.lpf1_state - ihc_state_.lpf2_state);
+        (ihc_state_.lpf1_state - ihc_state_.lpf2_state);
     ihc_state_.ihc_out = ihc_state_.lpf2_state - ihc_coeffs_.rest_output;
   }
   ihc_state_.ihc_accum += ihc_state_.ihc_out;
@@ -201,11 +201,11 @@ bool Ear::AGCRecurse(int stage, ArrayX agc_in) {
       // Afterwards we add its output to this stage input, whether it updated or
       // not.
       agc_in += agc_coeffs.agc_stage_gain *
-        agc_state_[stage + 1].agc_memory;
+          agc_state_[stage + 1].agc_memory;
     }
     // This performs a first-order recursive smoothing filter update, in time.
     agc_state.agc_memory += agc_coeffs.agc_epsilon *
-      (agc_in - agc_state.agc_memory);
+        (agc_in - agc_state.agc_memory);
     AGCSpatialSmooth(agc_coeffs_[stage], &agc_state.agc_memory);
     updated = true;
   } else {
@@ -232,14 +232,14 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
     // both possible cases.
     ss_tap1(0) = (*stage_state)(0);
     ss_tap1.block(1, 0, num_channels_ - 1, 1) =
-      stage_state->block(0, 0, num_channels_ - 1, 1);
+        stage_state->block(0, 0, num_channels_ - 1, 1);
     ss_tap2(num_channels_ - 1) = (*stage_state)(num_channels_ - 1);
     ss_tap2.block(0, 0, num_channels_ - 1, 1) =
-      stage_state->block(1, 0, num_channels_ - 1, 1);
+        stage_state->block(1, 0, num_channels_ - 1, 1);
     switch (n_taps) {
       case 3:
         *stage_state = (fir_coeffs_left * ss_tap1) +
-          (fir_coeffs_mid * *stage_state) + (fir_coeffs_right * ss_tap2);
+            (fir_coeffs_mid * *stage_state) + (fir_coeffs_right * ss_tap2);
         break;
       case 5:
         // Now we initialize last two taps of stage state, which are only used
@@ -247,14 +247,14 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
         ss_tap3(0) = (*stage_state)(0);
         ss_tap3(1) = (*stage_state)(1);
         ss_tap3.block(2, 0, num_channels_ - 2, 1) =
-          stage_state->block(0, 0, num_channels_ - 2, 1);
+            stage_state->block(0, 0, num_channels_ - 2, 1);
         ss_tap4(num_channels_ - 2) = (*stage_state)(num_channels_ - 1);
         ss_tap4(num_channels_ - 1) = (*stage_state)(num_channels_ - 2);
         ss_tap4.block(0, 0, num_channels_ - 2, 1) =
-        stage_state->block(2, 0, num_channels_ - 2, 1);
+            stage_state->block(2, 0, num_channels_ - 2, 1);
         *stage_state = (fir_coeffs_left * (ss_tap3 + ss_tap1)) +
-          (fir_coeffs_mid * *stage_state) +
-          (fir_coeffs_right * (ss_tap2 + ss_tap4));
+            (fir_coeffs_mid * *stage_state) +
+            (fir_coeffs_right * (ss_tap2 + ss_tap4));
         break;
       default:
         assert(true && "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
@@ -292,6 +292,6 @@ void Ear::AGCSmoothDoubleExponential(FPType pole_z1,
 ArrayX Ear::StageGValue(const ArrayX& undamping) const {
   ArrayX r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
   return (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
-    (1 - 2 * r * car_coeffs_.a0_coeffs + car_coeffs_.h_coeffs * r *
-     car_coeffs_.c0_coeffs + (r * r));
+      (1 - 2 * r * car_coeffs_.a0_coeffs + car_coeffs_.h_coeffs * r *
+       car_coeffs_.c0_coeffs + (r * r));
 }

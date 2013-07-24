@@ -65,20 +65,20 @@ class CARFAC {
   int num_channels() const { return num_channels_; }
 
  private:
-  void DesignCARCoeffs(const CARParams& car_params, FPType sample_rate,
-                       const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
-  void DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
-                       IHCCoeffs* ihc_coeffs);
-  void DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
-                       std::vector<AGCCoeffs>* agc_coeffs);
+  static void DesignCARCoeffs(const CARParams& car_params, FPType sample_rate,
+                              const ArrayX& pole_freqs, CARCoeffs* car_coeffs);
+  static void DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
+                              IHCCoeffs* ihc_coeffs);
+  static void DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
+                              std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
   void CloseAGCLoop();
 
   // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
   // filter at the given center frequency.
   // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
-               FPType erb_q) const;
+  static FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
+                      FPType erb_q);
 
   CARParams car_params_;
   IHCParams ihc_params_;
