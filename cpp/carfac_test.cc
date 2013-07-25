@@ -32,57 +32,45 @@
 #include "ihc.h"
 #include "test_util.h"
 
-using std::deque;
 using std::vector;
 
 // Reads a two dimensional vector of audio data from a text file
 // containing the output of the Matlab wavread() function.
-vector<vector<float>> LoadAudio(const std::string& filename, int timepoints,
-                                int num_channels) {
-  return LoadMatrix<vector<float>, false>(filename, timepoints, num_channels);
+ArrayXX LoadAudio(const std::string& filename, int num_samples, int num_ears) {
+  // The Matlab audio input is transposed compared to the C++.
+  return LoadMatrix(filename, num_samples, num_ears).transpose();
 }
 
 // Writes the CARFAC NAP output to a text file.
 void WriteNAPOutput(const CARFACOutput& output, const std::string& filename,
                     int ear) {
-  const int num_samples = output.nap().size();
-  const int num_channels = output.nap()[0][0].size();
-  ArrayXX nap_matrix(num_samples, num_channels);
-  for (int i = 0; i < num_samples; ++i) {
-    nap_matrix.row(i) = output.nap()[i][ear];
-  }
-
-  WriteMatrix(filename, nap_matrix);
+  WriteMatrix(filename, output.nap()[ear].transpose());
 }
 
 class CARFACTest : public testing::Test {
  protected:
-  deque<vector<ArrayX>> LoadTestData(const std::string& basename,
-                                     int num_samples,
-                                     int num_ears,
-                                     int num_channels) const {
-    deque<vector<ArrayX>> test_data(num_samples, vector<ArrayX>(num_ears));
+  vector<ArrayXX> LoadTestData(const std::string& basename,
+                               int num_samples,
+                               int num_ears,
+                               int num_channels) const {
+    vector<ArrayXX> test_data;
     for (int ear = 0; ear < num_ears; ++ear) {
       std::string filename = basename + std::to_string(ear + 1) + ".txt";
-      vector<ArrayX> data = LoadMatrix(filename, num_samples, num_channels);
-      for (int i = 0; i < num_samples; ++i) {
-        test_data[i][ear] = data[i];
-      }
+      // The Matlab CARFAC output is transposed compared to the C++.
+      test_data.push_back(
+          LoadMatrix(filename, num_samples, num_channels).transpose());
     }
     return test_data;
   }
 
-  void AssertCARFACOutputNear(const deque<vector<ArrayX>>& expected,
-                              const deque<vector<ArrayX>>& actual,
+  void AssertCARFACOutputNear(const vector<ArrayXX>& expected,
+                              const vector<ArrayXX>& actual,
                               int num_samples,
                               int num_ears) const {
-    for (int timepoint = 0; timepoint < num_samples; ++timepoint) {
-      for (int ear = 0; ear < num_ears; ++ear) {
-        const float kPrecisionLevel = 1.0e-7;
-        AssertArrayNear(expected[timepoint][ear], actual[timepoint][ear],
-                        kPrecisionLevel);
-        }
-      }
+    for (int ear = 0; ear < num_ears; ++ear) {
+      const float kPrecisionLevel = 1.0e-7;
+      AssertArrayNear(expected[ear], actual[ear], kPrecisionLevel);
+    }
   }
 
   void RunCARFACAndCompareWithMatlab(const std::string& test_name,
@@ -90,7 +78,7 @@ class CARFACTest : public testing::Test {
                                      int num_ears,
                                      int num_channels,
                                      FPType sample_rate) const {
-    vector<vector<float>> sound_data =
+    ArrayXX sound_data =
         LoadAudio(test_name + "-audio.txt", num_samples, num_ears);
 
     CARParams car_params;
@@ -106,10 +94,10 @@ class CARFACTest : public testing::Test {
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
 
-    deque<vector<ArrayX>> expected_nap = LoadTestData(
+    vector<ArrayXX> expected_nap = LoadTestData(
         test_name + "-matlab-nap", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_nap, output.nap(), num_samples, num_ears);
-    deque<vector<ArrayX>> expected_bm = LoadTestData(
+    vector<ArrayXX> expected_bm = LoadTestData(
         test_name + "-matlab-bm", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_bm, output.bm(), num_samples, num_ears);
   }

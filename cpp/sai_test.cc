@@ -20,7 +20,6 @@
 
 #include <iostream>
 #include <string>
-#include <vector>
 
 #include <Eigen/Core>
 
@@ -35,23 +34,14 @@
 #include "test_util.h"
 
 using testing::Values;
-using std::vector;
 
-vector<ArrayX> CreateZeroSegment(int num_channels, int num_samples) {
-  vector<ArrayX> segment;
-  for (int i = 0; i < num_samples; ++i) {
-    segment.push_back(ArrayX::Zero(num_channels));
-  }
-  return segment;
-}
-
-vector<ArrayX> CreatePulseTrain(int num_channels, int num_samples, int period) {
-  vector<ArrayX> segment = CreateZeroSegment(num_channels, num_samples);
+ArrayXX CreatePulseTrain(int num_channels, int num_samples, int period) {
+  ArrayXX segment = ArrayXX::Zero(num_channels, num_samples);
   for (int i = 0; i < num_channels; ++i) {
     // Begin each channel at a different phase.
     const int phase = i % period;
-    for (int j = phase; j < segment.size(); j += period) {
-      segment[j](i) = 1;
+    for (int j = phase; j < num_samples; j += period) {
+      segment(i, j) = 1;
     }
   }
   return segment;
@@ -66,15 +56,6 @@ SAIParams CreateSAIParams(int num_channels, int window_width, int width) {
   sai_params.future_lags = sai_params.width / 2;
   sai_params.num_window_pos = 2;
   return sai_params;
-}
-
-void PrintSAIInput(const vector<ArrayX>& input) {
-  for (int i = 0; i < input[0].size(); ++i) {
-    for (int j = 0; j < input.size(); ++j) {
-      std::cout << input[j](i) << " ";
-    }
-    std::cout << std::endl;
-  }
 }
 
 bool HasPeakAt(const ArrayX& frame, int index) {
@@ -100,8 +81,7 @@ class SAIPeriodicInputTest
 
 TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
   const int kNumSamples = 38;
-  vector<ArrayX> segment =
-      CreatePulseTrain(num_channels_, kNumSamples, period_);
+  ArrayXX segment = CreatePulseTrain(num_channels_, kNumSamples, period_);
 
   const int kSAIWidth = 15;
   SAIParams sai_params = CreateSAIParams(num_channels_, segment.size(),
@@ -121,9 +101,8 @@ TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
     }
   }
 
-  std::cout << "Input:" << std::endl;
-  PrintSAIInput(segment);
-  std::cout << "Output:" << std::endl << sai_frame << std::endl;
+  std::cout << "Input:" << std::endl << segment << std::endl
+            << "Output:" << std::endl << sai_frame << std::endl;
 }
 
 INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
@@ -134,7 +113,7 @@ TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
   const int kNumChannels = 1;
   const int kNumSamples = 10;
   const int kPeriod = 4;
-  vector<ArrayX> segment = CreatePulseTrain(kNumChannels, kNumSamples, kPeriod);
+  ArrayXX segment = CreatePulseTrain(kNumChannels, kNumSamples, kPeriod);
 
   const int kSAIWidth = 20;
   SAIParams sai_params = CreateSAIParams(kNumChannels, kSAIWidth + 1,
@@ -154,8 +133,9 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   const std::string kTestName = "binaural_test";
   const int kNumSamples = 882;
   const int kNumChannels = 71;
-  vector<ArrayX> input_segment =
-      LoadMatrix(kTestName + "-matlab-nap1.txt", kNumSamples, kNumChannels);
+  // The Matlab CARFAC output is transposed compared to the C++.
+  ArrayXX input_segment = LoadMatrix(kTestName + "-matlab-nap1.txt",
+                                     kNumSamples, kNumChannels).transpose();
 
   const int kWindowWidth = 2000;
   const int kSAIWidth = 500;
@@ -163,13 +143,11 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   SAI sai(sai_params);
   ArrayXX sai_frame;
   sai.RunSegment(input_segment, &sai_frame);
-
-  vector<ArrayX> expected_sai_frame =
-     LoadMatrix(kTestName + "-matlab-sai1.txt", kNumChannels, sai_params.width);
+  ArrayXX expected_sai_frame = LoadMatrix(kTestName + "-matlab-sai1.txt",
+                                          kNumChannels, sai_params.width);
   for (int channel = 0; channel < kNumChannels; ++channel) {
     const float kPrecisionLevel = 1.0e-8;
-    AssertArrayNear(expected_sai_frame[channel].transpose(),
-                    sai_frame.row(channel),
+    AssertArrayNear(expected_sai_frame.row(channel), sai_frame.row(channel),
                     kPrecisionLevel);
   }
 
@@ -179,13 +157,12 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
 TEST(SAITest, CARFACIntegration) {
   const int kNumEars = 1;
   const int kNumSamples = 300;
-  vector<vector<float>> segment(kNumEars, vector<float>(kNumSamples, 0.0));
+  ArrayXX segment(kNumEars, kNumSamples);
 
   // Sinusoid input.
   const float kFrequency = 10;
-  Eigen::Map<Eigen::ArrayXf> segment_array(&segment[0][0], segment[0].size());
-  segment_array.setLinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi);
-  segment_array.sin();
+  segment.row(0) =
+      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi).sin();
 
   CARParams car_params;
   IHCParams ihc_params;
@@ -195,18 +172,12 @@ TEST(SAITest, CARFACIntegration) {
   const bool kOpenLoop = false;
   carfac.RunSegment(segment, kOpenLoop, &output);
 
-  vector<ArrayX> nap_segment;
-  nap_segment.reserve(output.nap().size());
-  for (const vector<ArrayX>& frame : output.nap()) {
-    nap_segment.push_back(frame[0]);
-  }
-
   const int kSAIWidth = 20;
   SAIParams sai_params = CreateSAIParams(carfac.num_channels(), kNumSamples,
                                          kSAIWidth);
   SAI sai(sai_params);
   ArrayXX sai_frame;
-  sai.RunSegment(nap_segment, &sai_frame);
+  sai.RunSegment(output.nap()[0], &sai_frame);
 
   // TODO(ronw): Test something about the output.
 }

@@ -19,8 +19,6 @@
 #ifndef CARFAC_SAI_H_
 #define CARFAC_SAI_H_
 
-#include <vector>
-
 #include "common.h"
 
 // Design parameters for a single SAI.
@@ -64,11 +62,10 @@ class SAI {
   // Fills output_frame with a params_.num_channels by params_.width SAI frame
   // computed from the given input frames.
   //
-  // The input should have dimensionality of params_.window_width by
-  // params_.num_channels.  Inputs containing too few frames are zero-padded.
-  // FIXME: ArrayXX input type would be less awkward.
-  void RunSegment(const std::vector<ArrayX>& input,
-                  ArrayXX* output_output_frame);
+  // The input should have size of params_.num_channels by params_.num_samples.
+  // Inputs containing too few frames are zero-padded.
+  // Note that the input is the transpose of the input to SAI_Run_Segment.m.
+  void RunSegment(const ArrayXX& input, ArrayXX* output_frame);
 
  private:
   // Processes successive windows within input_buffer, chooses trigger

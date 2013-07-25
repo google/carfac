@@ -23,7 +23,6 @@
 
 #include <fstream>
 #include <string>
-#include <vector>
 
 #include <Eigen/Core>
 
@@ -35,27 +34,16 @@
 // comparing the ouput of the Matlab implementation with the C++ one.
 static const char* kTestDataDir = "../test_data/";
 
-// Reads a matrix (size rows vector of size columns Container objects)
-// from a text file written using the Matlab dlmwrite function.
-template <typename Container = ArrayX, bool ColMajor = true>
-std::vector<Container> LoadMatrix(const std::string& filename, int rows,
-                                  int columns) {
+// Reads a size rows by columns Eigen matrix from a text file written
+// using the Matlab dlmwrite function.
+ArrayXX LoadMatrix(const std::string& filename, int rows, int columns) {
   std::string fullfile = kTestDataDir + filename;
   std::ifstream file(fullfile.c_str());
-  std::vector<Container> output;
-  if (ColMajor) {
-    output.assign(rows, Container(columns));
-  } else {
-    output.assign(columns, Container(rows));
-  }
+  ArrayXX output(rows, columns);
   assert(file.is_open());
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      if (ColMajor) {
-        file >> output[i][j];
-      } else {
-        file >> output[j][i];
-      }
+      file >> output(i, j);
     }
   }
   file.close();
@@ -74,15 +62,14 @@ void WriteMatrix(const std::string& filename, const ArrayXX& matrix) {
   ofile.close();
 }
 
-void AssertArrayNear(const ArrayX& expected, const ArrayX& actual,
+void AssertArrayNear(const ArrayXX& expected, const ArrayXX& actual,
                      double precision) {
-  ArrayX abs_difference = (expected - actual).cwiseAbs();
+  ArrayXX abs_difference = (expected - actual).cwiseAbs();
   ASSERT_TRUE(abs_difference.maxCoeff() <= precision)
       << "expected differs from actual by more than " << precision
       << "\n  max(abs(expected - actual)) = " << abs_difference.maxCoeff()
       << "\n  max(abs(expected)) = " << expected.cwiseAbs().maxCoeff()
-      << "\n  max(abs(actual)) = " << actual.cwiseAbs().maxCoeff()
-      << "\n" << abs_difference;
+      << "\n  max(abs(actual)) = " << actual.cwiseAbs().maxCoeff();
 }
 
 #endif  // CARFAC_TEST_UTIL_H

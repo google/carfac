@@ -29,29 +29,45 @@ CARFACOutput::CARFACOutput(bool store_nap, bool store_bm, bool store_ohc,
   store_agc_ = store_agc;
 }
 
-void CARFACOutput::AppendOutput(const vector<Ear*>& ears) {
+namespace {
+void ResizeContainer(int num_ears, int num_channels, int num_samples,
+                     vector<ArrayXX>* container) {
+  container->resize(num_ears);
+  for (ArrayXX& matrix : *container) {
+    matrix.resize(num_channels, num_samples);
+  }
+}
+}  // anonymous namespace
+
+void CARFACOutput::Resize(int num_ears, int num_channels, int num_samples) {
   if (store_nap_) {
-    nap_.push_back(vector<ArrayX>());
-    for (Ear* ear : ears) {
-      nap_.back().push_back(ear->ihc_out());
-    }
+    ResizeContainer(num_ears, num_channels, num_samples, &nap_);
   }
   if (store_ohc_) {
-    ohc_.push_back(vector<ArrayX>());
-    for (Ear* ear : ears) {
-      ohc_.back().push_back(ear->za_memory());
-    }
+    ResizeContainer(num_ears, num_channels, num_samples, &ohc_);
   }
   if (store_agc_) {
-    agc_.push_back(vector<ArrayX>());
-    for (Ear* ear : ears) {
-      agc_.back().push_back(ear->zb_memory());
-    }
+    ResizeContainer(num_ears, num_channels, num_samples, &agc_);
   }
   if (store_bm_) {
-    bm_.push_back(vector<ArrayX>());
-    for (Ear* ear : ears) {
-      bm_.back().push_back(ear->zy_memory());
+    ResizeContainer(num_ears, num_channels, num_samples, &bm_);
+  }
+}
+
+void CARFACOutput::AssignFromEars(const vector<Ear*>& ears, int sample_index) {
+  for (int i = 0; i < ears.size(); ++i) {
+    const Ear* ear = ears[i];
+    if (store_nap_) {
+      nap_[i].col(sample_index) = ear->ihc_out();
+    }
+    if (store_ohc_) {
+      ohc_[i].col(sample_index) = ear->za_memory();
+    }
+    if (store_agc_) {
+      agc_[i].col(sample_index) = ear->zb_memory();
+    }
+    if (store_bm_) {
+      bm_[i].col(sample_index) = ear->zy_memory();
     }
   }
 }

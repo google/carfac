@@ -62,7 +62,7 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
   max_channels_per_octave_ = log(2) / log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
   IHCCoeffs ihc_coeffs;
-  std::vector<AGCCoeffs> agc_coeffs;
+  vector<AGCCoeffs> agc_coeffs;
   DesignCARCoeffs(car_params_, sample_rate_, pole_freqs_, &car_coeffs);
   DesignIHCCoeffs(ihc_params_, sample_rate_, &ihc_coeffs);
   DesignAGCCoeffs(agc_params_, sample_rate_, &agc_coeffs);
@@ -85,16 +85,16 @@ void CARFAC::Reset() {
   }
 }
 
-void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
-                        bool open_loop, CARFACOutput* output) {
-  assert(sound_data.size() == num_ears_);
-  const int num_samples = sound_data[0].size();
+void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
+                        CARFACOutput* output) {
+  assert(sound_data.rows() == num_ears_);
+  output->Resize(num_ears_, num_channels_, sound_data.cols());
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
   bool agc_memory_updated = false;
-  for (int32_t timepoint = 0; timepoint < num_samples; ++timepoint) {
+  for (int32_t timepoint = 0; timepoint < sound_data.cols(); ++timepoint) {
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
-      FPType input_sample = sound_data[audio_channel][timepoint];
+      FPType input_sample = sound_data(audio_channel, timepoint);
 
       Ear* ear = ears_[audio_channel];
       // Apply the three stages of the model in sequence to the current sample.
@@ -102,7 +102,7 @@ void CARFAC::RunSegment(const vector<vector<float>>& sound_data,
       ear->IHCStep(ear->car_out());
       agc_memory_updated = ear->AGCStep(ear->ihc_out());
     }
-    output->AppendOutput(ears_);
+    output->AssignFromEars(ears_, timepoint);
     if (agc_memory_updated) {
       if (num_ears_ > 1) {
         CrossCouple();

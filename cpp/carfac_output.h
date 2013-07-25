@@ -19,7 +19,6 @@
 #ifndef CARFAC_CARFAC_OUTPUT_H
 #define CARFAC_CARFAC_OUTPUT_H
 
-#include <deque>
 #include <vector>
 
 #include "common.h"
@@ -36,33 +35,44 @@ class CARFACOutput {
   // case for setting it to false?
   CARFACOutput(bool store_nap, bool store_bm, bool store_ohc, bool store_agc);
 
-  // Appends a single frame of n_ears x n_channels data to the end of the
-  // individual data members selected for storage.  This is called on a sample
-  // by sample basis by CARFAC::RunSegment.
-  void AppendOutput(const std::vector<Ear*>& ears);
-
-  const std::deque<std::vector<ArrayX>>& nap() const { return nap_; }
-  const std::deque<std::vector<ArrayX>>& bm() const { return bm_; }
-  const std::deque<std::vector<ArrayX>>& ohc() const { return ohc_; }
-  const std::deque<std::vector<ArrayX>>& agc() const { return agc_; }
+  // Data are stored in nested containers with dimensions:
+  // num_ears by num_channels by num_samples.
+  const std::vector<ArrayXX>& nap() const { return nap_; }
+  std::vector<ArrayXX>* mutable_nap() { return &nap_; }
+  const std::vector<ArrayXX>& bm() const { return bm_; }
+  std::vector<ArrayXX>* mutable_bm() { return &bm_; }
+  const std::vector<ArrayXX>& ohc() const { return ohc_; }
+  std::vector<ArrayXX>* mutable_ohc() { return &ohc_; }
+  const std::vector<ArrayXX>& agc() const { return agc_; }
+  std::vector<ArrayXX>* mutable_agc() { return &agc_; }
 
  private:
+  friend class CARFAC;
+
+  // Resizes the internal containers for each output type, destroying the
+  // previous contents.  Must be called before AssignFromEars.
+  void Resize(int num_ears, int num_channels, int num_samples);
+
+  // For each ear, assigns a single frame of state at time sample_index to the
+  // the individual data members selected for storage.  sample_index must be
+  // less than num_samples specified in the last call to Resize.
+  //
+  // This is called on a sample by sample basis by CARFAC::RunSegment.
+  void AssignFromEars(const std::vector<Ear*>& ears, int sample_index);
+
   bool store_nap_;
   bool store_bm_;
   bool store_ohc_;
   bool store_agc_;
 
-  // CARFAC outputs are stored in nested containers with dimensions:
-  // n_frames x n_ears x n_channels.
-
   // Neural activity pattern rates.
-  std::deque<std::vector<ArrayX>> nap_;
+  std::vector<ArrayXX> nap_;
   // Basilar membrane displacement.
-  std::deque<std::vector<ArrayX>> bm_;
+  std::vector<ArrayXX> bm_;
   // Outer hair cell state.
-  std::deque<std::vector<ArrayX>> ohc_;
+  std::vector<ArrayXX> ohc_;
   // Automatic gain control state.
-  std::deque<std::vector<ArrayX>> agc_;
+  std::vector<ArrayXX> agc_;
 
   DISALLOW_COPY_AND_ASSIGN(CARFACOutput);
 };

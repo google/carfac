@@ -44,20 +44,18 @@ void SAI::Reset() {
   output_buffer_.setZero();
 }
 
-void SAI::RunSegment(const std::vector<ArrayX>& input,
-                     ArrayXX* output_frame) {
-  assert(!input.empty() || input.size() <= params_.window_width &&
-         "Unexpected input size.");
-  assert(input[0].size() == params_.num_channels &&
-         "Unexpected input frame size.");
+void SAI::RunSegment(const ArrayXX& input, ArrayXX* output_frame) {
+  assert(input.cols() <= params_.window_width &&
+         "Too few input samples.");
+  assert(input.rows() == params_.num_channels &&
+         "Unexpected number of channels in input.");
 
-  // Append new data to the input buffer.
+  // Shift and append new data to the input buffer.
   int shift_width = input_buffer_.cols() - params_.window_width;
   input_buffer_.leftCols(shift_width).swap(
       input_buffer_.rightCols(shift_width));
-  for (int i = 0; i < input.size(); ++i) {
-    input_buffer_.col(shift_width + i) = input[i];
-  }
+  input_buffer_.block(0, shift_width, params_.num_channels, input.cols()) =
+      input;
   // Zero-pad the buffer if necessary.
   if (input.size() < params_.window_width) {
     int pad_width = params_.window_width - input.size();
@@ -78,8 +76,6 @@ void SAI::StabilizeSegment(const ArrayXX& input_buffer,
   int offset_range_start = 1 + window_start - params_.width;
   assert(offset_range_start > 0);
   for (int i = 0; i < params_.num_channels; ++i) {
-    // TODO(ronw): Rename this here and in the Matlab code since the
-    // input doesn't have to contain naps.
     const ArrayX& nap_wave = input_buffer.row(i);
     // TODO(ronw): Smooth row.
 

@@ -54,13 +54,13 @@ class CARFAC {
   void Reset();
 
   // Processes an individual sound segment and stores the model output in
-  // output.  Consumes the entire input signal.
+  // output.  Consumes the entire input signal and overwrites the contents of
+  // output.
   //
-  // The input sound_data should contain a vector of audio samples for
-  // each ear, i.e. the outer vector should have size num_ears, and
-  // the inner vector should have size num_samples.
-  void RunSegment(const std::vector<std::vector<float>>& sound_data,
-                  bool open_loop, CARFACOutput* output);
+  // The input sound_data should have size num_ears by num_samples.  Note that
+  // this is the transpose of the input to CARFAC_Run_Segment.m
+  void RunSegment(const ArrayXX& sound_data, bool open_loop,
+                  CARFACOutput* output);
 
   int num_channels() const { return num_channels_; }
   // Returns an array of pole/center frequencies in Hertz for each output
