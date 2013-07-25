@@ -27,7 +27,6 @@
 
 #include "agc.h"
 #include "car.h"
-#include "carfac_output.h"
 #include "common.h"
 #include "ihc.h"
 #include "test_util.h"

@@ -50,7 +50,6 @@ carfac_sources = [
     'agc.h',
     'car.h',
     'carfac.cc',
-    'carfac_output.cc',
     'carfac_util.cc',
     'common.h',
     'ear.cc',

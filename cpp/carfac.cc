@@ -20,7 +20,6 @@
 
 #include <assert.h>
 
-#include "carfac_output.h"
 #include "carfac_util.h"
 #include "ear.h"
 
@@ -354,4 +353,55 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
 FPType CARFAC::ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
                      FPType erb_q) {
   return (erb_break_freq + center_frequency_hz) / erb_q;
+}
+
+CARFACOutput::CARFACOutput(bool store_nap, bool store_bm, bool store_ohc,
+                           bool store_agc) {
+  store_nap_ = store_nap;
+  store_bm_ = store_bm;
+  store_ohc_ = store_ohc;
+  store_agc_ = store_agc;
+}
+
+namespace {
+void ResizeContainer(int num_ears, int num_channels, int num_samples,
+                     vector<ArrayXX>* container) {
+  container->resize(num_ears);
+  for (ArrayXX& matrix : *container) {
+    matrix.resize(num_channels, num_samples);
+  }
+}
+}  // anonymous namespace
+
+void CARFACOutput::Resize(int num_ears, int num_channels, int num_samples) {
+  if (store_nap_) {
+    ResizeContainer(num_ears, num_channels, num_samples, &nap_);
+  }
+  if (store_ohc_) {
+    ResizeContainer(num_ears, num_channels, num_samples, &ohc_);
+  }
+  if (store_agc_) {
+    ResizeContainer(num_ears, num_channels, num_samples, &agc_);
+  }
+  if (store_bm_) {
+    ResizeContainer(num_ears, num_channels, num_samples, &bm_);
+  }
+}
+
+void CARFACOutput::AssignFromEars(const vector<Ear*>& ears, int sample_index) {
+  for (int i = 0; i < ears.size(); ++i) {
+    const Ear* ear = ears[i];
+    if (store_nap_) {
+      nap_[i].col(sample_index) = ear->ihc_out();
+    }
+    if (store_ohc_) {
+      ohc_[i].col(sample_index) = ear->za_memory();
+    }
+    if (store_agc_) {
+      agc_[i].col(sample_index) = ear->zb_memory();
+    }
+    if (store_bm_) {
+      bm_[i].col(sample_index) = ear->zy_memory();
+    }
+  }
 }
