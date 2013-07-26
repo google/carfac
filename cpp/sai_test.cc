@@ -144,10 +144,7 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   sai.RunSegment(input_segment, &sai_frame);
   ArrayXX expected_sai_frame = LoadMatrix(kTestName + "-matlab-sai1.txt",
                                           kNumChannels, sai_params.width);
-  for (int channel = 0; channel < kNumChannels; ++channel) {
-    AssertArrayNear(expected_sai_frame.row(channel), sai_frame.row(channel),
-                    kTestPrecision);
-  }
+  AssertArrayNear(expected_sai_frame, sai_frame, kTestPrecision);
 
   WriteMatrix(kTestName + "-cpp-sai1.txt", sai_frame);
 }
@@ -158,7 +155,7 @@ TEST(SAITest, CARFACIntegration) {
   ArrayXX segment(kNumEars, kNumSamples);
 
   // Sinusoid input.
-  const float kFrequency = 10;
+  const float kFrequency = 10.0;
   segment.row(0) =
       ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi).sin();
 

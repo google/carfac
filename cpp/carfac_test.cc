@@ -63,10 +63,9 @@ class CARFACTest : public testing::Test {
   }
 
   void AssertCARFACOutputNear(const vector<ArrayXX>& expected,
-                              const vector<ArrayXX>& actual,
-                              int num_samples,
-                              int num_ears) const {
-    for (int ear = 0; ear < num_ears; ++ear) {
+                              const vector<ArrayXX>& actual) const {
+    ASSERT_EQ(expected.size(), actual.size());
+    for (int ear = 0; ear < expected.size(); ++ear) {
       AssertArrayNear(expected[ear], actual[ear], kTestPrecision);
     }
   }
@@ -87,17 +86,17 @@ class CARFACTest : public testing::Test {
     const bool kOpenLoop = false;
     carfac.RunSegment(sound_data, kOpenLoop, &output);
 
+    vector<ArrayXX> expected_nap = LoadTestData(
+        test_name + "-matlab-nap", num_samples, num_ears, num_channels);
+    AssertCARFACOutputNear(expected_nap, output.nap());
+    vector<ArrayXX> expected_bm = LoadTestData(
+        test_name + "-matlab-bm", num_samples, num_ears, num_channels);
+    AssertCARFACOutputNear(expected_bm, output.bm());
+
     // TODO(ronw): Don't unconditionally overwrite files that are
     // checked in to the repository on every test run.
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
-
-    vector<ArrayXX> expected_nap = LoadTestData(
-        test_name + "-matlab-nap", num_samples, num_ears, num_channels);
-    AssertCARFACOutputNear(expected_nap, output.nap(), num_samples, num_ears);
-    vector<ArrayXX> expected_bm = LoadTestData(
-        test_name + "-matlab-bm", num_samples, num_ears, num_channels);
-    AssertCARFACOutputNear(expected_bm, output.bm(), num_samples, num_ears);
   }
 };
 
