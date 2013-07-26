@@ -72,4 +72,15 @@ void AssertArrayNear(const ArrayXX& expected, const ArrayXX& actual,
       << "\n  max(abs(actual)) = " << actual.cwiseAbs().maxCoeff();
 }
 
+// The level of precision with which the C++ library's outputs match
+// those of Matlab (which always uses double precision) depends on the
+// precision of FPType.  This is a hack that uses template
+// specialization to conditionally set the precision at compile-time
+// based on the definition of FPType.
+template <typename T>
+constexpr double GetTestPrecision();
+template <> constexpr double GetTestPrecision<double>() { return 1e-7; }
+template <> constexpr double GetTestPrecision<float>() { return 5e-3; }
+static constexpr double kTestPrecision = GetTestPrecision<FPType>();
+
 #endif  // CARFAC_TEST_UTIL_H

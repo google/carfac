@@ -145,9 +145,8 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   ArrayXX expected_sai_frame = LoadMatrix(kTestName + "-matlab-sai1.txt",
                                           kNumChannels, sai_params.width);
   for (int channel = 0; channel < kNumChannels; ++channel) {
-    const float kPrecisionLevel = 1.0e-8;
     AssertArrayNear(expected_sai_frame.row(channel), sai_frame.row(channel),
-                    kPrecisionLevel);
+                    kTestPrecision);
   }
 
   WriteMatrix(kTestName + "-cpp-sai1.txt", sai_frame);

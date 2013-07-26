@@ -67,8 +67,7 @@ class CARFACTest : public testing::Test {
                               int num_samples,
                               int num_ears) const {
     for (int ear = 0; ear < num_ears; ++ear) {
-      const float kPrecisionLevel = 1.0e-7;
-      AssertArrayNear(expected[ear], actual[ear], kPrecisionLevel);
+      AssertArrayNear(expected[ear], actual[ear], kTestPrecision);
     }
   }
 
