@@ -23,12 +23,9 @@
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Core>
 
-// The 'FPType' typedef is used to enable easy switching in precision level.
-// It's currently set to double for during the unit testing phase of the
-// project.
-typedef double FPType;
-// A typedef is used to define a one-dimensional Eigen array with the same
-// precision level as FPType.
+// This typedef is used to enable easy switching in precision level
+// for the Eigen containers used throughout this library.
+typedef float FPType;
 typedef Eigen::Array<FPType, Eigen::Dynamic, 1> ArrayX;
 typedef Eigen::Array<FPType, Eigen::Dynamic, Eigen::Dynamic> ArrayXX;
 
