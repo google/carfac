@@ -41,6 +41,8 @@ class CARFAC {
  public:
   // Constructs a vector of Ear objects, one for each input audio channel,
   // using the given CAR, IHC and AGC parameters.
+  //
+  // If agc_params.num_stages == 0 the AGC will be disabled.
   CARFAC(int num_ears, FPType sample_rate, const CARParams& car_params,
          const IHCParams& ihc_params, const AGCParams& agc_params);
   ~CARFAC();

@@ -117,3 +117,43 @@ TEST_F(CARFACTest, MatchesMatlabOnLongBinauralData) {
   RunCARFACAndCompareWithMatlab(
       "long_test", kNumSamples, kNumEars, kNumChannels, kSampleRate);
 }
+
+TEST_F(CARFACTest, CanDisableAGC) {
+  const FPType kSampleRate = 8000.0;  // Hz.
+  const int kNumEars = 1;
+  const int kNumSamples = static_cast<int>(kSampleRate);
+
+  // Sinusoid input.
+  const float kFrequency = 10.0;  // Hz.
+  ArrayXX sound_data(kNumEars, kNumSamples);
+  sound_data.row(0) =
+      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi).sin();
+
+  CARParams car_params;
+  IHCParams ihc_params;
+  AGCParams agc_params;
+  CARFACOutput output(false, false, false, true);  // store_agc
+
+  // AGC enabled.
+  CARFAC carfac(kNumEars, kSampleRate, car_params, ihc_params, agc_params);
+  const bool kOpenLoop = false;
+  carfac.RunSegment(sound_data, kOpenLoop, &output);
+  ArrayXX agc_enabled_output = output.agc()[0];
+
+  // AGC disabled.
+  agc_params.num_stages = 0;
+  carfac.Redesign(kNumEars, kSampleRate, car_params, ihc_params, agc_params);
+  carfac.RunSegment(sound_data, kOpenLoop, &output);
+  ArrayXX agc_disabled_output = output.agc()[0];
+
+  ASSERT_EQ(agc_enabled_output.size(), agc_disabled_output.size());
+  EXPECT_TRUE((agc_enabled_output !=  agc_disabled_output.size()).any());
+  for (int c = 0; c < agc_disabled_output.rows(); ++c) {
+    // With the AGC disabled, the agc output for a given channel
+    // should be identical at all times.
+    EXPECT_TRUE(
+        (agc_disabled_output.row(c) == agc_disabled_output(c, 0)).all());
+    EXPECT_FALSE(
+        (agc_enabled_output.row(c) == agc_enabled_output(c, 0)).all());
+  }
+}

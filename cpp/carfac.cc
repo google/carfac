@@ -377,14 +377,14 @@ void CARFACOutput::Resize(int num_ears, int num_channels, int num_samples) {
   if (store_nap_) {
     ResizeContainer(num_ears, num_channels, num_samples, &nap_);
   }
+  if (store_bm_) {
+    ResizeContainer(num_ears, num_channels, num_samples, &bm_);
+  }
   if (store_ohc_) {
     ResizeContainer(num_ears, num_channels, num_samples, &ohc_);
   }
   if (store_agc_) {
     ResizeContainer(num_ears, num_channels, num_samples, &agc_);
-  }
-  if (store_bm_) {
-    ResizeContainer(num_ears, num_channels, num_samples, &bm_);
   }
 }
 
@@ -394,14 +394,14 @@ void CARFACOutput::AssignFromEars(const vector<Ear*>& ears, int sample_index) {
     if (store_nap_) {
       nap_[i].col(sample_index) = ear->ihc_out();
     }
+    if (store_bm_) {
+      bm_[i].col(sample_index) = ear->zy_memory();
+    }
     if (store_ohc_) {
       ohc_[i].col(sample_index) = ear->za_memory();
     }
     if (store_agc_) {
       agc_[i].col(sample_index) = ear->zb_memory();
-    }
-    if (store_bm_) {
-      bm_[i].col(sample_index) = ear->zy_memory();
     }
   }
 }

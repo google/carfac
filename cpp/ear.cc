@@ -168,6 +168,10 @@ void Ear::IHCStep(const ArrayX& car_out) {
 }
 
 bool Ear::AGCStep(const ArrayX& ihc_out) {
+  if (agc_coeffs_.empty()) {
+    // AGC disabled.
+    return false;
+  }
   int stage = 0;
   int num_stages = agc_coeffs_[0].num_agc_stages;
   FPType detect_scale = agc_coeffs_[num_stages - 1].detect_scale;
