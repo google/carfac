@@ -18,6 +18,7 @@
 
 #include "carfac.h"
 
+#include <math.h>
 #include <string>
 #include <vector>
 
@@ -127,7 +128,7 @@ TEST_F(CARFACTest, CanDisableAGC) {
   const float kFrequency = 10.0;  // Hz.
   ArrayXX sound_data(kNumEars, kNumSamples);
   sound_data.row(0) =
-      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi).sin();
+      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * M_PI).sin();
 
   CARParams car_params;
   IHCParams ihc_params;

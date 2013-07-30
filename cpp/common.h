@@ -29,8 +29,6 @@ typedef float FPType;
 typedef Eigen::Array<FPType, Eigen::Dynamic, 1> ArrayX;
 typedef Eigen::Array<FPType, Eigen::Dynamic, Eigen::Dynamic> ArrayXX;
 
-static const FPType kPi = 3.141592653589793238;
-
 // This macro disallows the copy constructor and operator= functions.
 // This should be used in the private: declarations for a class.
 #ifndef DISALLOW_COPY_AND_ASSIGN

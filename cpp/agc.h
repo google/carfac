@@ -55,7 +55,6 @@ struct AGCParams {
 // Automatic gain control filter coefficients, which are derived from a set of
 // AGCParams.
 struct AGCCoeffs {
-  int num_agc_stages;
   FPType agc_stage_gain;
   FPType agc_epsilon;
   int decimation;

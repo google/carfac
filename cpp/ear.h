@@ -120,7 +120,7 @@ class Ear {
   IHCState ihc_state_;
 
   // The AGC coefficient and state variables are both stored in vectors
-  // containing one element for each stage (default = 4).
+  // containing one element for each stage.
   std::vector<AGCCoeffs> agc_coeffs_;
   std::vector<AGCState> agc_state_;
   int num_channels_;

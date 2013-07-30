@@ -18,6 +18,7 @@
 
 #include "sai.h"
 
+#include <math.h>
 #include <iostream>
 #include <string>
 
@@ -157,7 +158,7 @@ TEST(SAITest, CARFACIntegration) {
   // Sinusoid input.
   const float kFrequency = 10.0;
   segment.row(0) =
-      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * kPi).sin();
+      ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * M_PI).sin();
 
   CARParams car_params;
   IHCParams ihc_params;

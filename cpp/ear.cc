@@ -35,6 +35,13 @@ void Ear::Redesign(int num_channels,
                    const std::vector<AGCCoeffs>& agc_coeffs) {
   num_channels_ = num_channels;
   car_coeffs_ = car_coeffs;
+  assert(car_coeffs.r1_coeffs.size() == num_channels &&
+         car_coeffs.a0_coeffs.size() == num_channels &&
+         car_coeffs.c0_coeffs.size() == num_channels &&
+         car_coeffs.h_coeffs.size() == num_channels &&
+         car_coeffs.g0_coeffs.size() == num_channels &&
+         car_coeffs.zr_coeffs.size() == num_channels &&
+         "car_coeffs should be size num_channels.");
   ihc_coeffs_ = ihc_coeffs;
   agc_coeffs_ = agc_coeffs;
   Reset();
@@ -89,6 +96,9 @@ void Ear::CARStep(FPType input) {
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
   // a delay of z2.
+  //
+  // TODO(ronw): Consider pre-allocating the temporary arrays in this function
+  // inside CARState to avoid having to allocate and delete for every sample.
   ArrayX nonlinear_fun(num_channels_);
   ArrayX velocities = car_state_.z2_memory - car_state_.za_memory;
   OHCNonlinearFunction(velocities, &nonlinear_fun);
@@ -168,12 +178,12 @@ void Ear::IHCStep(const ArrayX& car_out) {
 }
 
 bool Ear::AGCStep(const ArrayX& ihc_out) {
-  if (agc_coeffs_.empty()) {
+  const int num_stages = agc_coeffs_.size();
+  if (num_stages == 0) {
     // AGC disabled.
     return false;
   }
   int stage = 0;
-  int num_stages = agc_coeffs_[0].num_agc_stages;
   FPType detect_scale = agc_coeffs_[num_stages - 1].detect_scale;
   bool updated = AGCRecurse(stage, detect_scale * ihc_out);
   return updated;

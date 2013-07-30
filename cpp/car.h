@@ -19,6 +19,8 @@
 #ifndef CARFAC_CAR_H
 #define CARFAC_CAR_H
 
+#include <math.h>
+
 #include "common.h"
 
 // A CARParams structure stores the necessary information needed by a CARFAC
@@ -30,7 +32,7 @@ struct CARParams {
     v_offset = 0.04;
     min_zeta = 0.1;
     max_zeta = 0.35;
-    first_pole_theta = 0.85 * kPi;
+    first_pole_theta = 0.85 * M_PI;
     zero_ratio = sqrt(2.0);
     high_f_damping_compression = 0.5;
     erb_per_step = 0.5;

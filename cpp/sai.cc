@@ -19,6 +19,7 @@
 #include "sai.h"
 
 #include <assert.h>
+#include <math.h>
 
 SAI::SAI(const SAIParams& params) : params_(params) {
   Redesign(params);
@@ -35,7 +36,7 @@ void SAI::Redesign(const SAIParams& params) {
   output_buffer_.setZero(params_.num_channels, params_.width);
 
   window_ =
-      ArrayX::LinSpaced(params_.window_width, kPi / params_.window_width, kPi)
+      ArrayX::LinSpaced(params_.window_width, M_PI / params_.window_width, M_PI)
       .sin();
 }
 
