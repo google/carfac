@@ -79,10 +79,7 @@ class CARFACTest : public testing::Test {
     ArrayXX sound_data =
         LoadAudio(test_name + "-audio.txt", num_samples, num_ears);
 
-    CARParams car_params;
-    IHCParams ihc_params;
-    AGCParams agc_params;
-    CARFAC carfac(num_ears, sample_rate, car_params, ihc_params, agc_params);
+    CARFAC carfac(num_ears, sample_rate, car_params_, ihc_params_, agc_params_);
     CARFACOutput output(true, true, false, false);
     const bool kOpenLoop = false;
     carfac.RunSegment(sound_data, kOpenLoop, &output);
@@ -99,6 +96,10 @@ class CARFACTest : public testing::Test {
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
   }
+
+  CARParams car_params_;
+  IHCParams ihc_params_;
+  AGCParams agc_params_;
 };
 
 TEST_F(CARFACTest, MatchesMatlabOnBinauralData) {
@@ -130,20 +131,17 @@ TEST_F(CARFACTest, CanDisableAGC) {
   sound_data.row(0) =
       ArrayX::LinSpaced(kNumSamples, 0.0, 2 * kFrequency * M_PI).sin();
 
-  CARParams car_params;
-  IHCParams ihc_params;
-  AGCParams agc_params;
   CARFACOutput output(false, false, false, true);  // store_agc
 
   // AGC enabled.
-  CARFAC carfac(kNumEars, kSampleRate, car_params, ihc_params, agc_params);
+  CARFAC carfac(kNumEars, kSampleRate, car_params_, ihc_params_, agc_params_);
   const bool kOpenLoop = false;
   carfac.RunSegment(sound_data, kOpenLoop, &output);
   ArrayXX agc_enabled_output = output.agc()[0];
 
   // AGC disabled.
-  agc_params.num_stages = 0;
-  carfac.Redesign(kNumEars, kSampleRate, car_params, ihc_params, agc_params);
+  agc_params_.num_stages = 0;
+  carfac.Redesign(kNumEars, kSampleRate, car_params_, ihc_params_, agc_params_);
   carfac.RunSegment(sound_data, kOpenLoop, &output);
   ArrayXX agc_disabled_output = output.agc()[0];
 
@@ -156,5 +154,17 @@ TEST_F(CARFACTest, CanDisableAGC) {
         (agc_disabled_output.row(c) == agc_disabled_output(c, 0)).all());
     EXPECT_FALSE(
         (agc_enabled_output.row(c) == agc_enabled_output(c, 0)).all());
+  }
+}
+
+TEST_F(CARFACTest, PoleFrequenciesAreDecreasing) {
+  const FPType kSampleRate = 8000.0;  // Hz.
+  const int kNumEars = 1;
+
+  CARFAC carfac(kNumEars, kSampleRate, car_params_, ihc_params_, agc_params_);
+  ArrayX pole_frequencies = carfac.pole_frequencies();
+  EXPECT_EQ(carfac.num_channels(), pole_frequencies.size());
+  for (int i = 1; i < pole_frequencies.size(); ++i) {
+    EXPECT_LT(pole_frequencies(i), pole_frequencies(i - 1));
   }
 }
