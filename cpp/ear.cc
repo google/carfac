@@ -51,6 +51,9 @@ void Ear::Reset() {
   InitCARState();
   InitIHCState();
   InitAGCState();
+
+  tmp1_.setZero(num_channels_);
+  tmp2_.setZero(num_channels_);
 }
 
 void Ear::InitCARState() {
@@ -65,7 +68,6 @@ void Ear::InitCARState() {
 }
 
 void Ear::InitIHCState() {
-  ihc_state_.ihc_accum = ArrayX::Zero(num_channels_);
   if (!ihc_coeffs_.just_half_wave_rectify) {
     ihc_state_.ac_coupler.setZero(num_channels_);
     ihc_state_.lpf1_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
@@ -96,60 +98,58 @@ void Ear::CARStep(FPType input) {
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
   // a delay of z2.
-  //
-  // TODO(ronw): Consider pre-allocating the temporary arrays in this function
-  // inside CARState to avoid having to allocate and delete for every sample.
-  ArrayX nonlinear_fun(num_channels_);
-  ArrayX velocities = car_state_.z2_memory - car_state_.za_memory;
-  OHCNonlinearFunction(velocities, &nonlinear_fun);
-  // Here, zb_memory_ * nonlinear_fun is "undamping" delta r.
-  ArrayX r = car_coeffs_.r1_coeffs + (car_state_.zb_memory * nonlinear_fun);
+  ArrayX& r = tmp1_;
+  r = car_coeffs_.r1_coeffs +
+      // This product is the "undamping" delta r.
+      (car_state_.zb_memory *
+       // OHC nonlinear function.
+       // We start with a quadratic nonlinear function, and limit it via a
+       // rational function. This makes the result go to zero at high
+       // absolute velocities, so it will do nothing there.
+       (1 + ((car_coeffs_.velocity_scale *
+              (car_state_.z2_memory - car_state_.za_memory)) +  // velocities.
+             car_coeffs_.v_offset).square()).inverse());
   car_state_.za_memory = car_state_.z2_memory;
   // Here we reduce the CAR state by r and rotate with the fixed cos/sin coeffs.
-  ArrayX z1  = r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
-                    (car_coeffs_.c0_coeffs * car_state_.z2_memory));
-  car_state_.z2_memory = r *
-      ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
-       (car_coeffs_.a0_coeffs * car_state_.z2_memory));
+  ArrayX& z1 = tmp2_;
+  z1 =
+      r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
+           (car_coeffs_.c0_coeffs * car_state_.z2_memory));
+  car_state_.z2_memory =
+      r * ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
+           (car_coeffs_.a0_coeffs * car_state_.z2_memory));
   car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
   // This section ripples the input-output path, to avoid delay...
   // It's the only part that doesn't get computed "in parallel":
+  ArrayX& in_out_array = tmp1_;
   FPType in_out = input;
   for (int channel = 0; channel < num_channels_; channel++) {
-    z1(channel) = z1(channel) + in_out;
+    in_out_array(channel) = in_out;
     // This performs the ripple, and saves the final channel outputs in zy.
     in_out = car_state_.g_memory(channel) *
         (in_out + car_state_.zy_memory(channel));
-    car_state_.zy_memory(channel) = in_out;
   }
-  car_state_.z1_memory = z1;
-}
-
-// We start with a quadratic nonlinear function, and limit it via a
-// rational function. This makes the result go to zero at high
-// absolute velocities, so it will do nothing there.
-void Ear::OHCNonlinearFunction(const ArrayX& velocities,
-                               ArrayX* nonlinear_fun) const {
-  *nonlinear_fun = (1 + ((velocities * car_coeffs_.velocity_scale) +
-                         car_coeffs_.v_offset).square()).inverse();
+  car_state_.zy_memory.head(num_channels_ - 1) =
+      in_out_array.tail(num_channels_ - 1);
+  car_state_.zy_memory(num_channels_ - 1) = in_out;
+  car_state_.z1_memory = z1 + in_out_array;
 }
 
 // This step is a one sample-time update of the inner-hair-cell (IHC) model,
 // including the detection nonlinearity and either one or two capacitor state
 // variables.
 void Ear::IHCStep(const ArrayX& car_out) {
-  ArrayX ac_diff = car_out - ihc_state_.ac_coupler;
+  ArrayX& ac_diff = tmp1_;
+  ac_diff = car_out - ihc_state_.ac_coupler;
   ihc_state_.ac_coupler = ihc_state_.ac_coupler +
-    (ihc_coeffs_.ac_coeff * ac_diff);
+      (ihc_coeffs_.ac_coeff * ac_diff);
   if (ihc_coeffs_.just_half_wave_rectify) {
-    ArrayX output(num_channels_);
-    for (int channel = 0; channel < num_channels_; ++channel) {
-      FPType a = (ac_diff(channel) > 0.0) ? ac_diff(channel) : 0.0;
-      output(channel) = (a < 2) ? a : 2;
-    }
-    ihc_state_.ihc_out = output;
+    ihc_state_.ihc_out = ac_diff.max(ArrayX::Zero(num_channels_))
+        .min(ArrayX::Constant(2, num_channels_));
   } else {
-    ArrayX conductance = CARFACDetect(ac_diff);
+    CARFACDetect(&ac_diff);
+    ArrayX& conductance = ac_diff;
+
     if (ihc_coeffs_.one_capacitor) {
       ihc_state_.ihc_out = conductance * ihc_state_.cap1_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
@@ -174,7 +174,6 @@ void Ear::IHCStep(const ArrayX& car_out) {
         (ihc_state_.lpf1_state - ihc_state_.lpf2_state);
     ihc_state_.ihc_out = ihc_state_.lpf2_state - ihc_coeffs_.rest_output;
   }
-  ihc_state_.ihc_accum += ihc_state_.ihc_out;
 }
 
 bool Ear::AGCStep(const ArrayX& ihc_out) {

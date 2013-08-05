@@ -196,10 +196,10 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
     ArrayX x(1);
     FPType conduct_at_10, conduct_at_0;
     x(0) = 10.0;
-    x = CARFACDetect(x);
+    CARFACDetect(&x);
     conduct_at_10 = x(0);
     x(0) = 0.0;
-    x = CARFACDetect(x);
+    CARFACDetect(&x);
     conduct_at_0 = x(0);
     if (ihc_params.one_capacitor) {
       FPType ro = 1 / conduct_at_10;

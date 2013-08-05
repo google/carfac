@@ -106,8 +106,6 @@ class Ear {
   void InitCARState();
 
   // Helper sub-functions called during the model runtime.
-  void OHCNonlinearFunction(const ArrayX& velocities,
-                            ArrayX* nonlinear_fun) const;
   // Returns true iff the AGC memory is updated.
   bool AGCRecurse(int stage, ArrayX agc_in);
   void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state) const;
@@ -124,6 +122,11 @@ class Ear {
   std::vector<AGCCoeffs> agc_coeffs_;
   std::vector<AGCState> agc_state_;
   int num_channels_;
+
+  // Temporary storage to avoid allocations inside the .*Step methods, which
+  // are called once per sample.
+  ArrayX tmp1_;
+  ArrayX tmp2_;
 
   DISALLOW_COPY_AND_ASSIGN(Ear);
 };

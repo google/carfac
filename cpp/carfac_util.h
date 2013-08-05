@@ -23,8 +23,17 @@
 
 #include "common.h"
 
-// Returns the IHC detection nonilnearity function of the filter output values.
-// This is here because it is called both in design and run phases.
-ArrayX CARFACDetect(const ArrayX& x);
+// Computes the IHC detection nonlinearity function of the filter output
+// values.  This is here because it is called both in design and run phases.
+inline void CARFACDetect(ArrayX* input_output) {
+  ArrayX& z = *input_output;
+  constexpr FPType a = 0.175;
+  // This offsets the low-end tail into negative x territory.
+  // The parameter is adjusted for the book, to make the 20% DC response
+  // threshold at 0.1.
+  z = (z + a).max(ArrayX::Zero(z.size()));
+  // Zero is the final answer for many points.
+  *input_output = z*z*z / (z*z*z + z*z + 0.1);
+}
 
 #endif  // CARFAC_CARFAC_UTIL_H

@@ -66,7 +66,6 @@ struct IHCCoeffs {
 // Inner hair cell filter state.
 struct IHCState {
   ArrayX ihc_out;
-  ArrayX ihc_accum;
   ArrayX cap1_voltage;
   ArrayX cap2_voltage;
   ArrayX lpf1_state;
