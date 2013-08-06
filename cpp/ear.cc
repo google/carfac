@@ -121,25 +121,23 @@ void Ear::CARStep(FPType input) {
   car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
   // This section ripples the input-output path, to avoid delay...
   // It's the only part that doesn't get computed "in parallel":
-  ArrayX& in_out_array = tmp1_;
   FPType in_out = input;
   for (int channel = 0; channel < num_channels_; channel++) {
-    in_out_array(channel) = in_out;
     // This performs the ripple, and saves the final channel outputs in zy.
     in_out = car_state_.g_memory(channel) *
         (in_out + car_state_.zy_memory(channel));
+    car_state_.zy_memory(channel) = in_out;
   }
-  car_state_.zy_memory.head(num_channels_ - 1) =
-      in_out_array.tail(num_channels_ - 1);
-  car_state_.zy_memory(num_channels_ - 1) = in_out;
-  car_state_.z1_memory = z1 + in_out_array;
+  car_state_.z1_memory(0) = z1(0) + input;
+  car_state_.z1_memory.tail(num_channels_ - 1) =
+      z1.tail(num_channels_ - 1) + car_state_.zy_memory.head(num_channels_ - 1);
 }
 
 // This step is a one sample-time update of the inner-hair-cell (IHC) model,
 // including the detection nonlinearity and either one or two capacitor state
 // variables.
 void Ear::IHCStep(const ArrayX& car_out) {
-  ArrayX& ac_diff = tmp1_;
+  ArrayX& ac_diff = ihc_state_.ihc_out;
   ac_diff = car_out - ihc_state_.ac_coupler;
   ihc_state_.ac_coupler = ihc_state_.ac_coupler +
       (ihc_coeffs_.ac_coeff * ac_diff);
@@ -149,7 +147,6 @@ void Ear::IHCStep(const ArrayX& car_out) {
   } else {
     CARFACDetect(&ac_diff);
     ArrayX& conductance = ac_diff;
-
     if (ihc_coeffs_.one_capacitor) {
       ihc_state_.ihc_out = conductance * ihc_state_.cap1_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
@@ -167,9 +164,9 @@ void Ear::IHCStep(const ArrayX& car_out) {
            * ihc_coeffs_.in2_rate);
     }
     // Smooth the output twice using an LPF.
-    ihc_state_.ihc_out *= ihc_coeffs_.output_gain;
     ihc_state_.lpf1_state += ihc_coeffs_.lpf_coeff *
-        (ihc_state_.ihc_out - ihc_state_.lpf1_state);
+        (ihc_state_.ihc_out * ihc_coeffs_.output_gain -
+         ihc_state_.lpf1_state);
     ihc_state_.lpf2_state += ihc_coeffs_.lpf_coeff *
         (ihc_state_.lpf1_state - ihc_state_.lpf2_state);
     ihc_state_.ihc_out = ihc_state_.lpf2_state - ihc_coeffs_.rest_output;
@@ -230,8 +227,7 @@ bool Ear::AGCRecurse(int stage, ArrayX agc_in) {
 void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
                            ArrayX* stage_state) const {
   int num_iterations = agc_coeffs.agc_spatial_iterations;
-  bool use_fir;
-  use_fir = (num_iterations < 4) ? true : false;
+  bool use_fir = (num_iterations < 4) ? true : false;
   if (use_fir) {
     FPType fir_coeffs_left = agc_coeffs.agc_spatial_fir_left;
     FPType fir_coeffs_mid = agc_coeffs.agc_spatial_fir_mid;
