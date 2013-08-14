@@ -110,7 +110,7 @@ INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
                                          Values(1, 2, 15)));  // num_channels.
 
 TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
-  const int kNumChannels = 1;
+  const int kNumChannels = 2;
   const int kNumSamples = 10;
   const int kPeriod = 4;
   ArrayXX segment = CreatePulseTrain(kNumChannels, kNumSamples, kPeriod);
@@ -125,8 +125,10 @@ TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
 
   EXPECT_TRUE((sai_frame != 0).any());
   const int kZeroLagIndex = kSAIWidth / 2 - 1;
-  EXPECT_TRUE(HasPeakAt(sai_frame.row(0), kZeroLagIndex));
-  EXPECT_TRUE(HasPeakAt(sai_frame.row(0), kZeroLagIndex + kPeriod));
+  for (int i = 0; i < kNumChannels; ++i) {
+    EXPECT_TRUE(HasPeakAt(sai_frame.row(i), kZeroLagIndex));
+    EXPECT_TRUE(HasPeakAt(sai_frame.row(i), kZeroLagIndex + kPeriod));
+  }
 }
 
 TEST(SAITest, MatchesMatlabOnBinauralData) {

@@ -58,8 +58,8 @@ void SAI::RunSegment(const ArrayXX& input, ArrayXX* output_frame) {
   input_buffer_.block(0, shift_width, params_.num_channels, input.cols()) =
       input;
   // Zero-pad the buffer if necessary.
-  if (input.size() < params_.window_width) {
-    int pad_width = params_.window_width - input.size();
+  if (input.cols() < params_.window_width) {
+    const int pad_width = params_.window_width - input.cols();
     input_buffer_.rightCols(pad_width).setZero();
   }
 
