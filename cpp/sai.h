@@ -28,17 +28,16 @@ struct SAIParams {
 
   // TODO(ronw): Consider parameterizing this as past_lags and
   // future_lags, with width == past_lags + 1 + future_lags.
-  //
+
   // Total width (i.e. number of lag samples) of the SAI.
   int width;
   // Number of lag samples that should come from the future.
   int future_lags;
-  // Number of windows (triggers) to consider during each SAI frame.
+  // Number of input windows (triggers) to consider when computing each SAI
+  // frame.
   int num_window_pos;
 
-  // TODO(ronw): more carefully define terms "window" and "frame"
-
-  // Size of the window to compute.
+  // Size of the input window in samples.
   int window_width;
 
   FPType channel_smoothing_scale;
@@ -62,10 +61,16 @@ class SAI {
   // Fills output_frame with a params_.num_channels by params_.width SAI frame
   // computed from the given input frames.
   //
-  // The input should have size of params_.num_channels by params_.num_samples.
-  // Inputs containing too few frames are zero-padded.
+  // The input_segment should have size of params_.num_channels by
+  // params_.window_width, with the possible exception of the final input
+  // segment, which will be zero padded.
+  //
+  // Note that in the current implementation all input segments containing too
+  // few frames are zero-padded, which will lead to incorrect behavior if such
+  // segments appear in the middle of a stream of inputs.
+  //
   // Note that the input is the transpose of the input to SAI_Run_Segment.m.
-  void RunSegment(const ArrayXX& input, ArrayXX* output_frame);
+  void RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame);
 
  private:
   // Processes successive windows within input_buffer, chooses trigger

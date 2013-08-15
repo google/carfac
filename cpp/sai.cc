@@ -45,21 +45,23 @@ void SAI::Reset() {
   output_buffer_.setZero();
 }
 
-void SAI::RunSegment(const ArrayXX& input, ArrayXX* output_frame) {
-  assert(input.cols() <= params_.window_width &&
-         "Too few input samples.");
-  assert(input.rows() == params_.num_channels &&
+void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
+  assert(input_segment.cols() <= params_.window_width &&
+         "Too many input samples.");
+  assert(input_segment.rows() == params_.num_channels &&
          "Unexpected number of channels in input.");
 
   // Shift and append new data to the input buffer.
-  int shift_width = input_buffer_.cols() - params_.window_width;
-  input_buffer_.leftCols(shift_width).swap(
-      input_buffer_.rightCols(shift_width));
-  input_buffer_.block(0, shift_width, params_.num_channels, input.cols()) =
-      input;
-  // Zero-pad the buffer if necessary.
-  if (input.cols() < params_.window_width) {
-    const int pad_width = params_.window_width - input.cols();
+  const int overlap_width = input_buffer_.cols() - params_.window_width;
+  input_buffer_.leftCols(overlap_width) =
+      input_buffer_.rightCols(overlap_width);
+  const int input_width = input_segment.cols();
+  input_buffer_.block(0, overlap_width, params_.num_channels, input_width) =
+      input_segment;
+  // Zero-pad the buffer if necessary.  Note that this is only
+  // expected to happen on the final call to this function.
+  if (input_width < params_.window_width) {
+    const int pad_width = params_.window_width - input_segment.cols();
     input_buffer_.rightCols(pad_width).setZero();
   }
 
