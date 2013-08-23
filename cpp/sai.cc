@@ -46,24 +46,16 @@ void SAI::Reset() {
 }
 
 void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
-  assert(input_segment.cols() <= params_.window_width &&
-         "Too many input samples.");
+  assert(input_segment.cols() == params_.window_width &&
+         "Unexpected number of input samples.");
   assert(input_segment.rows() == params_.num_channels &&
-         "Unexpected number of channels in input.");
+         "Unexpected number of input channels.");
 
   // Shift and append new data to the input buffer.
   const int overlap_width = input_buffer_.cols() - params_.window_width;
   input_buffer_.leftCols(overlap_width) =
-      input_buffer_.rightCols(overlap_width);
-  const int input_width = input_segment.cols();
-  input_buffer_.block(0, overlap_width, params_.num_channels, input_width) =
-      input_segment;
-  // Zero-pad the buffer if necessary.  Note that this is only
-  // expected to happen on the final call to this function.
-  if (input_width < params_.window_width) {
-    const int pad_width = params_.window_width - input_segment.cols();
-    input_buffer_.rightCols(pad_width).setZero();
-  }
+      input_buffer_.rightCols(overlap_width);//.eval();
+  input_buffer_.rightCols(params_.window_width) = input_segment;
 
   StabilizeSegment(input_buffer_, &output_buffer_);
   *output_frame = output_buffer_;

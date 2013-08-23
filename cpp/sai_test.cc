@@ -84,8 +84,7 @@ TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
   ArrayXX segment = CreatePulseTrain(num_channels_, kNumSamples, period_);
 
   const int kSAIWidth = 15;
-  SAIParams sai_params = CreateSAIParams(num_channels_, segment.size(),
-                                         kSAIWidth);
+  SAIParams sai_params = CreateSAIParams(num_channels_, kNumSamples, kSAIWidth);
   sai_params.future_lags = 0;  // Only compute past lags.
 
   SAI sai(sai_params);
@@ -109,7 +108,7 @@ INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
                         testing::Combine(Values(25, 10, 5, 2),  // periods.
                                          Values(1, 2, 15)));  // num_channels.
 
-TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
+TEST(SAITest, DiesIfInputWidthDoesntMatchWindowWidth) {
   const int kNumChannels = 2;
   const int kNumSamples = 10;
   const int kPeriod = 4;
@@ -118,17 +117,10 @@ TEST(SAITest, InputIsZeroPaddedIfShorterThanWindowWidth) {
   const int kSAIWidth = 20;
   SAIParams sai_params = CreateSAIParams(kNumChannels, kSAIWidth + 1,
                                          kSAIWidth);
-  ASSERT_GT(sai_params.window_width, kNumSamples);
+  ASSERT_NE(sai_params.window_width, kNumSamples);
   SAI sai(sai_params);
   ArrayXX sai_frame;
-  sai.RunSegment(segment, &sai_frame);
-
-  EXPECT_TRUE((sai_frame != 0).any());
-  const int kZeroLagIndex = kSAIWidth / 2 - 1;
-  for (int i = 0; i < kNumChannels; ++i) {
-    EXPECT_TRUE(HasPeakAt(sai_frame.row(i), kZeroLagIndex));
-    EXPECT_TRUE(HasPeakAt(sai_frame.row(i), kZeroLagIndex + kPeriod));
-  }
+  ASSERT_DEATH(sai.RunSegment(segment, &sai_frame), "input samples");
 }
 
 TEST(SAITest, MatchesMatlabOnBinauralData) {
@@ -139,7 +131,7 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   ArrayXX input_segment = LoadMatrix(kTestName + "-matlab-nap1.txt",
                                      kNumSamples, kNumChannels).transpose();
 
-  const int kWindowWidth = 2000;
+  const int kWindowWidth = kNumSamples;
   const int kSAIWidth = 500;
   SAIParams sai_params = CreateSAIParams(kNumChannels, kWindowWidth, kSAIWidth);
   SAI sai(sai_params);

@@ -36,10 +36,9 @@ test_data_dir = '../test_data/';
 
 sai_struct = struct('width', 500, ...
                     'future_lags', 250, ...
-                    'window_width', 2000, ...
                     'n_window_pos', 2, ...
                     'channel_smoothing_scale', 0);
-                   
+
 
 test_name = 'binaural_test';
 samples_to_read = [9000, 9903];  % Trim for a faster test.
@@ -62,15 +61,20 @@ WriteTestData(test_data_dir, 'long_test', signal, CF_struct, sai_struct);
 20
 
 function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct)
+% function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct)
+% 
+% Helper function to run CARFAC and SAI over the given signal and
+% save the results to text files in test_data_dir.
+
 % The following section generates data for the binaural test of the C++
 % version of CARFAC.
 filename_prefix = [test_data_dir test_name];
 
 WriteMatrixToFile([filename_prefix '-audio.txt'], signal);
 
-CF_struct = CARFAC_Init(CF_struct);         
+CF_struct = CARFAC_Init(CF_struct);
 [CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal);
- 
+
 % Store the data for each ear of each output signal in a separate file.
 for ear = 1:CF_struct.n_ears
   WriteMatrixToFile([filename_prefix '-matlab-nap' num2str(ear) '.txt'], ...
@@ -80,6 +84,7 @@ for ear = 1:CF_struct.n_ears
 end
 
 ear = 1;
+sai_struct.window_width = size(signal, 1);
 sai_struct = SAI_Run_Segment(sai_struct, nap(:,:,ear));
 WriteMatrixToFile([filename_prefix '-matlab-sai' num2str(ear) '.txt'], ...
                   sai_struct.frame);

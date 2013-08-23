@@ -80,7 +80,7 @@ void AssertArrayNear(const ArrayXX& expected, const ArrayXX& actual,
 template <typename T>
 constexpr double GetTestPrecision();
 template <> constexpr double GetTestPrecision<double>() { return 1e-7; }
-template <> constexpr double GetTestPrecision<float>() { return 5e-3; }
+template <> constexpr double GetTestPrecision<float>() { return 7e-3; }
 static constexpr double kTestPrecision = GetTestPrecision<FPType>();
 
 #endif  // CARFAC_TEST_UTIL_H

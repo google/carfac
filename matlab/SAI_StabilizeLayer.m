@@ -25,7 +25,7 @@ frame = layer_struct.frame;
 nap_buffer = real(layer_struct.nap_buffer);
 n_buffer_times = size(nap_buffer, 1);
 [n_ch, width] = size(frame);
-p
+
 % Make the window to use for all the channels at this layer.
 window_width = layer_struct.window_width;
 n_window_pos = layer_struct.n_window_pos;
@@ -49,7 +49,7 @@ smoothed_buffer = smooth1d(nap_buffer', layer_struct.channel_smoothing_scale)';
 % For each buffer column (channel), pick a trigger and align into SAI_frame
 for ch = 1:n_ch
   smooth_wave = smoothed_buffer(:, ch);  % for the trigger
-  
+
   % Do several window positions and triggers
   for w = 1:n_window_pos
     % move the window to later and go again

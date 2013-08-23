@@ -61,13 +61,9 @@ class SAI {
   // Fills output_frame with a params_.num_channels by params_.width SAI frame
   // computed from the given input frames.
   //
-  // The input_segment should have size of params_.num_channels by
-  // params_.window_width, with the possible exception of the final input
-  // segment, which will be zero padded.
-  //
-  // Note that in the current implementation all input segments containing too
-  // few frames are zero-padded, which will lead to incorrect behavior if such
-  // segments appear in the middle of a stream of inputs.
+  // The input_segment must have size of params_.num_channels by
+  // params_.window_width.  Dies if the size is incorrect.  Callers are
+  // responsible for zero-padding as desired.
   //
   // Note that the input is the transpose of the input to SAI_Run_Segment.m.
   void RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame);
