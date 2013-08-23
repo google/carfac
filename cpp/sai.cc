@@ -54,7 +54,7 @@ void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
   // Shift and append new data to the input buffer.
   const int overlap_width = input_buffer_.cols() - params_.window_width;
   input_buffer_.leftCols(overlap_width) =
-      input_buffer_.rightCols(overlap_width);//.eval();
+      input_buffer_.rightCols(overlap_width);
   input_buffer_.rightCols(params_.window_width) = input_segment;
 
   StabilizeSegment(input_buffer_, &output_buffer_);
