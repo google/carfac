@@ -29,6 +29,7 @@
 #include "gtest/gtest.h"
 
 #include "common.h"
+#include "sai.h"
 
 // Location of the text files produced by 'CARFAC_GenerateTestData.m' for
 // comparing the ouput of the Matlab implementation with the C++ one.
@@ -82,5 +83,49 @@ constexpr double GetTestPrecision();
 template <> constexpr double GetTestPrecision<double>() { return 1e-7; }
 template <> constexpr double GetTestPrecision<float>() { return 7e-3; }
 static constexpr double kTestPrecision = GetTestPrecision<FPType>();
+
+// Base class for SAI unit tests that provides helper functions for
+// constructing test signals and analyzing results.
+class SAITestBase : public ::testing::Test {
+ protected:
+  static ArrayXX CreatePulseTrain(int num_channels, int num_samples, int period,
+                                  int leading_zeros) {
+    ArrayXX segment = ArrayXX::Zero(num_channels, num_samples);
+    for (int i = 0; i < num_channels; ++i) {
+      // Begin each channel at a different phase.
+      const int phase = (i + leading_zeros) % period;
+      for (int j = phase; j < num_samples; j += period) {
+        segment(i, j) = 1;
+      }
+    }
+    return segment;
+  }
+
+  static ArrayXX CreatePulseTrain(int num_channels, int num_samples,
+                                  int period) {
+    return CreatePulseTrain(num_channels, num_samples, period, 0);
+  }
+
+  static SAIParams CreateSAIParams(int num_channels, int window_width,
+                                   int width) {
+    SAIParams sai_params;
+    sai_params.num_channels = num_channels;
+    sai_params.window_width = window_width;
+    sai_params.width = width;
+    // Half of the SAI should come from the future.
+    sai_params.future_lags = sai_params.width / 2;
+    sai_params.num_window_pos = 2;
+    return sai_params;
+  }
+
+  static bool HasPeakAt(const ArrayX& frame, int index) {
+    if (index == 0) {
+      return frame(index) > frame(index + 1);
+    } else if (index == frame.size() - 1) {
+      return frame(index) > frame(index - 1);
+    }
+    return frame(index) > frame(index + 1) && frame(index) > frame(index - 1);
+  }
+};
 
 #endif  // CARFAC_TEST_UTIL_H

@@ -42,12 +42,14 @@ import os
 env = Environment(CPPPATH=[os.environ['EIGEN_PATH']])
 GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
 if GCC_VERSION.startswith('4.6'):
-  env.MergeFlags(['-std=c++0x'])
+  # The override keyword is not supported in GCC 4.6, so we define it away.
+  env.MergeFlags(['-std=c++0x -Doverride='])
 else:
   env.MergeFlags(['-std=c++11'])
 
 carfac_sources = [
     'agc.h',
+    'binaural_sai.cc',
     'car.h',
     'carfac.cc',
     'carfac_util.h',
@@ -67,6 +69,7 @@ env.Command('tmp/libgtest.a', [],
             ])
 
 test_targets = [
+    'binaural_sai_test',
     'carfac_test',
     'sai_test',
     ]

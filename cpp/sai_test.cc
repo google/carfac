@@ -35,40 +35,8 @@
 
 using testing::Values;
 
-ArrayXX CreatePulseTrain(int num_channels, int num_samples, int period) {
-  ArrayXX segment = ArrayXX::Zero(num_channels, num_samples);
-  for (int i = 0; i < num_channels; ++i) {
-    // Begin each channel at a different phase.
-    const int phase = i % period;
-    for (int j = phase; j < num_samples; j += period) {
-      segment(i, j) = 1;
-    }
-  }
-  return segment;
-}
-
-SAIParams CreateSAIParams(int num_channels, int window_width, int width) {
-  SAIParams sai_params;
-  sai_params.num_channels = num_channels;
-  sai_params.window_width = window_width;
-  sai_params.width = width;
-  // Half of the SAI should come from the future.
-  sai_params.future_lags = sai_params.width / 2;
-  sai_params.num_window_pos = 2;
-  return sai_params;
-}
-
-bool HasPeakAt(const ArrayX& frame, int index) {
-  if (index == 0) {
-    return frame(index) > frame(index + 1);
-  } else if (index == frame.size() - 1) {
-    return frame(index) > frame(index - 1);
-  }
-  return frame(index) > frame(index + 1) && frame(index) > frame(index - 1);
-}
-
 class SAIPeriodicInputTest
-    : public testing::TestWithParam<std::tr1::tuple<int, int>> {
+    : public SAITestBase, public ::testing::WithParamInterface<std::tr1::tuple<int, int>> {
  protected:
   void SetUp() {
     period_ = std::tr1::get<0>(GetParam());
@@ -108,7 +76,7 @@ INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
                         testing::Combine(Values(25, 10, 5, 2),  // periods.
                                          Values(1, 2, 15)));  // num_channels.
 
-TEST(SAITest, DiesIfInputWidthDoesntMatchWindowWidth) {
+TEST_F(SAITestBase, DiesIfInputWidthDoesntMatchWindowWidth) {
   const int kNumChannels = 2;
   const int kNumSamples = 10;
   const int kPeriod = 4;
@@ -123,7 +91,7 @@ TEST(SAITest, DiesIfInputWidthDoesntMatchWindowWidth) {
   ASSERT_DEATH(sai.RunSegment(segment, &sai_frame), "input samples");
 }
 
-TEST(SAITest, MatchesMatlabOnBinauralData) {
+TEST_F(SAITestBase, MatchesMatlabOnBinauralData) {
   const std::string kTestName = "binaural_test";
   const int kNumSamples = 882;
   const int kNumChannels = 71;
@@ -144,7 +112,7 @@ TEST(SAITest, MatchesMatlabOnBinauralData) {
   WriteMatrix(kTestName + "-cpp-sai1.txt", sai_frame);
 }
 
-TEST(SAITest, CARFACIntegration) {
+TEST_F(SAITestBase, CARFACIntegration) {
   const int kNumEars = 1;
   const int kNumSamples = 300;
   ArrayXX segment(kNumEars, kNumSamples);
