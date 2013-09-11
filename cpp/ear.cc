@@ -68,8 +68,8 @@ void Ear::InitCARState() {
 }
 
 void Ear::InitIHCState() {
+  ihc_state_.ac_coupler.setZero(num_channels_);
   if (!ihc_coeffs_.just_half_wave_rectify) {
-    ihc_state_.ac_coupler.setZero(num_channels_);
     ihc_state_.lpf1_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
     ihc_state_.lpf2_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
     if (ihc_coeffs_.one_capacitor) {
@@ -143,7 +143,7 @@ void Ear::IHCStep(const ArrayX& car_out) {
       (ihc_coeffs_.ac_coeff * ac_diff);
   if (ihc_coeffs_.just_half_wave_rectify) {
     ihc_state_.ihc_out = ac_diff.max(ArrayX::Zero(num_channels_))
-        .min(ArrayX::Constant(2, num_channels_));
+        .min(ArrayX::Constant(num_channels_, 2));
   } else {
     CARFACDetect(&ac_diff);
     ArrayX& conductance = ac_diff;
