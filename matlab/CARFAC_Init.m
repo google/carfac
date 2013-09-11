@@ -61,7 +61,8 @@ end
 function state = IHC_Init_State(coeffs)
 n_ch = coeffs.n_ch;
 if coeffs.just_hwr
-  state = struct('ihc_accum', zeros(n_ch, 1));
+  state = struct('ihc_accum', zeros(n_ch, 1), ...
+                 'ac_coupler', zeros(n_ch, 1));
 else
   if coeffs.one_cap
     state = struct( ...

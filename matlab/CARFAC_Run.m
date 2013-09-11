@@ -17,7 +17,7 @@
 % limitations under the License.
 
 function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
-  (CF, input_waves, AGC_plot_fig_num)
+  (CF, input_waves, AGC_plot_fig_num, open_loop)
 % function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 %   (CF, input_waves, AGC_plot_fig_num)
 % This function runs the CARFAC; that is, filters a 1 or more channel
@@ -41,6 +41,10 @@ function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
+
+if nargin < 4
+  open_loop = 0;
+end
 
 if nargin < 3
   AGC_plot_fig_num = 0;
@@ -98,9 +102,9 @@ for seg_num = 1:n_segs
   % Process a segment to get a slice of decim_naps, and plot AGC state:
   if ~isempty(BM)
     % ask for everything in this case, for laziness:
-    [seg_naps, CF, seg_BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
+    [seg_naps, CF, seg_BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(CF, input_waves(k_range, :), open_loop);
   else
-    [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
+    [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :), open_loop);
   end
   
   if ~isempty(BM)

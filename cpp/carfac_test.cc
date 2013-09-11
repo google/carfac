@@ -96,6 +96,36 @@ class CARFACTest : public testing::Test {
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
   }
+  
+  
+  // TODO(alexb): figure out a way to integrate this method with the original
+  void RunCARFACAndCompareWithMatlabUsingParams(const std::string& test_name,
+                                                int num_samples,
+                                                int num_ears,
+                                                int num_channels,
+                                                FPType sample_rate,
+                                                CARParams& car_params_mod,
+                                                AGCParams& agc_params_mod,
+                                                IHCParams& ihc_params_mod,
+                                                bool open_loop) const {
+    ArrayXX sound_data =
+    LoadAudio(test_name + "-audio.txt", num_samples, num_ears);
+    
+    CARFAC carfac(num_ears, sample_rate, car_params_mod, ihc_params_mod,
+                  agc_params_mod);
+    CARFACOutput output(true, true, false, false);
+    carfac.RunSegment(sound_data, open_loop, &output);
+    
+    vector<ArrayXX> expected_nap = LoadTestData(
+                                                test_name + "-matlab-nap", num_samples, num_ears, num_channels);
+    AssertCARFACOutputNear(expected_nap, output.nap());
+    vector<ArrayXX> expected_bm = LoadTestData(
+                                               test_name + "-matlab-bm", num_samples, num_ears, num_channels);
+    AssertCARFACOutputNear(expected_bm, output.bm());
+    
+    WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
+    WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
+  }
 
   CARParams car_params_;
   IHCParams ihc_params_;
@@ -167,4 +197,35 @@ TEST_F(CARFACTest, PoleFrequenciesAreDecreasing) {
   for (int i = 1; i < pole_frequencies.size(); ++i) {
     EXPECT_LT(pole_frequencies(i), pole_frequencies(i - 1));
   }
+}
+
+TEST_F(CARFACTest, MatchesMatlabWithAGCOff) {
+  const int kNumSamples = 2000;
+  const int kNumEars = 2;
+  const int kNumChannels = 83;
+  const FPType kSampleRate = 44100.0;
+  CARParams car_params;
+  AGCParams agc_params;
+  IHCParams ihc_params;
+  bool open_loop = true;
+  RunCARFACAndCompareWithMatlabUsingParams("agc_test", kNumSamples, kNumEars,
+                                           kNumChannels, kSampleRate,
+                                           car_params, agc_params, ihc_params,
+                                           open_loop);
+}
+
+TEST_F(CARFACTest, MatchesMatlabWithIHCJustHalfWaveRectifyOn) {
+  const int kNumSamples = 2000;
+  const int kNumEars = 2;
+  const int kNumChannels = 83;
+  const FPType kSampleRate = 44100.0;
+  CARParams car_params;
+  AGCParams agc_params;
+  IHCParams ihc_params;
+  bool open_loop = false;
+  ihc_params.just_half_wave_rectify = true;
+  RunCARFACAndCompareWithMatlabUsingParams("ihc_just_hwr_test", kNumSamples,
+                                           kNumEars, kNumChannels,
+                                           kSampleRate, car_params, agc_params,
+                                           ihc_params, open_loop);
 }

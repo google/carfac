@@ -58,22 +58,104 @@ assert(size(signal, 2) == 2, 'Expected stereo signal.');
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears, fs);
 WriteTestData(test_data_dir, 'long_test', signal, CF_struct, sai_struct);
-20
 
-function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct)
-% function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct)
+% We explicitly initialize parameter structures using defaults in order to
+% generate test data for evaluation of precision issues in C++ version.
+
+CF_CAR_params = struct( ...
+    'velocity_scale', 0.1, ...  % for the velocity nonlinearity
+    'v_offset', 0.04, ...  % offset gives a quadratic part
+    'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
+    'max_zeta', 0.35, ... % maximum damping factor in mid-freq channels
+    'first_pole_theta', 0.85*pi, ...
+    'zero_ratio', sqrt(2), ... % how far zero is above pole
+    'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
+    'ERB_per_step', 0.5, ... % assume G&M's ERB formula
+    'min_pole_Hz', 30, ...
+    'ERB_break_freq', 165.3, ...  % Greenwood map's break freq.
+    'ERB_Q', 1000/(24.7*4.37));
+
+CF_AGC_params = struct( ...
+    'n_stages', 4, ...
+    'time_constants', 0.002 * 4.^(0:3), ...
+    'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
+    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
+    'AGC1_scales', 1.0 * sqrt(2).^(0:3), ...   % in units of channels
+    'AGC2_scales', 1.65 * sqrt(2).^(0:3), ... % spread more toward base
+    'AGC_mix_coeff', 0.5);
+
+one_cap = 1;         % bool; 1 for Allen model, as text states we use
+just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
+if just_hwr
+    CF_IHC_params = struct('just_hwr', 1, ...  % just a simple HWR
+        'ac_corner_Hz', 20);
+else
+    if one_cap
+        CF_IHC_params = struct( ...
+            'just_hwr', just_hwr, ...        % not just a simple HWR
+            'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
+            'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
+            'tau_out', 0.0005, ...    % depletion tau is pretty fast
+            'tau_in', 0.010, ...        % recovery tau is slower
+            'ac_corner_Hz', 20);
+    else
+        CF_IHC_params = struct( ...
+            'just_hwr', just_hwr, ...        % not just a simple HWR
+            'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
+            'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
+            'tau1_out', 0.010, ...    % depletion tau is pretty fast
+            'tau1_in', 0.020, ...     % recovery tau is slower
+            'tau2_out', 0.0025, ...   % depletion tau is pretty fast
+            'tau2_in', 0.005, ...        % recovery tau is slower
+            'ac_corner_Hz', 20);
+    end
+end
+
+
+% Now we setup tests in which various parameters for the individual steps
+% are modified in order to determine where the precision changes occur.
+
+% First we test the removal of the AGC stage using the open_loop option.
+open_loop = 1;
+test_name = 'agc_test';
+samples_to_read = [80001, 82000];  % Trim for a faster test.
+[signal, fs] = wavread([test_data_dir 'long_test' '.wav'], samples_to_read);
+assert(size(signal, 2) == 2, 'Expected stereo signal.');
+n_ears = size(signal, 2);
+CF_struct = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, ...
+            CF_IHC_params);
+WriteTestData(test_data_dir, 'agc_test', signal, CF_struct, sai_struct, open_loop);
+
+% The next test verifies that the 'just_hwr' option in the IHC stage works.
+open_loop = 0;
+test_name = 'ihc_just_hwr_test';
+CF_IHC_params.just_hwr = 1;
+samples_to_read = [80001, 82000];  % Trim for a faster test.
+[signal, fs] = wavread([test_data_dir 'long_test' '.wav'], samples_to_read);
+assert(size(signal, 2) == 2, 'Expected stereo signal.');
+n_ears = size(signal, 2);
+CF_struct = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, ...
+            CF_IHC_params);
+WriteTestData(test_data_dir, 'ihc_just_hwr_test', signal, CF_struct, sai_struct, open_loop);
+
+function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct, open_loop)
+% function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct, open_loop)
 % 
 % Helper function to run CARFAC and SAI over the given signal and
 % save the results to text files in test_data_dir.
 
 % The following section generates data for the binaural test of the C++
 % version of CARFAC.
+if nargin < 6
+    open_loop = 0;
+end
+
 filename_prefix = [test_data_dir test_name];
 
 WriteMatrixToFile([filename_prefix '-audio.txt'], signal);
 
 CF_struct = CARFAC_Init(CF_struct);
-[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal);
+[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal, 0, open_loop);
 
 % Store the data for each ear of each output signal in a separate file.
 for ear = 1:CF_struct.n_ears

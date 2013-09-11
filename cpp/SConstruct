@@ -69,7 +69,6 @@ env.Command('tmp/libgtest.a', [],
             ])
 
 test_targets = [
-    'binaural_sai_test',
     'carfac_test',
     'sai_test',
     ]
