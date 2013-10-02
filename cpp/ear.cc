@@ -18,8 +18,6 @@
 
 #include "ear.h"
 
-#include <assert.h>
-
 #include "carfac_util.h"
 
 Ear::Ear(int num_channels,
@@ -35,13 +33,13 @@ void Ear::Redesign(int num_channels,
                    const std::vector<AGCCoeffs>& agc_coeffs) {
   num_channels_ = num_channels;
   car_coeffs_ = car_coeffs;
-  assert(car_coeffs.r1_coeffs.size() == num_channels &&
-         car_coeffs.a0_coeffs.size() == num_channels &&
-         car_coeffs.c0_coeffs.size() == num_channels &&
-         car_coeffs.h_coeffs.size() == num_channels &&
-         car_coeffs.g0_coeffs.size() == num_channels &&
-         car_coeffs.zr_coeffs.size() == num_channels &&
-         "car_coeffs should be size num_channels.");
+  CARFAC_ASSERT(car_coeffs.r1_coeffs.size() == num_channels &&
+                car_coeffs.a0_coeffs.size() == num_channels &&
+                car_coeffs.c0_coeffs.size() == num_channels &&
+                car_coeffs.h_coeffs.size() == num_channels &&
+                car_coeffs.g0_coeffs.size() == num_channels &&
+                car_coeffs.zr_coeffs.size() == num_channels &&
+                "car_coeffs should be size num_channels.");
   ihc_coeffs_ = ihc_coeffs;
   agc_coeffs_ = agc_coeffs;
   Reset();
@@ -266,7 +264,8 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
             (fir_coeffs_right * (ss_tap2 + ss_tap4));
         break;
       default:
-        assert(true && "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
+        CARFAC_ASSERT(true &&
+                      "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
         break;
     }
   } else {

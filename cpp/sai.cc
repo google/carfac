@@ -18,8 +18,6 @@
 
 #include "sai.h"
 
-#include <assert.h>
-
 SAI::SAI(const SAIParams& params) : SAIBase(params) {
   // SAI::Reset() must be called here.  It may seem like Reset() is
   // already being called in the SAIBase constructor, but that's
@@ -33,13 +31,7 @@ void SAI::Reset() {
 }
 
 void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
-  assert(input_segment.cols() == params().window_width &&
-         "Unexpected number of input samples.");
-  assert(input_segment.rows() == params().num_channels &&
-         "Unexpected number of input channels.");
-
   ShiftAndAppendInput(input_segment, &input_buffer_);
-
   StabilizeSegment(input_buffer_, input_buffer_, &output_buffer_);
   *output_frame = output_buffer_;
 }
@@ -52,8 +44,7 @@ SAIBase::SAIBase(const SAIParams& params) {
 
 void SAIBase::Redesign(const SAIParams& params) {
   params_ = params;
-  assert(params_.window_width > params_.width &&
-         "SAI window_width must be larger than width.");
+  CARFAC_ASSERT(params_.window_width > params_.width);
 
   window_ =
       ArrayX::LinSpaced(params_.window_width, M_PI / params_.window_width, M_PI)
@@ -64,10 +55,12 @@ void SAIBase::Redesign(const SAIParams& params) {
 void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
                                const ArrayXX& nontriggering_input_buffer,
                                ArrayXX* output_buffer) const {
-  assert(triggering_input_buffer.cols() == nontriggering_input_buffer.cols() &&
-         "Number of columns must match.");
-  assert(triggering_input_buffer.rows() == nontriggering_input_buffer.rows() &&
-         "Number of rows must match.");
+  CARFAC_ASSERT(
+      triggering_input_buffer.cols() == nontriggering_input_buffer.cols() &&
+      "Number of columns must match.");
+  CARFAC_ASSERT(
+      triggering_input_buffer.rows() == nontriggering_input_buffer.rows() &&
+      "Number of rows must match.");
 
   // Windows are always approximately 50% overlapped.
   float window_hop = params_.window_width / 2;
@@ -75,7 +68,7 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
       (params_.num_window_pos - 1) * window_hop;
   int window_range_start = window_start - params_.future_lags;
   int offset_range_start = 1 + window_start - params_.width;
-  assert(offset_range_start > 0);
+  CARFAC_ASSERT(offset_range_start > 0);
   for (int i = 0; i < params_.num_channels; ++i) {
     // TODO(kwwilson): Figure out if operating on rows is a
     // performance bottleneck when elements are noncontiguous.

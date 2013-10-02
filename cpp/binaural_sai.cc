@@ -18,8 +18,6 @@
 
 #include "binaural_sai.h"
 
-#include <assert.h>
-
 BinauralSAI::BinauralSAI(const SAIParams& params) : SAIBase(params) {
   // BinauralSAI::Reset() must be called here.  It may seem like Reset() is
   // already being called in the SAIBase constructor, but that's
@@ -39,13 +37,8 @@ void BinauralSAI::Reset() {
 
 void BinauralSAI::RunSegment(const std::vector<ArrayXX>& input_segment,
                              std::vector<ArrayXX>* output_frame) {
-  assert(input_segment.size() == 2);
+  CARFAC_ASSERT(input_segment.size() == 2);
   for (int i = 0; i < 2; ++i) {
-    assert(input_segment[i].cols() == params().window_width &&
-           "Unexpected number of input samples.");
-    assert(input_segment[i].rows() == params().num_channels &&
-           "Unexpected number of input channels.");
-
     ShiftAndAppendInput(input_segment[i], &input_buffer_[i]);
   }
 

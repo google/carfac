@@ -19,6 +19,8 @@
 #ifndef CARFAC_COMMON_H
 #define CARFAC_COMMON_H
 
+#include <assert.h>
+
 // The Eigen library is used extensively for floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org
 #include <Eigen/Core>
@@ -36,5 +38,10 @@ typedef Eigen::Array<FPType, Eigen::Dynamic, Eigen::Dynamic> ArrayXX;
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
 #endif
+
+// This abstraction makes it easy to redefine all assertions used in
+// this library if the basic assert macro is insufficient.
+#define CARFAC_ASSERT(expression) \
+  assert(expression);
 
 #endif  // CARFAC_COMMON_H

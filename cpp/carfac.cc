@@ -18,7 +18,6 @@
 
 #include "carfac.h"
 
-#include <assert.h>
 #include <math.h>
 
 #include "carfac_util.h"
@@ -87,7 +86,7 @@ void CARFAC::Reset() {
 
 void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
                         CARFACOutput* output) {
-  assert(sound_data.rows() == num_ears_);
+  CARFAC_ASSERT(sound_data.rows() == num_ears_);
   output->Resize(num_ears_, num_channels_, sound_data.cols());
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
@@ -288,11 +287,11 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
           break;
         case 5:
           n_iterations++;
-          assert(n_iterations < 16 &&
-                 "Too many iterations needed in AGC spatial smoothing.");
+          CARFAC_ASSERT(n_iterations < 16 &&
+                        "Too many iterations needed in AGC spatial smoothing.");
           break;
         default:
-          assert(true && "Bad n_taps; should be 3 or 5.");
+          CARFAC_ASSERT(true && "Bad n_taps; should be 3 or 5.");
           break;
       }
       // The smoothing function is a space-domain smoothing, but it considered
@@ -329,7 +328,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
           fir_ok = fir_mid >= 0.1 ? true : false;
           break;
         default:
-          assert(true && "Bad n_taps; should be 3 or 5.");
+          CARFAC_ASSERT(true && "Bad n_taps; should be 3 or 5.");
           break;
       }
     }

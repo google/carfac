@@ -41,7 +41,7 @@ ArrayXX LoadMatrix(const std::string& filename, int rows, int columns) {
   std::string fullfile = kTestDataDir + filename;
   std::ifstream file(fullfile.c_str());
   ArrayXX output(rows, columns);
-  assert(file.is_open());
+  CARFAC_ASSERT(file.is_open());
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       file >> output(i, j);

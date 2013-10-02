@@ -82,6 +82,11 @@ class SAIBase {
   // Shift and append new data to an input buffer.
   void ShiftAndAppendInput(const ArrayXX& fresh_input_segment,
                            ArrayXX* input_buffer) const {
+    CARFAC_ASSERT(fresh_input_segment.cols() == params().window_width &&
+                  "Unexpected number of input samples.");
+    CARFAC_ASSERT(fresh_input_segment.rows() == params().num_channels &&
+                  "Unexpected number of input channels.");
+
     const int overlap_width = buffer_width() - params().window_width;
     input_buffer->leftCols(overlap_width) =
         input_buffer->rightCols(overlap_width);
