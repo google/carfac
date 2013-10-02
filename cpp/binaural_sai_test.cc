@@ -36,7 +36,8 @@
 using testing::Values;
 
 class BinauralSAIPeriodicInputTest
-    : public SAITestBase, public ::testing::WithParamInterface<std::tr1::tuple<int, int>> {
+    : public SAITestBase,
+      public ::testing::WithParamInterface<std::tr1::tuple<int, int> > {
  protected:
   void SetUp() {
     period_ = std::tr1::get<0>(GetParam());

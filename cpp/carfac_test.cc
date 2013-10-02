@@ -96,33 +96,31 @@ class CARFACTest : public testing::Test {
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
   }
-  
-  
-  // TODO(alexb): figure out a way to integrate this method with the original
+
+  // TODO(alexb): Figure out a way to integrate this method with the original.
   void RunCARFACAndCompareWithMatlabUsingParams(const std::string& test_name,
                                                 int num_samples,
                                                 int num_ears,
                                                 int num_channels,
                                                 FPType sample_rate,
-                                                CARParams& car_params_mod,
-                                                AGCParams& agc_params_mod,
-                                                IHCParams& ihc_params_mod,
+                                                const CARParams& car_params,
+                                                const AGCParams& agc_params,
+                                                const IHCParams& ihc_params,
                                                 bool open_loop) const {
     ArrayXX sound_data =
-    LoadAudio(test_name + "-audio.txt", num_samples, num_ears);
-    
-    CARFAC carfac(num_ears, sample_rate, car_params_mod, ihc_params_mod,
-                  agc_params_mod);
+        LoadAudio(test_name + "-audio.txt", num_samples, num_ears);
+
+    CARFAC carfac(num_ears, sample_rate, car_params, ihc_params, agc_params);
     CARFACOutput output(true, true, false, false);
     carfac.RunSegment(sound_data, open_loop, &output);
-    
+
     vector<ArrayXX> expected_nap = LoadTestData(
-                                                test_name + "-matlab-nap", num_samples, num_ears, num_channels);
+        test_name + "-matlab-nap", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_nap, output.nap());
     vector<ArrayXX> expected_bm = LoadTestData(
-                                               test_name + "-matlab-bm", num_samples, num_ears, num_channels);
+        test_name + "-matlab-bm", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_bm, output.bm());
-    
+
     WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
     WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
   }
