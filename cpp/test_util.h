@@ -106,15 +106,16 @@ class SAITestBase : public ::testing::Test {
     return CreatePulseTrain(num_channels, num_samples, period, 0);
   }
 
-  static SAIParams CreateSAIParams(int num_channels, int window_width,
-                                   int width) {
+  static SAIParams CreateSAIParams(int num_channels, int input_segment_width,
+                                   int trigger_window_width, int sai_width) {
     SAIParams sai_params;
     sai_params.num_channels = num_channels;
-    sai_params.window_width = window_width;
-    sai_params.width = width;
+    sai_params.input_segment_width = input_segment_width;
+    sai_params.trigger_window_width = trigger_window_width;
+    sai_params.sai_width = sai_width;
     // Half of the SAI should come from the future.
-    sai_params.future_lags = sai_params.width / 2;
-    sai_params.num_window_pos = 2;
+    sai_params.future_lags = sai_params.sai_width / 2;
+    sai_params.num_triggers_per_frame = 2;
     return sai_params;
   }
 

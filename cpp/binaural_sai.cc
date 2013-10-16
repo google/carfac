@@ -31,7 +31,7 @@ void BinauralSAI::Reset() {
 
   for (int i = 0; i < 2; ++i) {
     input_buffer_[i].setZero(params().num_channels, buffer_width());
-    output_buffer_[i].setZero(params().num_channels, params().width);
+    output_buffer_[i].setZero(params().num_channels, params().sai_width);
   }
 }
 

@@ -49,18 +49,20 @@ class BinauralSAIPeriodicInputTest
 };
 
 TEST_P(BinauralSAIPeriodicInputTest, MultiChannelPulseTrain) {
-  const int kNumSamples = 38;
+  const int kInputSegmentWidth = 38;
   const int kLeftEarDelay = 0;
   const int kRightEarDelay = 1;
   std::vector<ArrayXX> input_segment;
   // Arbitrarily refer to ear 0 as the left ear.
-  input_segment.push_back(
-      CreatePulseTrain(num_channels_, kNumSamples, period_, kLeftEarDelay));
-  input_segment.push_back(
-      CreatePulseTrain(num_channels_, kNumSamples, period_, kRightEarDelay));
+  input_segment.push_back(CreatePulseTrain(num_channels_, kInputSegmentWidth,
+                                           period_, kLeftEarDelay));
+  input_segment.push_back(CreatePulseTrain(num_channels_, kInputSegmentWidth,
+                                           period_, kRightEarDelay));
 
   const int kSAIWidth = 15;
-  SAIParams sai_params = CreateSAIParams(num_channels_, kNumSamples, kSAIWidth);
+  const int kTriggerWindowWidth = kInputSegmentWidth;
+  SAIParams sai_params = CreateSAIParams(num_channels_, kInputSegmentWidth,
+                                         kTriggerWindowWidth, kSAIWidth);
   sai_params.future_lags = 2;
 
   BinauralSAI binaural_sai(sai_params);
@@ -96,17 +98,20 @@ INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, BinauralSAIPeriodicInputTest,
                         testing::Combine(Values(25, 10, 5, 2),  // periods.
                                          Values(1, 2, 15)));  // num_channels.
 
-TEST_F(SAITestBase, DiesIfNotTwoEars) {
+class BinauralSAITest : public SAITestBase {};
+
+TEST_F(BinauralSAITest, DiesIfNotTwoEars) {
   const int kNumChannels = 2;
-  const int kNumSamples = 10;
+  const int kInputSegmentWidth = 10;
   const int kPeriod = 4;
   std::vector<ArrayXX> input_segment;
   input_segment.push_back(
-      CreatePulseTrain(kNumChannels, kNumSamples, kPeriod, 0));
+      CreatePulseTrain(kNumChannels, kInputSegmentWidth, kPeriod, 0));
 
   const int kSAIWidth = 20;
-  SAIParams sai_params = CreateSAIParams(kNumChannels, kSAIWidth + 1,
-                                         kSAIWidth);
+  const int kTriggerWindowWidth = kSAIWidth + 1;
+  SAIParams sai_params = CreateSAIParams(kNumChannels, kInputSegmentWidth,
+                                         kTriggerWindowWidth, kSAIWidth);
   BinauralSAI binaural_sai(sai_params);
   std::vector<ArrayXX> output_frame;
   // Dies on one ear.
@@ -114,9 +119,9 @@ TEST_F(SAITestBase, DiesIfNotTwoEars) {
                "input_segment.size()");
 
   input_segment.push_back(
-      CreatePulseTrain(kNumChannels, kNumSamples, kPeriod, 0));
+      CreatePulseTrain(kNumChannels, kInputSegmentWidth, kPeriod, 0));
   input_segment.push_back(
-      CreatePulseTrain(kNumChannels, kNumSamples, kPeriod, 0));
+      CreatePulseTrain(kNumChannels, kInputSegmentWidth, kPeriod, 0));
   // Dies on three ears.
   ASSERT_DEATH(binaural_sai.RunSegment(input_segment, &output_frame),
                "input_segment.size()");

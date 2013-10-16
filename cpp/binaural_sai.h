@@ -28,7 +28,7 @@
 //
 // Repeated calls to the RunSegment menthod compute a sort of running
 // cross-correlation of a pair of multi-channel input signals,
-// typically a segments of the neural activity pattern (NAP) outputs of
+// typically segments of the neural activity pattern (NAP) outputs of
 // CARFAC filterbanks.
 class BinauralSAI : public sai_internal::SAIBase {
  public:

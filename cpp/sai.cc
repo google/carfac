@@ -27,7 +27,7 @@ SAI::SAI(const SAIParams& params) : SAIBase(params) {
 
 void SAI::Reset() {
   input_buffer_.setZero(params().num_channels, buffer_width());
-  output_buffer_.setZero(params().num_channels, params().width);
+  output_buffer_.setZero(params().num_channels, params().sai_width);
 }
 
 void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
@@ -44,11 +44,20 @@ SAIBase::SAIBase(const SAIParams& params) {
 
 void SAIBase::Redesign(const SAIParams& params) {
   params_ = params;
-  CARFAC_ASSERT(params_.window_width > params_.width);
+  // TODO(ronw): Figure out if this assertion is correct.  I think the
+  // only constraints should be that *_width > 0.
+  CARFAC_ASSERT(params_.trigger_window_width > params_.sai_width);
+  CARFAC_ASSERT(params_.num_triggers_per_frame > 0);
+  // TODO(ronw): Figure out if the right hand side is missing "-
+  // <overhang_width>".
+  CARFAC_ASSERT(params_.input_segment_width <= buffer_width() &&
+                "Too few triggers, or trigger_window_width too small for "
+                "specified input_segment_width.  I.e. the hop size between "
+                "adjacent SAI frames is too large, some input samples would "
+                "be ignored.");
 
-  window_ =
-      ArrayX::LinSpaced(params_.window_width, M_PI / params_.window_width, M_PI)
-      .sin();
+  window_ = ArrayX::LinSpaced(params_.trigger_window_width,
+                              M_PI / params_.trigger_window_width, M_PI).sin();
   Reset();
 }
 
@@ -63,25 +72,28 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
       "Number of rows must match.");
 
   // Windows are always approximately 50% overlapped.
-  float window_hop = params_.window_width / 2;
-  int window_start = (triggering_input_buffer.cols() - params_.window_width) -
-      (params_.num_window_pos - 1) * window_hop;
+  float window_hop = params_.trigger_window_width / 2;
+  int window_start =
+      (triggering_input_buffer.cols() - params_.trigger_window_width) -
+      (params_.num_triggers_per_frame - 1) * window_hop;
   int window_range_start = window_start - params_.future_lags;
-  int offset_range_start = 1 + window_start - params_.width;
+
+  int offset_range_start = 1 + window_start - params_.sai_width;
   CARFAC_ASSERT(offset_range_start > 0);
   for (int i = 0; i < params_.num_channels; ++i) {
     // TODO(kwwilson): Figure out if operating on rows is a
     // performance bottleneck when elements are noncontiguous.
     const ArrayX& triggering_nap_wave = triggering_input_buffer.row(i);
     const ArrayX& nontriggering_nap_wave = nontriggering_input_buffer.row(i);
-    // TODO(ronw): Smooth row.
+    // TODO(ronw): Smooth triggering signal.
 
-    for (int w = 0; w < params_.num_window_pos; ++w) {
+    for (int w = 0; w < params_.num_triggers_per_frame; ++w) {
       int current_window_offset = w * window_hop;
       // Choose a trigger point.
       int trigger_time;
       const ArrayX& trigger_window = triggering_nap_wave.segment(
-          window_range_start + current_window_offset, params_.window_width);
+          window_range_start + current_window_offset,
+          params_.trigger_window_width);
       // TODO(kwwilson): If peak-finding is a performance bottleneck,
       // do something more SSE friendly.
       FPType peak_val = (trigger_window * window_).maxCoeff(&trigger_time);
@@ -97,7 +109,7 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
       output_buffer->row(i) *= 1 - alpha;
       output_buffer->row(i) +=
           alpha * nontriggering_nap_wave.segment(
-                      trigger_time + offset_range_start, params_.width);
+                      trigger_time + offset_range_start, params_.sai_width);
     }
   }
 }
