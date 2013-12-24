@@ -1,0 +1,59 @@
+<html>
+<head>
+<title>CARFAC</title>
+<script src="carfac.js"></script>
+<script>
+function CreateImpulse(input_size) {
+  var impulse = new Module.FloatVector();
+  for (var i = 0; i < input_size; i++) {
+    impulse.push_back(0);
+  }
+  impulse.set(0, 1);
+  return impulse;
+}
+
+function PlotCARFACOutput(carfac, input, canvas) {
+  var nap_output = carfac.RunSegment(input);
+
+  var num_samples = input.size();
+  input.delete();
+  var num_channels = carfac.num_channels();
+  canvas.height = num_channels;
+  canvas.width = num_samples;
+  context = canvas.getContext("2d");
+  image = context.getImageData(0, 0, canvas.width, canvas.height);
+  var image_data = image.data;
+  var image_width = canvas.width;
+
+  var nap_index = 0;
+  for (var sample = 0; sample < num_samples; sample++) {
+    for (var channel = 0; channel < num_channels; channel++) {
+      // nap_output is stored in column-major order.
+      //var nap_index = sample * num_channels + channel;
+      var gray_value = 255 * (1.0 - nap_output.get(nap_index));
+      nap_index++;
+
+      // image_data is stored in row-major order.
+      var image_index = 4 * (channel * image_width + sample);
+      image_data[image_index + 0] = gray_value;
+      image_data[image_index + 1] = gray_value;
+      image_data[image_index + 2] = gray_value;
+      image_data[image_index + 3] = 255;  // Alpha value.
+    }
+  }
+  context.putImageData(image, 0, 0);
+  nap_output.delete();
+}
+
+function PlotImpulseResponse(input_size, canvas) {
+  var carfac = new Module.EmscriptenCARFAC(44100.0);
+  impulse = CreateImpulse(input_size);
+  PlotCARFACOutput(carfac, impulse, canvas);
+  carfac.delete();
+}
+</script>
+</head>
+<body onload="PlotImpulseResponse(500, document.getElementById('carfac_canvas'));">
+  <canvas id="carfac_canvas"></canvas>
+</body>
+</html>
