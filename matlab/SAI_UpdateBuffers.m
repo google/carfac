@@ -70,12 +70,6 @@ for layer = 1:n_layers
       new_chunk = filter(kernel, 1, new_chunk);
       % new_chunk = gain * new_chunk(7:2:end, :);
       % try a little extra smoothing:
-      % FIXME: more low pass filtering!
-      % full filter:
-      % In [121]: np.convolve(1.05 * np.array([1, 1]) / 2 , kernel)
-      % array([ 0.021875,  0.0875  ,  0.175   ,  0.240625,  0.240625,  0.175   ,
-      %         0.0875  ,  0.021875,  0.      ])
-      % then just decimate by factor of 2 -- but we can only do that with resample.
       new_chunk = gain * (new_chunk(7:2:end, :) + new_chunk(6:2:(end-1), :))/2;
       
     end
