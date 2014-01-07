@@ -39,6 +39,7 @@ static const char* kTestDataDir = "../test_data/";
 // using the Matlab dlmwrite function.
 ArrayXX LoadMatrix(const std::string& filename, int rows, int columns) {
   std::string fullfile = kTestDataDir + filename;
+
   std::ifstream file(fullfile.c_str());
   ArrayXX output(rows, columns);
   CARFAC_ASSERT(file.is_open());

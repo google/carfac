@@ -41,7 +41,6 @@ typedef Eigen::Array<FPType, Eigen::Dynamic, Eigen::Dynamic> ArrayXX;
 
 // This abstraction makes it easy to redefine all assertions used in
 // this library if the basic assert macro is insufficient.
-#define CARFAC_ASSERT(expression) \
-  assert(expression);
+#define CARFAC_ASSERT(expression) assert(expression);
 
 #endif  // CARFAC_COMMON_H
