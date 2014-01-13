@@ -24,7 +24,7 @@ function cols = smooth1d(cols, scale)
 % Smooth the columns of input using a one-pole smoothing filter, using the
 % provided smoothing factor.
 %
-% TODO(dross, dicklyon): make this code satisfy the google3 Matlab style.
+% TODO(dross, dicklyon): make this code satisfy the Google Matlab style.
 
 [nr, nc, nl] = size(cols);
 if nr == 1
