@@ -16,59 +16,109 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
+#if EMSCRIPTEN
 #include <emscripten/bind.h>
+#endif
+#include <SDL/SDL.h>
 
+#include <cmath>
+#include <memory>
+
+#include "agc.h"
+#include "car.h"
 #include "carfac.h"
+#include "ihc.h"
+#include "sai.h"
 
 using namespace emscripten;
 
-// A more restricted interface to CARFAC that is easier to interact
-// with from Javascript (i.e. uses vector<float> instead of Eigen
-// arrays) when compiled using emscripten.
-class EmscriptenCARFAC {
+// Helper class to run CARFAC, compute SAI frames, and plot them using
+// SDL.  The interface is designed to be easy to interact with from
+// Javascript when compiled using emscripten.
+class SAIPlotter {
  public:
-  explicit EmscriptenCARFAC(float sample_rate) {
+  explicit SAIPlotter(float sample_rate, int num_samples_per_segment) {
     constexpr int kNumEars = 1;
     CARParams car_params;
     IHCParams ihc_params;
     AGCParams agc_params;
     carfac_.reset(new CARFAC(kNumEars, sample_rate, car_params, ihc_params,
                              agc_params));
+    // Only store NAP outputs.
+    carfac_output_buffer_.reset(new CARFACOutput(true, false, false, false));
+
+    sai_params_.num_channels = carfac_->num_channels();
+    sai_params_.sai_width = num_samples_per_segment;
+    sai_params_.input_segment_width = num_samples_per_segment;
+    sai_params_.trigger_window_width = sai_params_.input_segment_width + 1;
+    // Half of the SAI should come from the future.
+    sai_params_.future_lags = sai_params_.sai_width / 2;
+    sai_params_.num_triggers_per_frame = 2;
+    sai_.reset(new SAI(sai_params_));
+    sai_output_buffer_.reset(new ArrayXX(sai_params_.num_channels,
+                                         sai_params_.sai_width));
+
+    SDL_Init(SDL_INIT_VIDEO);
+    screen_ = SDL_SetVideoMode(sai_params_.sai_width, carfac_->num_channels(),
+                               32 /* bits_per_pixel */, SDL_SWSURFACE);
   }
 
-  void Reset() { carfac_->Reset(); }
-  int num_channels() { return carfac_->num_channels(); }
+  void Reset() {
+    carfac_->Reset();
+    sai_->Reset();
+  }
 
-  // The output buffer is a flattened vector containing the NAP
-  // CARFACOutput in column-major order.
-  std::vector<float> RunSegment(const std::vector<float>& input_samples) {
+  // Runs the given (single channel) audio samples through the CARFAC
+  // filterbank, computes an SAI, and plots the result.
+  //
+  // The input_samples pointer type is chosen to avoid emscripten
+  // compilation errors.
+  // TODO(ronw): Figure out if this is the best way to pass a
+  // javascript FloatArray to a C++ function using emscripten.
+  void ComputeAndPlotSAI(intptr_t input_samples, size_t num_input_samples) {
+    CARFAC_ASSERT(num_input_samples == sai_params_.input_segment_width);
     constexpr int kNumInputEars = 1;
-    auto input_map = ArrayXX::Map(&input_samples.front(), kNumInputEars,
-                                  input_samples.size());
-    // Only store NAP outputs.
-    CARFACOutput output(true, false, false, false);
-    carfac_->RunSegment(input_map, false /* open_loop */, &output);
-
-    std::vector<float> output_vector(
-        input_samples.size() * carfac_->num_channels());
-    auto output_map = ArrayXX::Map(&output_vector.front(),
-                                   carfac_->num_channels(),
-                                   input_samples.size());
-    output_map = output.nap()[0];
-    return output_vector;
+    auto input_map = ArrayXX::Map(reinterpret_cast<const float*>(input_samples),
+                                  kNumInputEars, num_input_samples);
+    carfac_->RunSegment(input_map, false /* open_loop */,
+                        carfac_output_buffer_.get());
+    sai_->RunSegment(carfac_output_buffer_->nap()[0], sai_output_buffer_.get());
+    PlotMatrix(*sai_output_buffer_);
   }
 
  private:
+  // Plots the given matrix.  This assumes that the values of matrix
+  // are within (0, 1), and clips values outside of this range.
+  // Emscripten renders the output to an HTML5 canvas element.
+  void PlotMatrix(const ArrayXX& matrix) {
+    SDL_LockSurface(screen_);
+    Uint32* pixels = static_cast<Uint32*>(screen_->pixels);
+    for (int row = 0; row < matrix.rows(); ++row) {
+      for (int col = 0; col < matrix.cols(); ++col) {
+        Uint8 gray_value = 255 * (1.0 - fmin(fmax(matrix(row, col), 0.0), 1.0));
+        pixels[(row * screen_->w) + col] =
+          SDL_MapRGB(screen_->format, gray_value, gray_value, gray_value);
+      }
+    }
+    SDL_UnlockSurface(screen_);
+    SDL_Flip(screen_);
+  }
+
   std::unique_ptr<CARFAC> carfac_;
+  std::unique_ptr<CARFACOutput> carfac_output_buffer_;
+  SAIParams sai_params_;
+  std::unique_ptr<SAI> sai_;
+  std::unique_ptr<ArrayXX> sai_output_buffer_;
+  SDL_Surface* screen_;
 };
 
-EMSCRIPTEN_BINDINGS(EmscriptenCARFAC) {
+#if EMSCRIPTEN
+EMSCRIPTEN_BINDINGS(SAIPlotter) {
   register_vector<float>("FloatVector");
-  class_<EmscriptenCARFAC>("EmscriptenCARFAC")
-    .constructor<float>()
-    .function("Reset", &EmscriptenCARFAC::Reset)
-    .function("num_channels", &EmscriptenCARFAC::num_channels)
-    .function("RunSegment", &EmscriptenCARFAC::RunSegment, allow_raw_pointers())
+  class_<SAIPlotter>("SAIPlotter")
+    .constructor<float, int>()
+    .function("Reset", &SAIPlotter::Reset)
+    .function("ComputeAndPlotSAI", &SAIPlotter::ComputeAndPlotSAI)
     ;
 }
+#endif

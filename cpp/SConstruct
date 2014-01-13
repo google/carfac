@@ -99,7 +99,7 @@ emscripten_env = Environment(
 emscripten_env.Command(
   'carfac.js', emscripten_sources,
   [
-    'em++ --bind {sources} -I {EIGEN_PATH} -std=c++11 -o carfac.js'.format(
+    'em++ -O2 --bind {sources} -I {EIGEN_PATH} -std=c++11 -o carfac.js'.format(
       EIGEN_PATH = os.environ['EIGEN_PATH'],
       sources = ' '.join(emscripten_sources))
   ])
