@@ -5,43 +5,58 @@
 <script>
 function InitWebAudio() {
   var context = new webkitAudioContext();
-  audio = document.getElementById('audio_source');
+  console.log("sampleRate = " + context.sampleRate);
+  console.assert(context.sampleRate == 44100);
+
+  var audio = document.getElementById('audio_source');
   var mediaSourceNode = context.createMediaElementSource(audio);
 
-  var sampleRate = 44100;
-  var bufferSize = 512;
-  jsNode = context.createScriptProcessor(bufferSize, 1,  // numInputChannels
-                                        1);  // numOutputChannels
+  // Use as a (not very good) anti-aliasing filter.
+  var antiAliasFilterNode = context.createBiquadFilter();
+  antiAliasFilterNode.frequency = 8000;  // Hertz.
+  antiAliasFilterNode.Q = 0;
+
+  var bufferSize = 2048;
+  saiNode = context.createScriptProcessor(bufferSize, 1,  // numInputChannels
+                                          1);  // numOutputChannels
 
   // Configure the canvas element that the SAIPlotter will render to.
   Module.canvas = document.getElementById('sai_canvas');
 
-  // TODO(ronw): Add some controls to allow users to configure the
-  // various CARFAC and SAI params.
-  var saiPlotter = new Module.SAIPlotter(sampleRate, bufferSize);
-  var sampleBuffer = Module._malloc(4 * bufferSize);
-  jsNode.onaudioprocess = CreateAudioProcessCallback(saiPlotter, sampleBuffer);
+  // TODO(ronw): Add some controls (and hooks in the C++ class) to
+  // allow users to configure the various CARFAC and SAI params.
 
-  mediaSourceNode.connect(jsNode);
+  // The input will be downsampled by a factor of two before being
+  // passed into the SAIPlotter.
+  var saiPlotter = new Module.SAIPlotter(context.sampleRate / 2,
+                                         bufferSize / 2);
+  var sampleBuffer = Module._malloc(4 * bufferSize / 2);
+  saiNode.onaudioprocess = CreateAudioProcessCallback(saiPlotter, sampleBuffer);
+
+  mediaSourceNode.connect(antiAliasFilterNode);
+  antiAliasFilterNode.connect(saiNode);
   // Hook up the sound output.
-  jsNode.connect(context.destination);
+  saiNode.connect(context.destination);
 }
 
 function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
   return function (e) {
     var buffer = e.inputBuffer.getChannelData(0);
 
+    // Copy the audio samples to the output so it can be sent to the sound
+    // output.
+    e.outputBuffer.getChannelData(0).set(buffer);
+
     var energy = 0;
-    for (var i = 0; i < buffer.length; i++) {
+    for (var i = 0; i < buffer.length; i += 2) {
       energy += buffer[i] * buffer[i];
-      HEAPF32[(sampleBuffer >> 2) + i] = buffer[i];
+      // Decimate by a factor of two before calling CARFAC.
+      HEAPF32[(sampleBuffer >> 2) + i / 2] = buffer[i];
     }
     console.log(e.timeStamp + ": energy = " + energy);
 
-    saiPlotter.ComputeAndPlotSAI(sampleBuffer, buffer.length);
-
-    // Copy the audio samples to the output so it can be sent to the sound output.
-    e.outputBuffer.getChannelData(0).set(e.inputBuffer.getChannelData(0));
+    var sampleBufferLength = buffer.length / 2;
+    saiPlotter.ComputeAndPlotSAI(sampleBuffer, sampleBufferLength);
   };
 }
 
