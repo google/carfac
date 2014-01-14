@@ -91,11 +91,19 @@ class SAIPlotter {
   // are within (0, 1), and clips values outside of this range.
   // Emscripten renders the output to an HTML5 canvas element.
   void PlotMatrix(const ArrayXX& matrix) {
+    float min = matrix.minCoeff();
+    float norm = matrix.maxCoeff() - min;
+    // Avoid dividing by zero.
+    if (norm == 0.0) {
+      norm = 1.0;
+    }
+
     SDL_LockSurface(screen_);
     Uint32* pixels = static_cast<Uint32*>(screen_->pixels);
     for (int row = 0; row < matrix.rows(); ++row) {
       for (int col = 0; col < matrix.cols(); ++col) {
-        Uint8 gray_value = 255 * (1.0 - fmin(fmax(matrix(row, col), 0.0), 1.0));
+        float normalized_value = (matrix(row, col) - min) / norm;
+        Uint8 gray_value = 255 * (1.0 - normalized_value);
         pixels[(row * screen_->w) + col] =
           SDL_MapRGB(screen_->format, gray_value, gray_value, gray_value);
       }
