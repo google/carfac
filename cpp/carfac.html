@@ -4,17 +4,23 @@
 <script src="carfac.js"></script>
 <script>
 function InitWebAudio() {
-  var context = new webkitAudioContext();
+  context = new webkitAudioContext();
   console.log("sampleRate = " + context.sampleRate);
   console.assert(context.sampleRate == 44100);
 
   var audio = document.getElementById('audio_source');
-  var mediaSourceNode = context.createMediaElementSource(audio);
+  mediaSourceNode = context.createMediaElementSource(audio);
 
   // Use as a (not very good) anti-aliasing filter.
-  var antiAliasFilterNode = context.createBiquadFilter();
+  antiAliasFilterNode = context.createBiquadFilter();
   antiAliasFilterNode.frequency = 8000;  // Hertz.
   antiAliasFilterNode.Q = 0;
+
+  // Control the input level with a slider.
+  gainNode = context.createGainNode();
+  document.getElementById('input_gain').addEventListener('change', function () {
+    gainNode.gain.value = this.value;
+  });
 
   var bufferSize = 2048;
   saiNode = context.createScriptProcessor(bufferSize, 1,  // numInputChannels
@@ -34,7 +40,8 @@ function InitWebAudio() {
   saiNode.onaudioprocess = CreateAudioProcessCallback(saiPlotter, sampleBuffer);
 
   mediaSourceNode.connect(antiAliasFilterNode);
-  antiAliasFilterNode.connect(saiNode);
+  antiAliasFilterNode.connect(gainNode);
+  gainNode.connect(saiNode);
   // Hook up the sound output.
   saiNode.connect(context.destination);
 }
@@ -53,7 +60,7 @@ function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
       // Decimate by a factor of two before calling CARFAC.
       HEAPF32[(sampleBuffer >> 2) + i / 2] = buffer[i];
     }
-    console.log(e.timeStamp + ": energy = " + energy);
+    // console.log(e.timeStamp + ": energy = " + energy);
 
     var sampleBufferLength = buffer.length / 2;
     saiPlotter.ComputeAndPlotSAI(sampleBuffer, sampleBufferLength);
@@ -68,5 +75,12 @@ function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
   <audio src="../test_data/long_test.wav"
          controls="controls"
          id="audio_source"/>
+  </audio>
+
+  <br>
+  Input gain:
+  <input id="input_gain" type="range" min="0" max="1" step="0.01" value="1"/>
+</script>
+
 </body>
 </html>
