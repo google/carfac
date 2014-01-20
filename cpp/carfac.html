@@ -8,23 +8,61 @@ function InitWebAudio() {
   console.log("sampleRate = " + context.sampleRate);
   console.assert(context.sampleRate == 44100);
 
-  var audio = document.getElementById('audio_source');
-  mediaSourceNode = context.createMediaElementSource(audio);
-
   // Use as a (not very good) anti-aliasing filter.
   antiAliasFilterNode = context.createBiquadFilter();
   antiAliasFilterNode.frequency = 8000;  // Hertz.
   antiAliasFilterNode.Q = 0;
 
+  InitInputNodes(context, antiAliasFilterNode);
+
   // Control the input level with a slider.
   gainNode = context.createGainNode();
-  document.getElementById('input_gain').addEventListener('change', function () {
-    gainNode.gain.value = this.value;
-  });
+  document.getElementById('input_gain').onchange =
+    function () { gainNode.gain.value = this.value; };
+  antiAliasFilterNode.connect(gainNode);
 
+  saiNode = CreateSAINode(context);
+  gainNode.connect(saiNode);
+
+  // Hook up the sound output.
+  saiNode.connect(context.destination);
+}
+
+function InitInputNodes(context, antiAliasFilterNode) {
+  var inputNodes = [
+    context.createMediaElementSource(document.getElementById('test_audio')),
+    null,  // Microphone source, Initialized below.
+  ];
+  inputNodes[0].connect(antiAliasFilterNode);
+
+  navigator.webkitGetUserMedia(
+      {audio: true},
+      function(e) {
+        // Microphone input available.
+        inputNodes[1] = context.createMediaStreamSource(e);
+      },
+      function(e) {
+        // Microphone input unavailable.
+        console.log(e);
+        alert('Error accessing microphone:\n' + e);
+      });
+
+  // Input selector controls.
+  function selectInputNode(i) {
+    inputNodes[1 - i].disconnect();
+    inputNodes[i].connect(antiAliasFilterNode);
+  }
+  document.getElementById('test_input').onclick =
+      function() { selectInputNode(0); };
+  document.getElementById('mic_input').onclick =
+      function() { selectInputNode(1); };
+}
+
+function CreateSAINode(context) {
   var bufferSize = 2048;
-  saiNode = context.createScriptProcessor(bufferSize, 1,  // numInputChannels
-                                          1);  // numOutputChannels
+  var saiNode = context.createScriptProcessor(bufferSize,
+                                              1,  // numInputChannels
+                                              1);  // numOutputChannels
 
   // Configure the canvas element that the SAIPlotter will render to.
   Module.canvas = document.getElementById('sai_canvas');
@@ -37,26 +75,16 @@ function InitWebAudio() {
   var saiPlotter = new Module.SAIPlotter(context.sampleRate / 2,
                                          bufferSize / 2);
   var sampleBuffer = Module._malloc(4 * bufferSize / 2);
-  saiNode.onaudioprocess = CreateAudioProcessCallback(saiPlotter, sampleBuffer);
-
-  mediaSourceNode.connect(antiAliasFilterNode);
-  antiAliasFilterNode.connect(gainNode);
-  gainNode.connect(saiNode);
-  // Hook up the sound output.
-  saiNode.connect(context.destination);
-}
-
-function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
-  return function (e) {
+  saiNode.onaudioprocess = function (e) {
     var buffer = e.inputBuffer.getChannelData(0);
 
     // Copy the audio samples to the output so it can be sent to the sound
     // output.
     e.outputBuffer.getChannelData(0).set(buffer);
 
-    var energy = 0;
+    // var energy = 0;
     for (var i = 0; i < buffer.length; i += 2) {
-      energy += buffer[i] * buffer[i];
+      // energy += buffer[i] * buffer[i];
       // Decimate by a factor of two before calling CARFAC.
       HEAPF32[(sampleBuffer >> 2) + i / 2] = buffer[i];
     }
@@ -65,6 +93,8 @@ function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
     var sampleBufferLength = buffer.length / 2;
     saiPlotter.ComputeAndPlotSAI(sampleBuffer, sampleBufferLength);
   };
+
+  return saiNode;
 }
 
 </script>
@@ -72,10 +102,16 @@ function CreateAudioProcessCallback(saiPlotter, sampleBuffer) {
 <body onload="InitWebAudio();">
   <canvas id="sai_canvas"></canvas>
   <br>
+  Select input:
+  <br>
+  <input type="radio" name="input_selector" id="test_input" checked> test sound
   <audio src="../test_data/long_test.wav"
          controls="controls"
-         id="audio_source"/>
+         id="test_audio"/>
   </audio>
+  <br>
+  <input type="radio" name="input_selector" id="mic_input"> microphone
+  <br>
 
   <br>
   Input gain:
