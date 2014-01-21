@@ -85,7 +85,8 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
     // performance bottleneck when elements are noncontiguous.
     const ArrayX& triggering_nap_wave = triggering_input_buffer.row(i);
     const ArrayX& nontriggering_nap_wave = nontriggering_input_buffer.row(i);
-    // TODO(ronw): Smooth triggering signal.
+    // TODO(ronw): Smooth triggering signal to be consistent with the
+    // Matlab implementation.
 
     for (int w = 0; w < params_.num_triggers_per_frame; ++w) {
       int current_window_offset = w * window_hop;
