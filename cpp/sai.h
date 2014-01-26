@@ -23,8 +23,8 @@
 
 // Design parameters for an SAI object.
 //
-// Terminology: Each call to SAI::RunSegment consumes an input "segment"
-// and outputs a single output SAI "frame".
+// Terminology: Each call to SAI::RunSegment consumes a fixed-length
+// input "segment" and outputs a single output SAI "frame".
 struct SAIParams {
   // Number of channels (height, or number of rows) of an SAI frame.
   int num_channels;
@@ -39,7 +39,7 @@ struct SAIParams {
 
   // Trigger settings.
   //
-  // Each SAI frame computed by a call to RunSegment blends together
+  // Each SAI frame computed by a call to SAI::RunSegment blends together
   // several 50% overlapping "trigger windows" identified in the input
   // buffer.  The size of the buffer (i.e. the total number of samples used
   // to generate the SAI) is controlled by the number and size of the
@@ -142,11 +142,12 @@ class SAIBase {
 
 }  // namespace sai_internal
 
-// Top-level class implementing the Stabilized Auditory Image.
+// Class implementing the Stabilized Auditory Image.
 //
-// Repeated calls to the RunSegment menthod compute a sort of running
-// autocorrelation of a multi-channel input signal, typically a segment of the
-// neural activity pattern (NAP) outputs of the CARFAC filterbank.
+// Repeated calls to the RunSegment method compute a sparse approximation
+// to the running autocorrelation of a multi-channel input signal,
+// typically a segment of the neural activity pattern (NAP) outputs of the
+// CARFAC filterbank.
 class SAI : public sai_internal::SAIBase {
  public:
   explicit SAI(const SAIParams& params);
