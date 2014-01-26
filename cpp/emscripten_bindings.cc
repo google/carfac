@@ -109,11 +109,12 @@ class SAIPlotter {
 
  private:
   // Plots the given matrix.  This assumes that the values of matrix
-  // are within (0, 1), and clips values outside of this range.
+  // are within (0, 5), and clips values outside of this range.
   // Emscripten renders the output to an HTML5 canvas element.
   void PlotMatrix(const ArrayXX& matrix) {
     float min = matrix.minCoeff();
-    float norm = matrix.maxCoeff() - min;
+    //float norm = matrix.maxCoeff() - min;
+    float norm = 5.0 - min;
     // Avoid dividing by zero.
     if (norm == 0.0) {
       norm = 1.0;
@@ -124,7 +125,7 @@ class SAIPlotter {
     for (int row = 0; row < matrix.rows(); ++row) {
       for (int col = 0; col < matrix.cols(); ++col) {
         float normalized_value = (matrix(row, col) - min) / norm;
-        Uint8 gray_value = 255 * (1.0 - normalized_value);
+        Uint8 gray_value = 255 * (1.0 - fmin(normalized_value, 1.0));
         pixels[(row * screen_->w) + col] =
           SDL_MapRGB(screen_->format, gray_value, gray_value, gray_value);
       }
