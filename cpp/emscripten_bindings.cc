@@ -32,18 +32,17 @@
 
 using namespace emscripten;
 
+constexpr int kNumEars = 1;
+
 // Helper class to run CARFAC, compute SAI frames, and plot them using
 // SDL.  The interface is designed to be easy to interact with from
 // Javascript when compiled using emscripten.
 class SAIPlotter {
  public:
   explicit SAIPlotter(float sample_rate, int num_samples_per_segment) {
-    constexpr int kNumEars = 1;
-    CARParams car_params;
-    IHCParams ihc_params;
-    AGCParams agc_params;
-    carfac_.reset(new CARFAC(kNumEars, sample_rate, car_params, ihc_params,
-                             agc_params));
+    sample_rate_ = sample_rate;
+    carfac_.reset(new CARFAC(kNumEars, sample_rate, car_params_, ihc_params_,
+                             agc_params_));
     // Only store NAP outputs.
     carfac_output_buffer_.reset(new CARFACOutput(true, false, false, false));
 
@@ -55,12 +54,29 @@ class SAIPlotter {
     sai_params_.future_lags = sai_params_.sai_width / 2;
     sai_params_.num_triggers_per_frame = 2;
     sai_.reset(new SAI(sai_params_));
-    sai_output_buffer_.reset(new ArrayXX(sai_params_.num_channels,
-                                         sai_params_.sai_width));
 
     SDL_Init(SDL_INIT_VIDEO);
+    Redesign(car_params_, ihc_params_, agc_params_, sai_params_);
+  }
+
+  void Redesign(const CARParams& car_params, const IHCParams& ihc_params,
+                const AGCParams& agc_params, const SAIParams& sai_params) {
+    car_params_ = car_params;
+    ihc_params_ = ihc_params;
+    agc_params_ = agc_params;
+    carfac_->Redesign(kNumEars, sample_rate_, car_params_, ihc_params_,
+                      agc_params_);
+
+    int input_segment_width = sai_params_.input_segment_width;
+    sai_params_ = sai_params;
+    sai_params_.num_channels = carfac_->num_channels();
+    sai_params_.input_segment_width = input_segment_width;
     screen_ = SDL_SetVideoMode(sai_params_.sai_width, carfac_->num_channels(),
-                               32 /* bits_per_pixel */, SDL_SWSURFACE);
+                               32 /* bits_per_pixel */,
+                               SDL_SWSURFACE | SDL_RESIZABLE);
+    sai_output_buffer_.reset(new ArrayXX(sai_params_.num_channels,
+                                         sai_params_.sai_width));
+    sai_->Redesign(sai_params_);
   }
 
   void Reset() {
@@ -85,6 +101,11 @@ class SAIPlotter {
     sai_->RunSegment(carfac_output_buffer_->nap()[0], sai_output_buffer_.get());
     PlotMatrix(*sai_output_buffer_);
   }
+
+  CARParams car_params() const { return car_params_; }
+  IHCParams ihc_params() const { return ihc_params_; }
+  AGCParams agc_params() const { return agc_params_; }
+  SAIParams sai_params() const { return sai_params_; }
 
  private:
   // Plots the given matrix.  This assumes that the values of matrix
@@ -112,21 +133,68 @@ class SAIPlotter {
     SDL_Flip(screen_);
   }
 
+  CARParams car_params_;
+  IHCParams ihc_params_;
+  AGCParams agc_params_;
   std::unique_ptr<CARFAC> carfac_;
   std::unique_ptr<CARFACOutput> carfac_output_buffer_;
   SAIParams sai_params_;
   std::unique_ptr<SAI> sai_;
   std::unique_ptr<ArrayXX> sai_output_buffer_;
+  float sample_rate_;
   SDL_Surface* screen_;
 };
 
 #if EMSCRIPTEN
 EMSCRIPTEN_BINDINGS(SAIPlotter) {
   register_vector<float>("FloatVector");
+
+  value_object<AGCParams>("AGCParams")
+    .field("num_stages", &AGCParams::num_stages)
+    .field("agc_stage_gain", &AGCParams::agc_stage_gain)
+    .field("agc_mix_coeff", &AGCParams::agc_mix_coeff);
+    // .field("time_constants", &AGCParams::time_constants)
+    // .field("decimation", &AGCParams::decimation)
+    // .field("agc1_scales", &AGCParams::agc1_scales)
+    // .field("agc2_scales", &AGCParams::agc2_scales);
+
+  value_object<CARParams>("CARParams")
+    .field("velocity_scale", &CARParams::velocity_scale)
+    .field("v_offset", &CARParams::v_offset)
+    .field("min_zeta", &CARParams::min_zeta)
+    .field("max_zeta", &CARParams::max_zeta)
+    .field("first_pole_theta", &CARParams::first_pole_theta)
+    .field("zero_ratio", &CARParams::zero_ratio)
+    .field("high_f_damping_compression", &CARParams::high_f_damping_compression)
+    .field("erb_per_step", &CARParams::erb_per_step)
+    .field("min_pole_hz", &CARParams::min_pole_hz)
+    .field("erb_break_freq", &CARParams::erb_break_freq)
+    .field("erb_q", &CARParams::erb_q);
+
+  value_object<IHCParams>("IHCParams")
+    .field("just_half_wave_rectify", &IHCParams::just_half_wave_rectify)
+    .field("one_capacitor", &IHCParams::one_capacitor)
+    .field("tau_lpf", &IHCParams::tau_lpf)
+    .field("tau1_out", &IHCParams::tau1_out)
+    .field("tau1_in", &IHCParams::tau1_in)
+    .field("tau2_out", &IHCParams::tau2_out)
+    .field("tau2_in", &IHCParams::tau2_in)
+    .field("ac_corner_hz", &IHCParams::ac_corner_hz);
+
+  value_object<SAIParams>("SAIParams")
+    .field("sai_width", &SAIParams::sai_width)
+    .field("future_lags", &SAIParams::future_lags)
+    .field("num_triggers_per_frame", &SAIParams::num_triggers_per_frame)
+    .field("trigger_window_width", &SAIParams::trigger_window_width);
+
   class_<SAIPlotter>("SAIPlotter")
     .constructor<float, int>()
+    .function("Redesign", &SAIPlotter::Redesign)
     .function("Reset", &SAIPlotter::Reset)
     .function("ComputeAndPlotSAI", &SAIPlotter::ComputeAndPlotSAI)
-    ;
+    .function("car_params", &SAIPlotter::car_params)
+    .function("ihc_params", &SAIPlotter::ihc_params)
+    .function("agc_params", &SAIPlotter::agc_params)
+    .function("sai_params", &SAIPlotter::sai_params);
 }
 #endif
