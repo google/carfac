@@ -100,7 +100,8 @@ function CreateSAINode(context) {
   params = ['car_params', 'ihc_params', 'agc_params', 'sai_params'];
   for (var i = 0; i < params.length; ++i) {
     document.getElementById(params[i]).innerText =
-        JSON.stringify(saiPlotter[params[i]](), null, '  ');
+        JSON.stringify(saiPlotter[params[i]](), FixedPrecisionNumberReplacer,
+                      '  ');
   }
   document.getElementById('redesign_button').onclick = function() {
     console.log("Redesigning");
@@ -109,6 +110,13 @@ function CreateSAINode(context) {
   };
 
   return saiNode;
+}
+
+function FixedPrecisionNumberReplacer(key, value) {
+  if (typeof(value) == "number") {
+    return value.toPrecision(4);
+  }
+  return value;
 }
 
 function GetParams(paramName) {
