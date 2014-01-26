@@ -96,8 +96,7 @@ function CreateSAINode(context) {
     saiPlotter.ComputeAndPlotSAI(sampleBuffer, sampleBufferLength);
   };
 
-  // TODO(ronw): add AGC controls.
-  params = ['car_params', 'ihc_params', 'sai_params'];
+  params = ['car_params', 'ihc_params', 'agc_params', 'sai_params'];
   for (var i = 0; i < params.length; ++i) {
     document.getElementById(params[i]).innerText =
         JSON.stringify(saiPlotter[params[i]](), null, '  ');
@@ -105,7 +104,7 @@ function CreateSAINode(context) {
   document.getElementById('redesign_button').onclick = function() {
     console.log("Redesigning");
     saiPlotter.Redesign(GetParams('car_params'), GetParams('ihc_params'),
-                        saiPlotter.agc_params(), GetParams('sai_params'));
+                        GetParams('agc_params'), GetParams('sai_params'));
   };
 
   return saiNode;
@@ -138,9 +137,9 @@ function GetParams(paramName) {
     IHCParams:
     <textarea id="ihc_params" rows="6" cols="40"></textarea>
     <br>
-    <!-- AGCParams: -->
-    <!-- <textarea id="agc_params" type="text" name="agc_params" rows="9" cols="40"></textarea> -->
-    <!-- <br> -->
+    AGCParams:
+    <textarea id="agc_params" type="text" name="agc_params" rows="9" cols="40"></textarea>
+    <br>
     SAIParams:
     <textarea id="sai_params" rows="6" cols="40"></textarea>
     <br>
