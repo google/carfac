@@ -128,21 +128,34 @@ function GetParams(paramName) {
     <input id="mic_input" type="radio" name="input_selector"/> microphone
     <br>
     Input gain:
-    <input id="input_gain" type="range" min="0" max="1" step="0.01" value="1"/>
+    0.0 <input id="input_gain" type="range" min="0" max="1" step="0.01" value="1"/> 1.0
   </div>
+
+  <hr>
+
+  Edit these JSON structs and click "Redesign" to modify the CARFAC
+  and/or SAI parameters.
+  <br>
+  <i>WARNING: This is brittle.  JSON syntax errors, or illegal
+  parameter values will break things.  Check the Javascript console
+  for error messages.</i>
   <form id="params_form">
-    CARParams:
-    <textarea id="car_params" rows="6" cols="40"></textarea>
-    <br>
-    IHCParams:
-    <textarea id="ihc_params" rows="6" cols="40"></textarea>
-    <br>
-    AGCParams:
-    <textarea id="agc_params" type="text" name="agc_params" rows="9" cols="40"></textarea>
-    <br>
-    SAIParams:
-    <textarea id="sai_params" rows="6" cols="40"></textarea>
-    <br>
+    <table>
+      <tr>
+        <th>CARParams</th>
+        <th>IHCParams</th>
+        <th>AGCParams</th>
+      </tr>
+      <tr>
+        <td><textarea id="car_params" rows="6" cols="40"></textarea></td>
+        <td><textarea id="ihc_params" rows="6" cols="40"></textarea></td>
+        <td><textarea id="agc_params" rows="6" cols="40"></textarea></td>
+      </tr>
+    </table>
+    <table>
+      <tr><th>SAIParams</th></tr>
+      <tr><td><textarea id="sai_params" rows="6" cols="40"></textarea></td></tr>
+    </table>
     <button id="redesign_button" type="button">Redesign</button>
   </form>
 </body>
