@@ -37,11 +37,11 @@ using testing::Values;
 
 class SAIPeriodicInputTest
     : public SAITestBase,
-      public ::testing::WithParamInterface<std::tr1::tuple<int, int> > {
+      public ::testing::WithParamInterface< ::testing::tuple<int, int> > {
  protected:
   void SetUp() {
-    period_ = std::tr1::get<0>(GetParam());
-    num_channels_ = std::tr1::get<1>(GetParam());
+    period_ = ::testing::get<0>(GetParam());
+    num_channels_ = ::testing::get<1>(GetParam());
   }
 
   int period_;
