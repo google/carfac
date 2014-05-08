@@ -55,9 +55,13 @@ class CARFAC {
   // independent of previous calls.  Does not modify the filterbank design.
   void Reset();
 
-  // Processes an individual sound segment and stores the model output in
-  // output.  Consumes the entire input signal and overwrites the contents of
-  // output.
+  // Consumes the entire sound data segment specified by sound_data
+  // and stores the model output in output overwriting it.  Setting
+  // open_loop to true breaks the AGC feedback loop, making the
+  // filters linear; false is the normal value, using feedback from
+  // the output level to control filter damping, thereby giving a
+  // compressive amplitude characteristic to reduce the output dynamic
+  // range.
   //
   // The input sound_data should have size num_ears by num_samples.  Note that
   // this is the transpose of the input to CARFAC_Run_Segment.m
