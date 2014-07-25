@@ -4,7 +4,7 @@
 <script src="carfac.js"></script>
 <script>
 function InitWebAudio() {
-  context = new webkitAudioContext();
+  context = new AudioContext();
   console.log("sampleRate = " + context.sampleRate);
   console.assert(context.sampleRate == 44100);
 

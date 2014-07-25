@@ -21,6 +21,7 @@
 #endif
 #include <SDL/SDL.h>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -32,7 +33,13 @@
 
 using namespace emscripten;
 
+namespace {
 constexpr int kNumEars = 1;
+
+inline Uint8 RoundAndSaturate(float x) {
+  return std::min(std::max(std::round(x), 0.0f), 255.0f);
+}
+}  // anonymous namespace
 
 // Helper class to run CARFAC, compute SAI frames, and plot them using
 // SDL.  The interface is designed to be easy to interact with from
@@ -125,7 +132,7 @@ class SAIPlotter {
     for (int row = 0; row < matrix.rows(); ++row) {
       for (int col = 0; col < matrix.cols(); ++col) {
         float normalized_value = (matrix(row, col) - min) / norm;
-        Uint8 gray_value = 255 * (1.0 - fmin(normalized_value, 1.0));
+        Uint8 gray_value = RoundAndSaturate(255 * (1.0 - normalized_value));
         pixels[(row * screen_->w) + col] =
           SDL_MapRGB(screen_->format, gray_value, gray_value, gray_value);
       }
