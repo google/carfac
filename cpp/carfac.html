@@ -60,7 +60,6 @@ function InitInputNodes(context, antiAliasFilterNode) {
 
   // Input selector controls.
   function selectInputNode(i) {
-    console.log(inputNodes);
     inputNodes[1 - i].disconnect();
     inputNodes[i].connect(antiAliasFilterNode);
   }
