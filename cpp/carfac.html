@@ -13,7 +13,7 @@ function InitWebAudio() {
   antiAliasFilterNode.type = "lowpass";
   antiAliasFilterNode.frequency = 8000;  // Hertz.
   antiAliasFilterNode.Q = 1;
-
+  
   InitInputNodes(context, antiAliasFilterNode);
 
   // Control the input level with a slider.
@@ -29,27 +29,38 @@ function InitWebAudio() {
   saiNode.connect(context.destination);
 }
 
+navigator.getUserMedia = ( navigator.getUserMedia ||
+                       navigator.webkitGetUserMedia ||
+                       navigator.mozGetUserMedia ||
+                       navigator.msGetUserMedia);
+
 function InitInputNodes(context, antiAliasFilterNode) {
   var inputNodes = [
     context.createMediaElementSource(document.getElementById('test_audio')),
     null,  // Microphone source, Initialized below.
   ];
   inputNodes[0].connect(antiAliasFilterNode);
-
-  navigator.webkitGetUserMedia(
-      {audio: true},
-      function(e) {
-        // Microphone input available.
-        inputNodes[1] = context.createMediaStreamSource(e);
-      },
-      function(e) {
-        // Microphone input unavailable.
-        console.log(e);
-        alert('Error accessing microphone:\n' + e);
-      });
+  
+  if (navigator.getUserMedia) {
+    navigator.getUserMedia(
+        {audio: true},
+        function(e) {
+          // Microphone input available.
+          inputNodes[1] = context.createMediaStreamSource(e);
+        },
+        function(e) {
+          // Microphone input unavailable.
+          console.log(e);
+          alert('Error accessing microphone:\n' + e);
+        });
+    console.log(inputNodes);
+  } else {
+    console.log("getUserMedia not supported");
+  }
 
   // Input selector controls.
   function selectInputNode(i) {
+    console.log(inputNodes);
     inputNodes[1 - i].disconnect();
     inputNodes[i].connect(antiAliasFilterNode);
   }
