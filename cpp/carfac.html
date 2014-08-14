@@ -13,7 +13,7 @@ function InitWebAudio() {
   antiAliasFilterNode.type = "lowpass";
   antiAliasFilterNode.frequency = 8000;  // Hertz.
   antiAliasFilterNode.Q = 1;
-  
+
   InitInputNodes(context, antiAliasFilterNode);
 
   // Control the input level with a slider.
