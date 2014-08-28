@@ -47,11 +47,11 @@ class SAIPlotter {
     carfac_output_buffer_.reset(new CARFACOutput(true, false, false, false));
 
     sai_params_.num_channels = carfac_->num_channels();
-    sai_params_.sai_width = num_samples_per_segment;
-    sai_params_.input_segment_width = num_samples_per_segment;
-    sai_params_.trigger_window_width = sai_params_.input_segment_width + 1;
+    sai_params_.sai_width = num_samples_per_segment / 2;
+    sai_params_.input_segment_width = num_samples_per_segment / 2;
+    sai_params_.trigger_window_width = sai_params_.input_segment_width * 2 + 1;
     // Half of the SAI should come from the future.
-    sai_params_.future_lags = sai_params_.sai_width / 2;
+    sai_params_.future_lags = sai_params_.sai_width;
     sai_params_.num_triggers_per_frame = 2;
     sai_.reset(new SAI(sai_params_));
 
