@@ -19,7 +19,7 @@ function InitWebAudio() {
   // Control the input level with a slider.
   gainNode = context.createGain();
   document.getElementById('input_gain').onchange =
-    function () { gainNode.gain.value = this.value; };
+    function () { gainNode.gain.value = pow(this.value, 3); };
   antiAliasFilterNode.connect(gainNode);
 
   saiNode = CreateSAINode(context);
