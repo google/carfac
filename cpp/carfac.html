@@ -8,19 +8,13 @@ function InitWebAudio() {
   console.log("sampleRate = " + context.sampleRate);
   console.assert(context.sampleRate == 44100);
 
-  // Use as a (not very good) anti-aliasing filter.
-  antiAliasFilterNode = context.createBiquadFilter();
-  antiAliasFilterNode.type = "lowpass";
-  antiAliasFilterNode.frequency = 8000;  // Hertz.
-  antiAliasFilterNode.Q = 1;
-
-  InitInputNodes(context, antiAliasFilterNode);
 
   // Control the input level with a slider.
   gainNode = context.createGain();
   document.getElementById('input_gain').onchange =
-    function () { gainNode.gain.value = this.value; };
-  antiAliasFilterNode.connect(gainNode);
+    function () { gainNode.gain.value = Math.pow(this.value, 3); };
+  
+  InitInputNodes(context, gainNode);
 
   saiNode = CreateSAINode(context);
   gainNode.connect(saiNode);
