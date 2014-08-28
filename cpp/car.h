@@ -35,7 +35,7 @@ struct CARParams {
     first_pole_theta = 0.85 * M_PI;
     zero_ratio = sqrt(2.0);
     high_f_damping_compression = 0.5;
-    erb_per_step = 0.5;
+    erb_per_step = 0.35;
     min_pole_hz = 30;
     erb_break_freq = 165.3;  // The Greenwood map's break frequency in Hertz.
     // Glassberg and Moore's high-cf ratio.
