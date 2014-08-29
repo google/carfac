@@ -10,9 +10,9 @@ function InitWebAudio() {
 
   // Use as a (not very good) anti-aliasing filter.
   antiAliasFilterNode = context.createBiquadFilter();
-  antiAliasFilterNode.type = "lowpass";
-  antiAliasFilterNode.frequency = 8000;  // Hertz.
-  antiAliasFilterNode.Q = 1;
+  antiAliasFilterNode.type.value = "lowpass";
+  antiAliasFilterNode.frequency.value = 8000;  // Hertz.
+  antiAliasFilterNode.Q.value = 1;
 
   InitInputNodes(context, antiAliasFilterNode);
 
