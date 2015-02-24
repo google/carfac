@@ -176,6 +176,12 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params,
                                car_params.erb_q);
   }
   ArrayX min_zetas = min_zeta + (0.25 * ((erb_freqs / pole_freqs) - min_zeta));
+  // Let zeta be smaller where we compress zeros toward poles.
+  // Multiply by 1 if high_f_damping_compression is zero, less otherwise.
+  bool reduce_high_f_dampings = false;  // TODO(dicklyon) parameterize this.
+  if (reduce_high_f_dampings) {
+    min_zetas *= car_coeffs->zr_coeffs / theta;
+  }
   car_coeffs->zr_coeffs *= max_zeta - min_zetas;
   car_coeffs->h_coeffs = car_coeffs->c0_coeffs * f;
   ArrayX relative_undamping = ArrayX::Ones(num_channels);

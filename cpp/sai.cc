@@ -31,7 +31,17 @@ void SAI::Reset() {
 }
 
 void SAI::RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame) {
+  CARFAC_ASSERT(input_segment.cols() == params().input_segment_width &&
+      "Unexpected number of input samples.");
+  RunInput(input_segment);
+  GetOutput(output_frame);
+}
+
+void SAI::RunInput(const ArrayXX& input_segment) {
   ShiftAndAppendInput(input_segment, &input_buffer_);
+}
+
+void SAI::GetOutput(ArrayXX* output_frame) {
   StabilizeSegment(input_buffer_, input_buffer_, &output_buffer_);
   *output_frame = output_buffer_;
 }
@@ -44,9 +54,6 @@ SAIBase::SAIBase(const SAIParams& params) {
 
 void SAIBase::Redesign(const SAIParams& params) {
   params_ = params;
-  // TODO(ronw): Figure out if this assertion is correct.  I think the
-  // only constraints should be that *_width > 0.
-  CARFAC_ASSERT(params_.trigger_window_width > params_.sai_width);
   CARFAC_ASSERT(params_.num_triggers_per_frame > 0);
   // TODO(ronw): Figure out if the right hand side is missing "-
   // <overhang_width>".
@@ -72,14 +79,14 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
       "Number of rows must match.");
 
   // Windows are always approximately 50% overlapped.
-  float window_hop = params_.trigger_window_width / 2;
+  float window_hop = params_.trigger_window_width / 2.0f;
   int window_start =
       (triggering_input_buffer.cols() - params_.trigger_window_width) -
       (params_.num_triggers_per_frame - 1) * window_hop;
   int window_range_start = window_start - params_.future_lags;
 
   int offset_range_start = 1 + window_start - params_.sai_width;
-  CARFAC_ASSERT(offset_range_start > 0);
+  CARFAC_ASSERT(offset_range_start >= 0);
   for (int i = 0; i < params_.num_channels; ++i) {
     // TODO(kwwilson): Figure out if operating on rows is a
     // performance bottleneck when elements are noncontiguous.

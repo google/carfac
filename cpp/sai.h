@@ -118,15 +118,19 @@ class SAIBase {
   // Shifts and appends new data to an input buffer.
   void ShiftAndAppendInput(const ArrayXX& fresh_input_segment,
                            ArrayXX* input_buffer) const {
-    CARFAC_ASSERT(fresh_input_segment.cols() == params().input_segment_width &&
-                  "Unexpected number of input samples.");
     CARFAC_ASSERT(fresh_input_segment.rows() == params().num_channels &&
                   "Unexpected number of input channels.");
 
-    const int overlap_width = buffer_width() - params().input_segment_width;
-    input_buffer->leftCols(overlap_width) =
-        input_buffer->rightCols(overlap_width);
-    input_buffer->rightCols(params().input_segment_width) = fresh_input_segment;
+    const int input_width = fresh_input_segment.cols();
+    const int overlap_width = buffer_width() - input_width;
+    if (overlap_width > 0) {
+      input_buffer->leftCols(overlap_width) =
+          input_buffer->rightCols(overlap_width);
+      input_buffer->rightCols(input_width) = fresh_input_segment;
+    } else {
+      // No overlap with old buffer contents; ignore extra input.
+      *input_buffer = fresh_input_segment.rightCols(buffer_width());
+    }
   }
 
   const SAIParams& params() const { return params_; }
@@ -165,6 +169,10 @@ class SAI : public sai_internal::SAIBase {
   //
   // Note that the input is the transpose of the input to SAI_Run_Segment.m.
   void RunSegment(const ArrayXX& input_segment, ArrayXX* output_frame);
+
+  // Alternate interface allows inputs of any width and output at any time.
+  void RunInput(const ArrayXX& input_segment);
+  void GetOutput(ArrayXX* output_frame);
 
  private:
   // Buffer to store a large enough window of input frames to compute
