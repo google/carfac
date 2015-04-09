@@ -35,7 +35,7 @@ class BinauralSAI : public sai_internal::SAIBase {
   explicit BinauralSAI(const SAIParams& params);
 
   // Resets the internal state.
-  virtual void Reset() override;
+  void Reset() override;
 
   // Fills each of two entries in output_frame with a
   // params().num_channels by params().width SAI frame computed from the

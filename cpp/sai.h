@@ -157,7 +157,7 @@ class SAI : public sai_internal::SAIBase {
   explicit SAI(const SAIParams& params);
 
   // Resets the internal state.
-  virtual void Reset() override;
+  void Reset() override;
 
   // Fills output_frame with a params().num_channels by params().sai_width
   // SAI frame computed from the given input segment and the contents of
