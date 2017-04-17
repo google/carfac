@@ -26,14 +26,14 @@
 // Computes the IHC detection nonlinearity function of the filter output
 // values.  This is here because it is called both in design and run phases.
 inline void CARFACDetect(ArrayX* input_output) {
-  ArrayX& z = *input_output;
   constexpr FPType a = 0.175;
+  constexpr FPType b = 0.1;
   // This offsets the low-end tail into negative x territory.
-  // The parameter is adjusted for the book, to make the 20% DC response
+  // The parameter a is adjusted for the book, to make the 20% DC response
   // threshold at 0.1.
-  z = (z + a).max(ArrayX::Zero(z.size()));
+  auto c = (*input_output + a).cwiseMax(FPType(0.0));
   // Zero is the final answer for many points.
-  *input_output = z*z*z / (z*z*z + z*z + 0.1);
+  *input_output = c*c*c / (c*c*c + c*c + b);
 }
 
 #endif  // CARFAC_CARFAC_UTIL_H

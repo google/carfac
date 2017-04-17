@@ -49,9 +49,8 @@ void Ear::Reset() {
   InitCARState();
   InitIHCState();
   InitAGCState();
-
-  tmp1_.setZero(num_channels_);
-  tmp2_.setZero(num_channels_);
+  tmp1_.resize(num_channels_);
+  tmp2_.resize(num_channels_);
 }
 
 void Ear::InitCARState() {
@@ -67,6 +66,7 @@ void Ear::InitCARState() {
 
 void Ear::InitIHCState() {
   ihc_state_.ac_coupler.setZero(num_channels_);
+  ihc_state_.ihc_out.setZero(num_channels_);
   if (!ihc_coeffs_.just_half_wave_rectify) {
     ihc_state_.lpf1_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
     ihc_state_.lpf2_state.setConstant(num_channels_, ihc_coeffs_.rest_output);
@@ -96,7 +96,7 @@ void Ear::CARStep(FPType input) {
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
   // a delay of z2.
-  ArrayX& r = tmp1_;
+  ArrayX& r(tmp1_);  // Alias the radius factor r to tmp1_.
   r = car_coeffs_.r1_coeffs +
       // This product is the "undamping" delta r.
       (car_state_.zb_memory *
@@ -108,27 +108,28 @@ void Ear::CARStep(FPType input) {
               (car_state_.z2_memory - car_state_.za_memory)) +  // velocities.
              car_coeffs_.v_offset).square()).inverse());
   car_state_.za_memory = car_state_.z2_memory;
-  // Here we reduce the CAR state by r and rotate with the fixed cos/sin coeffs.
-  ArrayX& z1 = tmp2_;
-  z1 =
-      r * ((car_coeffs_.a0_coeffs * car_state_.z1_memory) -
-           (car_coeffs_.c0_coeffs * car_state_.z2_memory));
+  // Here we reduce the CAR state by r and then rotate with the fixed cos/sin
+  // coeffs, using both temp arrays, ending the scope of tmp1_ as r.
+  tmp2_ = r * car_state_.z2_memory;
+  // But first stop using tmp1_ for r, and use it for r * z1 instead.
+  tmp1_ = r * car_state_.z1_memory;
+  car_state_.z1_memory =  // This still needs stage inputs to be added.
+      car_coeffs_.a0_coeffs * tmp1_ - car_coeffs_.c0_coeffs * tmp2_;
   car_state_.z2_memory =
-      r * ((car_coeffs_.c0_coeffs * car_state_.z1_memory) +
-           (car_coeffs_.a0_coeffs * car_state_.z2_memory));
+      car_coeffs_.c0_coeffs * tmp1_ + car_coeffs_.a0_coeffs * tmp2_;
   car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
-  // This section ripples the input-output path, to avoid delay...
-  // It's the only part that doesn't get computed "in parallel":
-  FPType in_out = input;
+  // This section ripples the input-output path, to avoid added delays...
+  // It's the only part that doesn't get computed "in parallel".
+  // Add inputs to z1_memory while looping, since the loop can't run
+  // very fast anyway, and adding shifted zy_memory is more awkward.
+  FPType in_out = input;  // This is the scalar input waveform sample.
   for (int channel = 0; channel < num_channels_; channel++) {
+    car_state_.z1_memory(channel) += in_out;
     // This performs the ripple, and saves the final channel outputs in zy.
     in_out = car_state_.g_memory(channel) *
         (in_out + car_state_.zy_memory(channel));
     car_state_.zy_memory(channel) = in_out;
   }
-  car_state_.z1_memory(0) = z1(0) + input;
-  car_state_.z1_memory.tail(num_channels_ - 1) =
-      z1.tail(num_channels_ - 1) + car_state_.zy_memory.head(num_channels_ - 1);
 }
 
 // This step is a one sample-time update of the inner-hair-cell (IHC) model,
@@ -172,99 +173,122 @@ void Ear::IHCStep(const ArrayX& car_out) {
 }
 
 bool Ear::AGCStep(const ArrayX& ihc_out) {
+  bool updated = false;
   const int num_stages = agc_coeffs_.size();
-  if (num_stages == 0) {
-    // AGC disabled.
-    return false;
+  if (num_stages > 0) {  // AGC is enabled.
+    int stage = 0;
+    FPType detect_scale = agc_coeffs_[num_stages - 1].detect_scale;
+    ArrayX& agc_in(tmp1_);
+    agc_in = detect_scale * ihc_out;
+    updated = AGCRecurse(stage, &agc_in);
   }
-  int stage = 0;
-  FPType detect_scale = agc_coeffs_[num_stages - 1].detect_scale;
-  bool updated = AGCRecurse(stage, detect_scale * ihc_out);
   return updated;
 }
 
-bool Ear::AGCRecurse(int stage, ArrayX agc_in) {
-  bool updated = true;
+bool Ear::AGCRecurse(int stage, ArrayX* agc_in_out) {
+  bool updated = false;
   const AGCCoeffs& agc_coeffs = agc_coeffs_[stage];
   AGCState& agc_state = agc_state_[stage];
+  // Unconditionally accumulate input for this stage from the previous stage:
+  agc_state.input_accum += *agc_in_out;
   // This is the decim factor for this stage, relative to input or prev. stage:
   int decim = agc_coeffs.decimation;
-  // This is the decim phase of this stage (do work on phase 0 only):
-  int decim_phase = agc_state.decim_phase + 1;
-  decim_phase = decim_phase % decim;
-  agc_state.decim_phase = decim_phase;
-  // Here we accumulate input for this stage from the previous stage:
-  agc_state.input_accum += agc_in;
-  // We don't do anything if it's not the right decim_phase.
-  if (decim_phase == 0) {
-    // Now we do lots of work, at the decimated rate.
+  // Increment the decimation phase of this stage (do work on phase 0 only):
+  if (++agc_state.decim_phase >= decim) {
+    agc_state.decim_phase = 0;
+    // Now do lots of time and space filtering work, at the decimated rate.
     // These are the decimated inputs for this stage, which will be further
     // decimated at the next stage.
-    agc_in = agc_state.input_accum / decim;
-    // This resets the accumulator.
-    agc_state.input_accum = ArrayX::Zero(num_channels_);
+    *agc_in_out = agc_state.input_accum * FPType(1.0 / decim);
+    // If more stage(s), recurse to evaluate the next stage.
     if (stage < (agc_coeffs_.size() - 1)) {
-      // Now we recurse to evaluate the next stage(s).
-      updated = AGCRecurse(stage + 1, agc_in);
-      // Afterwards we add its output to this stage input, whether it updated or
-      // not.
-      agc_in += agc_coeffs.agc_stage_gain *
+      // Use agc_state.input_accum as input to next stage; it will be used
+      // as temp agc_in_out space there until we clear it afterward to start
+      // over using it again as input accumulator for this stage.
+      agc_state.input_accum = *agc_in_out;
+      AGCRecurse(stage + 1, &agc_state.input_accum);
+      // Finally add next stage's output to this stage input, whether
+      // the next stage updated or not (ignoring bool result of AGCRecurse).
+      *agc_in_out += agc_coeffs.agc_stage_gain *
           agc_state_[stage + 1].agc_memory;
     }
-    // This performs a first-order recursive smoothing filter update, in time.
+    // This resets the accumulator.
+    agc_state.input_accum = ArrayX::Zero(num_channels_);
+    // This performs a first-order recursive smoothing filter update, in time,
+    // at this stage's update rate.
     agc_state.agc_memory += agc_coeffs.agc_epsilon *
-        (agc_in - agc_state.agc_memory);
-    AGCSpatialSmooth(agc_coeffs_[stage], &agc_state.agc_memory);
+        (*agc_in_out - agc_state.agc_memory);
+    // Smooth the agc_memory across space or frequency.
+    AGCSpatialSmooth(agc_coeffs, &agc_state.agc_memory);
     updated = true;
-  } else {
-    updated = false;
   }
   return updated;
 }
 
 void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
-                           ArrayX* stage_state) const {
+                           ArrayX* stage_state) {
   int num_iterations = agc_coeffs.agc_spatial_iterations;
   bool use_fir = (num_iterations < 4) ? true : false;
+  CARFAC_ASSERT(num_iterations == 1 &&
+                "more than 1 iteration not yet supported.");
   if (use_fir) {
     FPType fir_coeffs_left = agc_coeffs.agc_spatial_fir_left;
     FPType fir_coeffs_mid = agc_coeffs.agc_spatial_fir_mid;
     FPType fir_coeffs_right = agc_coeffs.agc_spatial_fir_right;
-    ArrayX ss_tap1(num_channels_);
-    ArrayX ss_tap2(num_channels_);
-    ArrayX ss_tap3(num_channels_);
-    ArrayX ss_tap4(num_channels_);
-    int n_taps = agc_coeffs.agc_spatial_n_taps;
-    // This initializes the first two taps of stage state, which are used for
-    // both possible cases.
-    ss_tap1(0) = (*stage_state)(0);
-    ss_tap1.block(1, 0, num_channels_ - 1, 1) =
-        stage_state->block(0, 0, num_channels_ - 1, 1);
-    ss_tap2(num_channels_ - 1) = (*stage_state)(num_channels_ - 1);
-    ss_tap2.block(0, 0, num_channels_ - 1, 1) =
-        stage_state->block(1, 0, num_channels_ - 1, 1);
-    switch (n_taps) {
+    ArrayX& smoothed_state(tmp2_);  // While tmp1_ is in use as agc_in.
+    switch (agc_coeffs.agc_spatial_n_taps) {
       case 3:
-        *stage_state = (fir_coeffs_left * ss_tap1) +
-            (fir_coeffs_mid * *stage_state) + (fir_coeffs_right * ss_tap2);
+        // First filter most points, with vector parallelism.
+        smoothed_state.segment(1, num_channels_ - 2) =
+            fir_coeffs_mid * ((*stage_state).segment(1, num_channels_ - 2)) +
+            fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 2)) +
+            fir_coeffs_right * ((*stage_state).segment(2, num_channels_ - 2));
+        // Then patch up one point on each end, with clamped edge condition.
+        smoothed_state(0) =
+            fir_coeffs_mid * (*stage_state)(0) +
+            fir_coeffs_left * (*stage_state)(0) +
+            fir_coeffs_right * (*stage_state)(1);
+        smoothed_state(num_channels_ - 1) =
+            fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
+            fir_coeffs_left * (*stage_state)(num_channels_ - 2) +
+            fir_coeffs_right * (*stage_state)(num_channels_ - 1);
+        // Copy smoothed state back from temp.
+        *stage_state = smoothed_state;
         break;
       case 5:
-        // Now we initialize last two taps of stage state, which are only used
-        // for the 5-tap case.
-        ss_tap3(0) = (*stage_state)(0);
-        ss_tap3(1) = (*stage_state)(1);
-        ss_tap3.block(2, 0, num_channels_ - 2, 1) =
-            stage_state->block(0, 0, num_channels_ - 2, 1);
-        ss_tap4(num_channels_ - 2) = (*stage_state)(num_channels_ - 1);
-        ss_tap4(num_channels_ - 1) = (*stage_state)(num_channels_ - 2);
-        ss_tap4.block(0, 0, num_channels_ - 2, 1) =
-            stage_state->block(2, 0, num_channels_ - 2, 1);
-        *stage_state = (fir_coeffs_left * (ss_tap3 + ss_tap1)) +
-            (fir_coeffs_mid * *stage_state) +
-            (fir_coeffs_right * (ss_tap2 + ss_tap4));
+        // First filter most points, with vector parallelism.
+        smoothed_state.segment(2, num_channels_ - 4) =
+            fir_coeffs_mid * ((*stage_state).segment(2, num_channels_ - 4)) +
+            fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 4) +
+                               (*stage_state).segment(1, num_channels_ - 4)) +
+            fir_coeffs_right * ((*stage_state).segment(3, num_channels_ - 4) +
+                                (*stage_state).segment(4, num_channels_ - 4));
+        // Then patch up 2 points on each end.
+        smoothed_state(0) =
+            fir_coeffs_mid * (*stage_state)(0) +
+            fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(1)) +
+            fir_coeffs_right * ((*stage_state)(1) + (*stage_state)(2));
+        smoothed_state(1) =
+            fir_coeffs_mid * (*stage_state)(1) +
+            fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(0)) +
+            fir_coeffs_right * ((*stage_state)(2) + (*stage_state)(3));
+        smoothed_state(num_channels_ - 1) =
+            fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
+            fir_coeffs_left * ((*stage_state)(num_channels_ - 2) +
+                               (*stage_state)(num_channels_ - 3)) +
+            fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
+                                (*stage_state)(num_channels_ - 1));
+        smoothed_state(num_channels_ - 2) =
+            fir_coeffs_mid * (*stage_state)(num_channels_ - 2) +
+            fir_coeffs_left * ((*stage_state)(num_channels_ - 3) +
+                               (*stage_state)(num_channels_ - 4)) +
+            fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
+                                (*stage_state)(num_channels_ - 1));
+        // Copy smoothed state back from temp.
+        *stage_state = smoothed_state;
         break;
       default:
-        CARFAC_ASSERT(true &&
+        CARFAC_ASSERT(false &&
                       "Bad n_taps in AGCSpatialSmooth; should be 3 or 5.");
         break;
     }
@@ -280,26 +304,47 @@ void Ear::AGCSmoothDoubleExponential(FPType pole_z1,
   int32_t num_points = stage_state->size();
   FPType input;
   FPType state = 0.0;
-  // TODO(alexbrandmeyer): I'm assuming one dimensional input for now, but this
-  // should be verified with Dick for the final version
   for (int i = num_points - 11; i < num_points; ++i) {
     input = (*stage_state)(i);
     state = state + (1 - pole_z1) * (input - state);
   }
   for (int i = num_points - 1; i > -1; --i) {
     input = (*stage_state)(i);
-    state = state + (1 - pole_z2) * (input - state);
+    state += (1 - pole_z2) * (input - state);
   }
   for (int i = 0; i < num_points; ++i) {
     input = (*stage_state)(i);
-    state = state + (1 - pole_z1) * (input - state);
+    state += (1 - pole_z1) * (input - state);
     (*stage_state)(i) = state;
   }
 }
 
-ArrayX Ear::StageGValue(const ArrayX& undamping) const {
-  ArrayX r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
-  return (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
-      (1 - 2 * r * car_coeffs_.a0_coeffs + car_coeffs_.h_coeffs * r *
-       car_coeffs_.c0_coeffs + (r * r));
+// This is called when AGC state changes, every 8th sample by default.
+// Uses tmp1_ and tmp2_ arrays.
+void Ear::CloseAGCLoop(bool open_loop) {
+  if (open_loop) {
+    // Zero the deltas to make the parameters not keep changing.
+    car_state_.dzb_memory.setZero(num_channels_);
+    car_state_.dg_memory.setZero(num_channels_);
+  } else {
+    // Scale factor to get the deltas to update in this many steps.
+    FPType scaling = 1.0 / agc_decimation(0);
+    ArrayX& undamping(tmp1_);
+    undamping = 1 - agc_memory(0);
+    // This sets the delta for the damping zb.
+    car_state_.dzb_memory = (zr_coeffs() * undamping - zb_memory()) * scaling;
+    // Find new stage gains to go with new dampings.
+    ArrayX& g_values(tmp2_);
+    auto r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
+    g_values = (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
+               (1 - 2 * r * car_coeffs_.a0_coeffs +
+                car_coeffs_.h_coeffs * r * car_coeffs_.c0_coeffs + (r * r));
+    // This updates the target stage gain.
+    car_state_.dg_memory = (g_values - g_memory()) * scaling;
+  }
+}
+
+void Ear::CrossCouple(const ArrayX& mean_state, int stage) {
+  ArrayX& stage_state = agc_state_[stage].agc_memory;
+  stage_state += agc_mix_coeff(stage) * (mean_state - stage_state);
 }

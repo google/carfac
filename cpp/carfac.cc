@@ -76,6 +76,7 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
           new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
     }
   }
+  accumulator_.setZero(num_channels_);
 }
 
 void CARFAC::Reset() {
@@ -88,6 +89,12 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
                         CARFACOutput* output) {
   CARFAC_ASSERT(sound_data.rows() == num_ears_);
   output->Resize(num_ears_, num_channels_, sound_data.cols());
+
+  if (open_loop) {
+    // If called to run open-loop, this ensures that the deltas are zeroed, to
+    // freeze the damping, since it may have been running closed-loop last time.
+    CloseAGCLoop(open_loop);
+  }
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
   bool agc_memory_updated = false;
@@ -99,16 +106,19 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
       // Apply the three stages of the model in sequence to the current sample.
       ear->CARStep(input_sample);
       ear->IHCStep(ear->car_out());
-      agc_memory_updated = ear->AGCStep(ear->ihc_out());
+      // The AGC work can be skipped if running open loop, since it will not
+      // affect the output.  I had kept it running, in the Matlab version, as
+      // a way to get at what the AGC filter is doing, for visualization.
+      if (!open_loop) {
+        agc_memory_updated = ear->AGCStep(ear->ihc_out());
+      }
     }
     output->AssignFromEars(ears_, timepoint);
     if (agc_memory_updated) {
       if (num_ears_ > 1) {
         CrossCouple();
       }
-      if (!open_loop) {
-        CloseAGCLoop();
-      }
+      CloseAGCLoop(open_loop);
     }
   }
 }
@@ -120,31 +130,25 @@ void CARFAC::CrossCouple() {
     } else {
       FPType mix_coeff = ears_[0]->agc_mix_coeff(stage);
       if (mix_coeff > 0) {
-        ArrayX stage_state;
-        ArrayX this_stage_values = ArrayX::Zero(num_channels_);
+        accumulator_.setZero(num_channels_);
         for (Ear* ear : ears_) {
-          stage_state = ear->agc_memory(stage);
-          this_stage_values += stage_state;
+          accumulator_ += ear->agc_memory(stage);
         }
-        this_stage_values /= num_ears_;
+        accumulator_ *= FPType(1.0 / num_ears_);  // Ears' mean AGC state.
+        // Mix the mean into all.
         for (Ear* ear : ears_) {
-          stage_state = ear->agc_memory(stage);
-          ear->set_agc_memory(stage, stage_state + mix_coeff *
-                              (this_stage_values - stage_state));
+          ear->CrossCouple(accumulator_, stage);
         }
       }
     }
   }
 }
 
-void CARFAC::CloseAGCLoop() {
+void CARFAC::CloseAGCLoop(bool open_loop) {
   for (Ear* ear : ears_) {
-    ArrayX undamping = 1 - ear->agc_memory(0);
-    // This updates the target stage gain for the new damping.
-    ear->set_dzb_memory((ear->zr_coeffs() * undamping - ear->zb_memory()) /
-                        ear->agc_decimation(0));
-    ear->set_dg_memory((ear->StageGValue(undamping) - ear->g_memory()) /
-                       ear->agc_decimation(0));
+    // This updates the target damping and stage gain, or just sets the
+    // deltas to zero in the open-loop case.
+    ear->CloseAGCLoop(open_loop);
   }
 }
 

@@ -204,7 +204,7 @@ TEST_F(SAITest, CARFACIntegration) {
   CARParams car_params;
   IHCParams ihc_params;
   AGCParams agc_params;
-  CARFAC carfac(kNumEars, 800, car_params, ihc_params, agc_params);
+  CARFAC carfac(kNumEars, 8000, car_params, ihc_params, agc_params);
   CARFACOutput output(true, false, false, false);
   const bool kOpenLoop = false;
   carfac.RunSegment(segment, kOpenLoop, &output);

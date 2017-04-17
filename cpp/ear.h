@@ -83,32 +83,25 @@ class Ear {
   }
   int agc_decimation(int stage) const { return agc_coeffs_[stage].decimation; }
 
-  // Returns the stage G value during the closing of the AGC loop.
-  ArrayX StageGValue(const ArrayX& undamping) const;
+  // Sets the CAR memory state from AGC feedback.
+  void CloseAGCLoop(bool open_loop);
 
-  // Sets the AGC memory during the cross coupling stage.
-  void set_agc_memory(int stage, const ArrayX& new_values) {
-    agc_state_[stage].agc_memory = new_values;
-  }
-
-  // Sets the CAR memory states.
-  void set_dzb_memory(const ArrayX& new_values) {
-    car_state_.dzb_memory = new_values;
-  }
-  void set_dg_memory(const ArrayX& new_values) {
-    car_state_.dg_memory = new_values;
-  }
+  // Mix toward mean state from other ears.
+  void CrossCouple(const ArrayX& mean_state, int stage);
 
  private:
-  // Initializes the model state variables prior to runtime.
+  // These initialize the model state variables prior to runtime.
   void InitIHCState();
   void InitAGCState();
   void InitCARState();
 
   // Helper sub-functions called during the model runtime.
   // Returns true iff the AGC memory is updated.
-  bool AGCRecurse(int stage, ArrayX agc_in);
-  void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state) const;
+  bool AGCRecurse(int stage, ArrayX* agc_in);
+
+  // Not const since it uses a temp array.
+  void AGCSpatialSmooth(const AGCCoeffs& agc_coeffs, ArrayX* stage_state);
+
   void AGCSmoothDoubleExponential(FPType pole_z1, FPType pole_z2,
                                   ArrayX* stage_state) const;
 
@@ -117,14 +110,18 @@ class Ear {
   IHCCoeffs ihc_coeffs_;
   IHCState ihc_state_;
 
-  // The AGC coefficient and state variables are both stored in vectors
-  // containing one element for each stage.
+  // The AGC coefficients and state variables are both stored in vectors
+  // containing one element for each stage (typically 4 stages).
   std::vector<AGCCoeffs> agc_coeffs_;
   std::vector<AGCState> agc_state_;
+
   int num_channels_;
 
   // Temporary storage to avoid allocations inside the .*Step methods, which
-  // are called once per sample.
+  // are called once per sample, and in CloseAGCLoop, called less often.
+  // The use of these temps is unrelated from one function to another.  Their
+  // values are used only within a function, not across calls (except for one
+  // use between AGCStep and its helper AGCRecurse).
   ArrayX tmp1_;
   ArrayX tmp2_;
 

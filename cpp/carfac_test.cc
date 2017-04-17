@@ -92,10 +92,9 @@ class CARFACTest : public testing::Test {
         test_name + "-matlab-bm", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_bm, output.bm());
 
-    // TODO(ronw): Don't unconditionally overwrite files that are
-    // checked in to the repository on every test run.
-    WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
-    WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
+    // TODO(dicklyon): Conditionally overwrite test output files.
+    // WriteNAPOutput(output, test_name + "-cpp-nap1.txt", 0);
+    // WriteNAPOutput(output, test_name + "-cpp-nap2.txt", 1);
   }
 
   CARParams car_params_;
@@ -171,13 +170,12 @@ TEST_F(CARFACTest, PoleFrequenciesAreDecreasing) {
   }
 }
 
-// TODO(alexb): This test never turned the AGC off.  Rename or fix the test.
 TEST_F(CARFACTest, MatchesMatlabWithAGCOff) {
   const int kNumSamples = 2000;
   const int kNumEars = 2;
   const int kNumChannels = 83;
   const FPType kSampleRate = 44100.0;
-  open_loop_ = true;
+  open_loop_ = true;  // Turns off the AGC feedback.
   RunCARFACAndCompareWithMatlab(
       "agc_test", kNumSamples, kNumEars, kNumChannels, kSampleRate);
 }

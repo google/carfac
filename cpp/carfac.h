@@ -81,7 +81,11 @@ class CARFAC {
   static void DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
                               std::vector<AGCCoeffs>* agc_coeffs);
   void CrossCouple();
-  void CloseAGCLoop();
+
+  // Close (in the sense of complete the circuit) the gain-control feedback;
+  // open_loop to freeze the car coeffs rather than keep them following what
+  // the AGC feedback says.
+  void CloseAGCLoop(bool open_loop);
 
   // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
   // filter at the given center frequency.
@@ -100,6 +104,7 @@ class CARFAC {
   // One Ear per input audio channel.
   std::vector<Ear*> ears_;
   ArrayX pole_freqs_;
+  ArrayX accumulator_;  // Temp space for CrossCouple.
 
   DISALLOW_COPY_AND_ASSIGN(CARFAC);
 };
