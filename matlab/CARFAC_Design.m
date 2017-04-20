@@ -106,8 +106,6 @@ if nargin < 5
   end
 end
 
-
-
 % first figure out how many filter stages (PZFC/CARFAC channels):
 pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
 n_ch = 0;
@@ -201,7 +199,7 @@ max_zeta = CAR_params.max_zeta;
 CAR_coeffs.r1_coeffs = (1 - zr_coeffs .* max_zeta);  % "r1" for the max-damping condition
 
 min_zeta = CAR_params.min_zeta;
-% Increase the min damping where channels are spaced out more, by pulling 
+% Increase the min damping where channels are spaced out more, by pulling
 % 25% of the way toward ERB_Hz/pole_freqs (close to 0.1 at high f)
 min_zetas = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
   CAR_params.ERB_break_freq, CAR_params.ERB_Q) ./ pole_freqs - min_zeta);
@@ -250,16 +248,16 @@ for stage = 1:n_AGC_stages
   decim = decim * AGC_params.decimation(stage);  % net decim to this stage
   % epsilon is how much new input to take at each update step:
   AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
-  
+
   % effective number of smoothings in a time constant:
   ntimes = tau * (fs / decim);  % typically 5 to 50
-  
+
   % decide on target spread (variance) and delay (mean) of impulse
   % response as a distribution to be convolved ntimes:
   % TODO (dicklyon): specify spread and delay instead of scales???
   delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
   spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
-  
+
   % get pole positions to better match intended spread and delay of
   % [[geometric distribution]] in each direction (see wikipedia)
   u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
@@ -269,12 +267,17 @@ for stage = 1:n_AGC_stages
   polez2 = p + dp;
   AGC_coeffs(stage).AGC_polez1 = polez1;
   AGC_coeffs(stage).AGC_polez2 = polez2;
-  
+
   % try a 3- or 5-tap FIR as an alternative to the double exponential:
   n_taps = 0;
-  FIR_OK = 0;
+  done = 0;
   n_iterations = 1;
-  while ~FIR_OK
+  if spread_sq == 0
+    n_iterations = 0;
+    n_taps = 3;
+    done = 1;
+  end
+  while ~done
     switch n_taps
       case 0
         % first attempt a 3-point FIR to apply once:
@@ -285,25 +288,24 @@ for stage = 1:n_AGC_stages
       case 5
         % apply FIR multiple times instead of going wider:
         n_iterations = n_iterations + 1;
-        if n_iterations > 16
-          error('Too many n_iterations in CARFAC_DesignAGC');
+        if n_iterations > 4
+          n_iteration = -1;  % Signal to use IIR instead.
         end
       otherwise
         % to do other n_taps would need changes in CARFAC_Spatial_Smooth
         % and in Design_FIR_coeffs
         error('Bad n_taps in CARFAC_DesignAGC');
     end
-    [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
-      n_taps, spread_sq, delay, n_iterations);
+    [AGC_spatial_FIR, done] = Design_FIR_coeffs(n_taps, spread_sq, delay, n_iterations);
   end
-  % when FIR_OK, store the resulting FIR design in coeffs:
+  % When done, store the resulting FIR design in coeffs:
   AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
   AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
   AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
-  
+
   % accumulate DC gains from all the stages, accounting for stage_gain:
   total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
-  
+
   % TODO (dicklyon) -- is this the best binaural mixing plan?
   if stage == 1
     AGC_coeffs(stage).AGC_mix_coeffs = 0;
@@ -342,14 +344,14 @@ switch n_taps
     a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
     b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
     FIR = [a, 1 - a - b, b];
-    OK = FIR(2) >= 0.2;
+    OK = FIR(2) >= 0.25;
   case 5
     % based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
     a = ((delay_variance + mean_delay*mean_delay)*2/5 - mean_delay*2/3) / 2;
     b = ((delay_variance + mean_delay*mean_delay)*2/5 + mean_delay*2/3) / 2;
     % first and last coeffs are implicitly duplicated to make 5-point FIR:
     FIR = [a/2, 1 - a - b, b/2];
-    OK = FIR(2) >= 0.1;
+    OK = FIR(2) >= 0.15;
   otherwise
     error('Bad n_taps in AGC_spatial_FIR');
 end
@@ -444,7 +446,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 % AGC_coeffs(4)
 % IHC_coeffs = CF.ears(1).IHC_coeffs
 
-% CF = 
+% CF =
 %                          fs: 22050
 %     max_channels_per_octave: 12.2709
 %                  CAR_params: [1x1 struct]
@@ -454,7 +456,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %                  pole_freqs: [71x1 double]
 %                        ears: [1x1 struct]
 %                      n_ears: 1
-% CAR_params = 
+% CAR_params =
 %                 velocity_scale: 0.1000
 %                       v_offset: 0.0400
 %                       min_zeta: 0.1000
@@ -466,7 +468,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %                    min_pole_Hz: 30
 %                 ERB_break_freq: 165.3000
 %                          ERB_Q: 9.2645
-% AGC_params = 
+% AGC_params =
 %           n_stages: 4
 %     time_constants: [0.0020 0.0080 0.0320 0.1280]
 %     AGC_stage_gain: 2
@@ -474,14 +476,14 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %        AGC1_scales: [1 1.4142 2.0000 2.8284]
 %        AGC2_scales: [1.6500 2.3335 3.3000 4.6669]
 %      AGC_mix_coeff: 0.5000
-% IHC_params = 
+% IHC_params =
 %         just_hwr: 0
 %          one_cap: 1
 %          tau_lpf: 8.0000e-05
 %          tau_out: 5.0000e-04
 %           tau_in: 0.0100
 %     ac_corner_Hz: 20
-% CAR_coeffs = 
+% CAR_coeffs =
 %               n_ch: 71
 %     velocity_scale: 0.1000
 %           v_offset: 0.0400
@@ -491,7 +493,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %           h_coeffs: [71x1 double]
 %          g0_coeffs: [71x1 double]
 %          zr_coeffs: [71x1 double]
-% AGC_coeffs = 
+% AGC_coeffs =
 % 1x4 struct array with fields:
 %     n_ch
 %     n_AGC_stages
@@ -505,7 +507,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %     AGC_spatial_n_taps
 %     AGC_mix_coeffs
 %     detect_scale
-% ans = 
+% ans =
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -518,7 +520,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %         AGC_spatial_n_taps: 3
 %             AGC_mix_coeffs: 0
 %               detect_scale: 0.0667
-% ans = 
+% ans =
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -531,7 +533,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %         AGC_spatial_n_taps: 3
 %             AGC_mix_coeffs: 0.0454
 %               detect_scale: []
-% ans = 
+% ans =
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -544,7 +546,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %         AGC_spatial_n_taps: 3
 %             AGC_mix_coeffs: 0.0227
 %               detect_scale: []
-% ans = 
+% ans =
 %                       n_ch: 71
 %               n_AGC_stages: 4
 %             AGC_stage_gain: 2
@@ -557,7 +559,7 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %         AGC_spatial_n_taps: 3
 %             AGC_mix_coeffs: 0.0113
 %               detect_scale: []
-% IHC_coeffs = 
+% IHC_coeffs =
 %            n_ch: 71
 %        just_hwr: 0
 %       lpf_coeff: 0.4327

@@ -22,7 +22,7 @@ function stage_state = CARFAC_Spatial_Smooth(coeffs, stage_state)
 
 n_iterations = coeffs.AGC_spatial_iterations;
 
-use_FIR = n_iterations < 4;  % or whatever condition we want to try
+use_FIR = n_iterations >= 0;
 
 if use_FIR
   FIR_coeffs = coeffs.AGC_spatial_FIR;

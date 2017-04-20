@@ -83,6 +83,11 @@ class Ear {
   }
   int agc_decimation(int stage) const { return agc_coeffs_[stage].decimation; }
 
+  // Mostly for testing, provide getter for complete stage coeffs.
+  const AGCCoeffs& get_agc_coeffs(int stage) const {
+    return agc_coeffs_[stage];
+  }
+
   // Sets the CAR memory state from AGC feedback.
   void CloseAGCLoop(bool open_loop);
 

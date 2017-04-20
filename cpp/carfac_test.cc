@@ -16,19 +16,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "carfac.h"
-
+#include <Eigen/Core>
 #include <math.h>
 #include <string>
 #include <vector>
-
-#include <Eigen/Core>
 
 #include "gtest/gtest.h"
 
 #include "agc.h"
 #include "car.h"
+#include "carfac.h"
 #include "common.h"
+#include "ear.h"
 #include "ihc.h"
 #include "test_util.h"
 
@@ -188,4 +187,97 @@ TEST_F(CARFACTest, MatchesMatlabWithIHCJustHalfWaveRectifyOn) {
   ihc_params_.just_half_wave_rectify = true;
   RunCARFACAndCompareWithMatlab(
       "ihc_just_hwr_test", kNumSamples, kNumEars, kNumChannels, kSampleRate);
+}
+
+TEST_F(CARFACTest, AGCDesignBehavesSensibly) {
+  const int kNumEars = 2;
+  const FPType kSampleRate = 22050.0;
+  const vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8, 3.5, 4.0};
+  for (int i = 0; i < spreads.size(); ++i) {
+    FPType spread = spreads[i];
+    EXPECT_GE(spread, 0);
+    // Test zero and default and larger AGC spread.
+    agc_params_.agc1_scales[0] = 1.0 * spread;
+    agc_params_.agc2_scales[0] = 1.65 * spread;
+    for (int i = 1; i < agc_params_.agc1_scales.size(); ++i) {
+      agc_params_.agc1_scales[i] = agc_params_.agc1_scales[i - 1] * sqrt(2.0);
+      agc_params_.agc2_scales[i] = agc_params_.agc2_scales[i - 1] * sqrt(2.0);
+    }
+    CARFAC carfac(kNumEars, kSampleRate, car_params_, ihc_params_, agc_params_);
+    for (int stage = 0; stage < 4; ++stage) {
+      // Stages all should be alike, as their time constants quadruple, sample
+      // rates halve, and variances double at each stage, so equivalent filters.
+      const AGCCoeffs& coeffs = carfac.get_ear(0).get_agc_coeffs(stage);
+      switch (i) {
+        case 0:
+          EXPECT_EQ(3, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(0, coeffs.agc_spatial_iterations);
+          break;
+        case 1:
+          EXPECT_EQ(3, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(1, coeffs.agc_spatial_iterations);
+          break;
+        case 2:
+          EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(1, coeffs.agc_spatial_iterations);
+          break;
+        case 3:
+          EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(2, coeffs.agc_spatial_iterations);
+          break;
+        case 4:
+          EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(3, coeffs.agc_spatial_iterations);
+          break;
+        case 5:
+          EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+          EXPECT_EQ(4, coeffs.agc_spatial_iterations);
+          break;
+        case 6:
+          EXPECT_EQ(-1, coeffs.agc_spatial_iterations);
+          break;
+      }
+    }
+  }
+}
+
+TEST_F(CARFACTest, AGCDesignAtLowSampleRate) {
+  const int kNumEars = 2;
+  const FPType kSampleRate = 8000.0;
+  const vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8};
+  for (int i = 0; i < spreads.size(); ++i) {
+    FPType spread = spreads[i];
+    EXPECT_GE(spread, 0);
+    // Test zero and default and larger AGC spread.
+
+    agc_params_.agc1_scales[0] = 1.0 * spread;
+    agc_params_.agc2_scales[0] = 1.65 * spread;
+    for (int i = 1; i < agc_params_.agc1_scales.size(); ++i) {
+      agc_params_.agc1_scales[i] = agc_params_.agc1_scales[i - 1] * sqrt(2.0);
+      agc_params_.agc2_scales[i] = agc_params_.agc2_scales[i - 1] * sqrt(2.0);
+    }
+    CARFAC carfac(kNumEars, kSampleRate, car_params_, ihc_params_, agc_params_);
+    const AGCCoeffs& coeffs = carfac.get_ear(0).get_agc_coeffs(0);
+    switch (i) {
+      case 0:
+        EXPECT_EQ(3, coeffs.agc_spatial_n_taps);
+        EXPECT_EQ(0, coeffs.agc_spatial_iterations);
+        break;
+      case 1:
+        EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+        EXPECT_EQ(1, coeffs.agc_spatial_iterations);
+        break;
+      case 2:
+        EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+        EXPECT_EQ(2, coeffs.agc_spatial_iterations);
+        break;
+      case 3:
+        EXPECT_EQ(5, coeffs.agc_spatial_n_taps);
+        EXPECT_EQ(4, coeffs.agc_spatial_iterations);
+        break;
+      case 4:
+        EXPECT_EQ(-1, coeffs.agc_spatial_iterations);
+        break;
+    }
+  }
 }

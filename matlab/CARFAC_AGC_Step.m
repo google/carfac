@@ -46,14 +46,14 @@ if decim_phase == 0
   % decimated inputs for this stage, and to be decimated more for next:
   AGC_in = state(stage).input_accum / decim;
   state(stage).input_accum(:) = 0;  % reset accumulator
-  
+
   if stage < coeffs(1).n_AGC_stages
     state = CARFAC_AGC_Recurse(coeffs, AGC_in, stage+1, state);
     % and add its output to this stage input, whether it updated or not:
     AGC_in = AGC_in + ...
       coeffs(stage).AGC_stage_gain * state(stage + 1).AGC_memory;
   end
-  
+
   AGC_stage_state = state(stage).AGC_memory;
   % first-order recursive smoothing filter update, in time:
   AGC_stage_state = AGC_stage_state + ...
@@ -63,7 +63,7 @@ if decim_phase == 0
     CARFAC_Spatial_Smooth(coeffs(stage), AGC_stage_state);
   % and store the state back (in C++, do it all in place?)
   state(stage).AGC_memory = AGC_stage_state;
-  
+
   updated = 1;  % bool to say we have new state
 else
   updated = 0;

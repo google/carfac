@@ -227,65 +227,66 @@ bool Ear::AGCRecurse(int stage, ArrayX* agc_in_out) {
 
 void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
                            ArrayX* stage_state) {
-  int num_iterations = agc_coeffs.agc_spatial_iterations;
-  bool use_fir = (num_iterations < 4) ? true : false;
-  CARFAC_ASSERT(num_iterations == 1 &&
-                "more than 1 iteration not yet supported.");
+  const int num_iterations = agc_coeffs.agc_spatial_iterations;
+  const bool use_fir = num_iterations >= 0;
   if (use_fir) {
-    FPType fir_coeffs_left = agc_coeffs.agc_spatial_fir_left;
-    FPType fir_coeffs_mid = agc_coeffs.agc_spatial_fir_mid;
-    FPType fir_coeffs_right = agc_coeffs.agc_spatial_fir_right;
+    const FPType fir_coeffs_left = agc_coeffs.agc_spatial_fir_left;
+    const FPType fir_coeffs_mid = agc_coeffs.agc_spatial_fir_mid;
+    const FPType fir_coeffs_right = agc_coeffs.agc_spatial_fir_right;
     ArrayX& smoothed_state(tmp2_);  // While tmp1_ is in use as agc_in.
     switch (agc_coeffs.agc_spatial_n_taps) {
       case 3:
-        // First filter most points, with vector parallelism.
-        smoothed_state.segment(1, num_channels_ - 2) =
-            fir_coeffs_mid * ((*stage_state).segment(1, num_channels_ - 2)) +
-            fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 2)) +
-            fir_coeffs_right * ((*stage_state).segment(2, num_channels_ - 2));
-        // Then patch up one point on each end, with clamped edge condition.
-        smoothed_state(0) =
-            fir_coeffs_mid * (*stage_state)(0) +
-            fir_coeffs_left * (*stage_state)(0) +
-            fir_coeffs_right * (*stage_state)(1);
-        smoothed_state(num_channels_ - 1) =
-            fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
-            fir_coeffs_left * (*stage_state)(num_channels_ - 2) +
-            fir_coeffs_right * (*stage_state)(num_channels_ - 1);
-        // Copy smoothed state back from temp.
-        *stage_state = smoothed_state;
+        for (int count = 0; count < num_iterations; ++count) {
+          // First filter most points, with vector parallelism.
+          smoothed_state.segment(1, num_channels_ - 2) =
+              fir_coeffs_mid * ((*stage_state).segment(1, num_channels_ - 2)) +
+              fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 2)) +
+              fir_coeffs_right * ((*stage_state).segment(2, num_channels_ - 2));
+          // Then patch up one point on each end, with clamped edge condition.
+          smoothed_state(0) = fir_coeffs_mid * (*stage_state)(0) +
+                              fir_coeffs_left * (*stage_state)(0) +
+                              fir_coeffs_right * (*stage_state)(1);
+          smoothed_state(num_channels_ - 1) =
+              fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
+              fir_coeffs_left * (*stage_state)(num_channels_ - 2) +
+              fir_coeffs_right * (*stage_state)(num_channels_ - 1);
+          // Copy smoothed state back from temp.
+          *stage_state = smoothed_state;
+        }
         break;
       case 5:
-        // First filter most points, with vector parallelism.
-        smoothed_state.segment(2, num_channels_ - 4) =
-            fir_coeffs_mid * ((*stage_state).segment(2, num_channels_ - 4)) +
-            fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 4) +
-                               (*stage_state).segment(1, num_channels_ - 4)) +
-            fir_coeffs_right * ((*stage_state).segment(3, num_channels_ - 4) +
-                                (*stage_state).segment(4, num_channels_ - 4));
-        // Then patch up 2 points on each end.
-        smoothed_state(0) =
-            fir_coeffs_mid * (*stage_state)(0) +
-            fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(1)) +
-            fir_coeffs_right * ((*stage_state)(1) + (*stage_state)(2));
-        smoothed_state(1) =
-            fir_coeffs_mid * (*stage_state)(1) +
-            fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(0)) +
-            fir_coeffs_right * ((*stage_state)(2) + (*stage_state)(3));
-        smoothed_state(num_channels_ - 1) =
-            fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
-            fir_coeffs_left * ((*stage_state)(num_channels_ - 2) +
-                               (*stage_state)(num_channels_ - 3)) +
-            fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
-                                (*stage_state)(num_channels_ - 1));
-        smoothed_state(num_channels_ - 2) =
-            fir_coeffs_mid * (*stage_state)(num_channels_ - 2) +
-            fir_coeffs_left * ((*stage_state)(num_channels_ - 3) +
-                               (*stage_state)(num_channels_ - 4)) +
-            fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
-                                (*stage_state)(num_channels_ - 1));
-        // Copy smoothed state back from temp.
-        *stage_state = smoothed_state;
+        for (int count = 0; count < num_iterations; ++count) {
+          // First filter most points, with vector parallelism.
+          smoothed_state.segment(2, num_channels_ - 4) =
+              fir_coeffs_mid * ((*stage_state).segment(2, num_channels_ - 4)) +
+              fir_coeffs_left * ((*stage_state).segment(0, num_channels_ - 4) +
+                                 (*stage_state).segment(1, num_channels_ - 4)) +
+              fir_coeffs_right * ((*stage_state).segment(3, num_channels_ - 4) +
+                                  (*stage_state).segment(4, num_channels_ - 4));
+          // Then patch up 2 points on each end.
+          smoothed_state(0) =
+              fir_coeffs_mid * (*stage_state)(0) +
+              fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(1)) +
+              fir_coeffs_right * ((*stage_state)(1) + (*stage_state)(2));
+          smoothed_state(1) =
+              fir_coeffs_mid * (*stage_state)(1) +
+              fir_coeffs_left * ((*stage_state)(0) + (*stage_state)(0)) +
+              fir_coeffs_right * ((*stage_state)(2) + (*stage_state)(3));
+          smoothed_state(num_channels_ - 1) =
+              fir_coeffs_mid * (*stage_state)(num_channels_ - 1) +
+              fir_coeffs_left * ((*stage_state)(num_channels_ - 2) +
+                                 (*stage_state)(num_channels_ - 3)) +
+              fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
+                                  (*stage_state)(num_channels_ - 1));
+          smoothed_state(num_channels_ - 2) =
+              fir_coeffs_mid * (*stage_state)(num_channels_ - 2) +
+              fir_coeffs_left * ((*stage_state)(num_channels_ - 3) +
+                                 (*stage_state)(num_channels_ - 4)) +
+              fir_coeffs_right * ((*stage_state)(num_channels_ - 1) +
+                                  (*stage_state)(num_channels_ - 1));
+          // Copy smoothed state back from temp.
+          *stage_state = smoothed_state;
+        }
         break;
       default:
         CARFAC_ASSERT(false &&
@@ -293,6 +294,7 @@ void Ear::AGCSpatialSmooth(const AGCCoeffs& agc_coeffs,
         break;
     }
   } else {
+    // Fall back on IIR smoothing.
     AGCSmoothDoubleExponential(agc_coeffs.agc_pole_z1, agc_coeffs.agc_pole_z2,
                                stage_state);
   }
@@ -346,5 +348,5 @@ void Ear::CloseAGCLoop(bool open_loop) {
 
 void Ear::CrossCouple(const ArrayX& mean_state, int stage) {
   ArrayX& stage_state = agc_state_[stage].agc_memory;
-  stage_state += agc_mix_coeff(stage) * (mean_state - stage_state);
+  stage_state += agc_coeffs_[stage].agc_mix_coeffs * (mean_state - stage_state);
 }

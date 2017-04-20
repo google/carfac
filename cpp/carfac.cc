@@ -283,27 +283,45 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
     agc_coeff.agc_pole_z1 = p - dp;
     agc_coeff.agc_pole_z2 = p + dp;
     int n_taps = 0;
-    bool fir_ok = false;
-    int n_iterations = 1;
+    bool done = false;
+    int n_iterations = 1;  // The typical case in practice.
     // Initialize the FIR coefficient settings at each stage.
-    FPType fir_left, fir_mid, fir_right;
-    while (!fir_ok) {
+    FPType fir_left = 0;
+    FPType fir_mid = 1;
+    FPType fir_right = 0;
+    if (spread_sq == 0) {
+      // Special case for no spatial spreading.
+      n_iterations = 0;
+      n_taps = 3;  // Use a valid n_taps even if we're doing 0 iterations.
+      done = true;
+    }
+    while (!done) {
       switch (n_taps) {
         case 0:
+          // First time through, try to use the simple 3-point smoother.
           n_taps = 3;
           break;
         case 3:
+          // Second time, increase n_taps before increasing n_iterations.
           n_taps = 5;
           break;
         case 5:
+          // Subsequent times, try more iterations of 5-point FIR.
           n_iterations++;
-          CARFAC_ASSERT(n_iterations < 16 &&
-                        "Too many iterations needed in AGC spatial smoothing.");
+          // TODO(dicklyon): parameterize the 4.
+          if (n_iterations > 4) {
+            // Even with SIMD ops, FIR smoothing takes time, so more than a
+            // few iterations makes it probably slower than the two-pass IIR
+            // smoother.
+            n_iterations = -1;  // Signal to use IIR instead.
+            done = true;
+          }
           break;
         default:
           CARFAC_ASSERT(true && "Bad n_taps; should be 3 or 5.");
           break;
       }
+      if (done) break;
       // The smoothing function is a space-domain smoothing, but it considered
       // here by analogy to time-domain smoothing, which is why its potential
       // off-centeredness is called a delay.  Since it's a smoothing filter, it
@@ -325,7 +343,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
           fir_left = a;
           fir_mid = 1 - a - b;
           fir_right = b;
-          fir_ok = fir_mid >= 0.2 ? true : false;
+          done = fir_mid >= 0.25;
           break;
         case 5:
           a = (((delay_variance + (mean_delay*mean_delay)) * 2.0/5.0) -
@@ -335,7 +353,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
           fir_left = a / 2.0;
           fir_mid = 1 - a - b;
           fir_right = b / 2.0;
-          fir_ok = fir_mid >= 0.1 ? true : false;
+          done = fir_mid >= 0.15;
           break;
         default:
           CARFAC_ASSERT(true && "Bad n_taps; should be 3 or 5.");
