@@ -31,9 +31,10 @@ inline void CARFACDetect(ArrayX* input_output) {
   // This offsets the low-end tail into negative x territory.
   // The parameter a is adjusted for the book, to make the 20% DC response
   // threshold at 0.1.
-  auto c = (*input_output + a).cwiseMax(FPType(0.0));
+  ArrayX& c = *input_output;
+  c = c.cwiseMax(-a) + a;
   // Zero is the final answer for many points.
-  *input_output = c*c*c / (c*c*c + c*c + b);
+  *input_output = c.cube() / (c.cube() + c.square() + b);
 }
 
 #endif  // CARFAC_CARFAC_UTIL_H
