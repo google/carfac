@@ -49,7 +49,8 @@ source.)
 import commands
 import os
 
-env = Environment(CPPPATH = [os.environ['EIGEN_PATH']])
+env = Environment(CPPPATH = [os.environ['EIGEN_PATH'],
+                             os.environ['GTEST_SOURCE'] + '/include'])
 GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
 if GCC_VERSION.startswith('4.6'):
   # The override keyword is not supported in GCC 4.6, so we define it away.
@@ -103,4 +104,3 @@ emscripten_env.Command(
       EIGEN_PATH = os.environ['EIGEN_PATH'],
       sources = ' '.join(emscripten_sources))
   ])
-
