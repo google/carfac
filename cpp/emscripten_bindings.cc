@@ -120,7 +120,6 @@ class SAIPlotter {
   // Emscripten renders the output to an HTML5 canvas element.
   void PlotMatrix(const ArrayXX& matrix) {
     float min = matrix.minCoeff();
-    //float norm = matrix.maxCoeff() - min;
     float norm = 5.0 - min;
     // Avoid dividing by zero.
     if (norm == 0.0) {

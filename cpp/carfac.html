@@ -40,7 +40,7 @@ function InitInputNodes(context, antiAliasFilterNode) {
     null,  // Microphone source, Initialized below.
   ];
   inputNodes[0].connect(antiAliasFilterNode);
-  
+
   if (navigator.getUserMedia) {
     navigator.getUserMedia(
         {audio: true},
