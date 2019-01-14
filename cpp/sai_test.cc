@@ -76,9 +76,9 @@ TEST_P(SAIPeriodicInputTest, MultiChannelPulseTrain) {
             << "Output:" << std::endl << sai_frame << std::endl;
 }
 
-INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, SAIPeriodicInputTest,
-                        testing::Combine(Values(25, 10, 5, 2),  // periods.
-                                         Values(1, 2, 15)));  // num_channels.
+INSTANTIATE_TEST_SUITE_P(PeriodicInputVariations, SAIPeriodicInputTest,
+                         testing::Combine(Values(25, 10, 5, 2),  // periods.
+                                          Values(1, 2, 15)));  // num_channels.
 
 class SAITest : public SAITestBase {};
 

@@ -94,9 +94,9 @@ TEST_P(BinauralSAIPeriodicInputTest, MultiChannelPulseTrain) {
   }
 }
 
-INSTANTIATE_TEST_CASE_P(PeriodicInputVariations, BinauralSAIPeriodicInputTest,
-                        testing::Combine(Values(25, 10, 5, 2),  // periods.
-                                         Values(1, 2, 15)));  // num_channels.
+INSTANTIATE_TEST_SUITE_P(PeriodicInputVariations, BinauralSAIPeriodicInputTest,
+                         testing::Combine(Values(25, 10, 5, 2),  // periods.
+                                          Values(1, 2, 15)));  // num_channels.
 
 class BinauralSAITest : public SAITestBase {};
 
