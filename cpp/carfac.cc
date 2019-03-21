@@ -19,6 +19,7 @@
 #include "carfac.h"
 
 #include <math.h>
+#include <cmath>
 
 #include "carfac_util.h"
 #include "ear.h"
@@ -58,7 +59,7 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
     pole_hz = pole_hz - car_params_.erb_per_step *
         ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
   }
-  max_channels_per_octave_ = log(2) / log(pole_freqs_(0) / pole_freqs_(1));
+  max_channels_per_octave_ = log(2) / std::log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
   IHCCoeffs ihc_coeffs;
   vector<AGCCoeffs> agc_coeffs;
@@ -219,7 +220,8 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
       FPType current = 1 / (ri + r0);
       ihc_coeffs->cap1_voltage = 1 - (current * ri);
       ihc_coeffs->just_half_wave_rectify = false;
-      ihc_coeffs->lpf_coeff = 1 - exp(-1 / (ihc_params.tau_lpf * sample_rate));
+      ihc_coeffs->lpf_coeff =
+          1 - std::exp(-1 / (ihc_params.tau_lpf * sample_rate));
       ihc_coeffs->out1_rate = ro / (ihc_params.tau1_out * sample_rate);
       ihc_coeffs->in1_rate = 1 / (ihc_params.tau1_in * sample_rate);
       ihc_coeffs->one_capacitor = ihc_params.one_capacitor;
@@ -238,7 +240,8 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
       ihc_coeffs->cap1_voltage = 1 - (current * r1);
       ihc_coeffs->cap2_voltage = ihc_coeffs->cap1_voltage - (current * r2);
       ihc_coeffs->just_half_wave_rectify = false;
-      ihc_coeffs->lpf_coeff = 1 - exp(-1 / (ihc_params.tau_lpf * sample_rate));
+      ihc_coeffs->lpf_coeff =
+          1 - std::exp(-1 / (ihc_params.tau_lpf * sample_rate));
       ihc_coeffs->out1_rate = 1 / (ihc_params.tau1_out * sample_rate);
       ihc_coeffs->in1_rate = 1 / (ihc_params.tau1_in * sample_rate);
       ihc_coeffs->out2_rate = ro / (ihc_params.tau2_out * sample_rate);
@@ -271,14 +274,15 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
     FPType tau = time_constants[stage];
     agc_coeff.decim = decim;
     agc_coeff.decim *= agc_coeff.decimation;
-    agc_coeff.agc_epsilon = 1 - exp((-1 * agc_coeff.decim) /
-                                    (tau * sample_rate));
+    agc_coeff.agc_epsilon =
+        1 - std::exp((-1 * agc_coeff.decim) / (tau * sample_rate));
     FPType n_times = tau * (sample_rate / agc_coeff.decim);
     FPType delay = (agc2_scales[stage] - agc1_scales[stage]) / n_times;
-    FPType spread_sq = (pow(agc1_scales[stage], 2) +
-                        pow(agc2_scales[stage], 2)) / n_times;
+    FPType spread_sq =
+        (std::pow(agc1_scales[stage], 2) + std::pow(agc2_scales[stage], 2)) /
+        n_times;
     FPType u = 1 + (1 / spread_sq);
-    FPType p = u - sqrt(pow(u, 2) - 1);
+    FPType p = u - sqrt(std::pow(u, 2) - 1);
     FPType dp = delay * (1 - (2 * p) + (p*p)) / 2;
     agc_coeff.agc_pole_z1 = p - dp;
     agc_coeff.agc_pole_z2 = p + dp;
@@ -367,7 +371,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
     agc_coeff.agc_spatial_fir_left = fir_left;
     agc_coeff.agc_spatial_fir_mid = fir_mid;
     agc_coeff.agc_spatial_fir_right = fir_right;
-    total_dc_gain += pow(agc_coeff.agc_stage_gain, stage);
+    total_dc_gain += std::pow(agc_coeff.agc_stage_gain, stage);
     agc_coeff.agc_mix_coeffs = stage == 0 ? 0 : mix_coeff /
         (tau * (sample_rate / agc_coeff.decim));
     agc_coeff.agc_gain = total_dc_gain;
