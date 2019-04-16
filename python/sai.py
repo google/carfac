@@ -1,3 +1,4 @@
+# Lint as: python2, python3
 # Copyright 2013 The CARFAC Authors. All Rights Reserved.
 #
 # This file is part of an implementation of Lyon's cochlear model:
@@ -16,6 +17,10 @@
 # limitations under the License.
 
 """Classes to compute Stabilized Auditory Images from filterbank outputs."""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import numpy as np
 
@@ -62,7 +67,7 @@ class SAIParams(object):
 
   def __repr__(self):
     kwargs_str = ", ".join(
-        "{}={}".format(k, v) for k, v in self.__dict__.iteritems())
+        "{}={}".format(k, v) for k, v in self.__dict__.items())
     return "SAIParams({})".format(kwargs_str)
 
 
@@ -122,20 +127,20 @@ class _SAIBase(object):
 
     # Windows are always approximately 50% overlapped.
     num_samples = triggering_input_buffer.shape[1]
-    window_hop = self.params.trigger_window_width / 2
+    window_hop = self.params.trigger_window_width // 2
     window_start = ((num_samples - self.params.trigger_window_width) -
                     (self.params.num_triggers_per_frame - 1) * window_hop)
     window_range_start = window_start - self.params.future_lags
 
     offset_range_start = 1 + window_start - self.params.sai_width
     assert offset_range_start > 0
-    for i in xrange(self.params.num_channels):
+    for i in range(self.params.num_channels):
       triggering_nap_wave = triggering_input_buffer[i, :]
       nontriggering_nap_wave = nontriggering_input_buffer[i, :]
       # TODO(ronw): Smooth triggering signal to be consistent with the
       # Matlab implementation.
 
-      for w in xrange(self.params.num_triggers_per_frame):
+      for w in range(self.params.num_triggers_per_frame):
         current_window_offset = w * window_hop
 
         # Choose a trigger point.

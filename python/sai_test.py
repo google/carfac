@@ -1,3 +1,4 @@
+# Lint as: python2, python3
 #!/usr/bin/env python
 
 # Copyright 2013 The CARFAC Authors. All Rights Reserved.
@@ -18,6 +19,10 @@
 # limitations under the License.
 
 """Tests for carfac.python.sai."""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import os
 import unittest
@@ -42,10 +47,10 @@ def WriteMatrix(filename, matrix):
 
 def CreatePulseTrain(num_channels, num_samples, period, leading_zeros=0):
   segment = np.zeros((num_channels, num_samples))
-  for i in xrange(num_channels):
+  for i in range(num_channels):
     # Begin each channel at a different phase.
     phase = (i + leading_zeros) % period
-    for j in xrange(phase, num_samples, period):
+    for j in range(phase, num_samples, period):
       segment[i, j] = 1
   return segment
 
@@ -54,7 +59,7 @@ def CreateSAIParams(sai_width, num_triggers_per_frame=2, **kwargs):
   """Fills an SAIParams object using reasonable defaults for some fields."""
   return pysai.SAIParams(sai_width=sai_width,
                          # Half of the SAI should come from the future.
-                         future_lags=sai_width / 2,
+                         future_lags=sai_width // 2,
                          num_triggers_per_frame=num_triggers_per_frame,
                          **kwargs)
 
@@ -83,18 +88,18 @@ class PeriodicInputTest(unittest.TestCase):
 
     # The output should have peaks at the same positions, regardless of
     # input phase.
-    for i in xrange(num_channels):
+    for i in range(num_channels):
       sai_channel = sai_frame[i, :]
-      for j in xrange(len(sai_channel) - 1, 0, -period):
-        print i, j, sai_channel, HasPeakAt(sai_channel, j)
+      for j in range(len(sai_channel) - 1, 0, -period):
+        print(i, j, sai_channel, HasPeakAt(sai_channel, j))
         self.assertTrue(HasPeakAt(sai_channel, j))
 
-    print "Input\n{}\nOutput\n{}".format(segment, sai_frame)
+    print("Input\n{}\nOutput\n{}".format(segment, sai_frame))
 
   def testMultiChannelPulseTrain(self):
     for period in [25, 10, 5, 2]:
       for num_channels in [1, 2, 15]:
-        print "Testing period={}, num_channels={}".format(period, num_channels)
+        print("Testing period={}, num_channels={}".format(period, num_channels))
         self._RunMultiChannelPulseTrainTest(period, num_channels)
 
 
@@ -105,7 +110,7 @@ class SAITest(unittest.TestCase):
                              trigger_window_width=200)
     sai = pysai.SAI(params)
 
-    params.trigger_window_width = params.input_segment_width / 10
+    params.trigger_window_width = params.input_segment_width // 10
     self.assertGreater(params.input_segment_width,
                        params.num_triggers_per_frame *
                        params.trigger_window_width)
@@ -135,7 +140,7 @@ class SAITest(unittest.TestCase):
     full_input = CreatePulseTrain(num_channels, total_input_samples, period)
 
     num_frames = 4
-    input_segment_width = total_input_samples / num_frames
+    input_segment_width = total_input_samples // num_frames
     sai_params = CreateSAIParams(num_channels=num_channels,
                                  input_segment_width=input_segment_width,
                                  trigger_window_width=total_input_samples,
@@ -147,12 +152,12 @@ class SAITest(unittest.TestCase):
     self.assertGreaterEqual(period, input_segment_width)
 
     sai = pysai.SAI(sai_params)
-    for i in xrange(num_frames):
+    for i in range(num_frames):
       segment = (
           full_input[:, i * input_segment_width:(i+1) * input_segment_width])
       sai_frame = sai.RunSegment(segment)
 
-      print "Frame {}\nInput\n{}\nOutput\n{}".format(i, segment, sai_frame)
+      print("Frame {}\nInput\n{}\nOutput\n{}".format(i, segment, sai_frame))
 
       self.assertNotEqual(np.abs(segment).sum(), 0)
       # Since the input segment is never all zero, there should always
@@ -171,7 +176,7 @@ class SAITest(unittest.TestCase):
         # By the last frame, the SAI's internal buffer will have
         # accumulated the full input signal, so the resulting image
         # should contain kPeriod peaks.
-        for j in xrange(len(sai_channel) - 1, 0, -period):
+        for j in range(len(sai_channel) - 1, 0, -period):
           self.assertTrue(HasPeakAt(sai_channel, j))
 
   def testMatchesMatlabOnBinauralData(self):
