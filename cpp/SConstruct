@@ -46,12 +46,12 @@ http://llvm.org/releases/download.html instead of building it from
 source.)
 """
 
-import commands
+import subprocess
 import os
 
 env = Environment(CPPPATH = [os.environ['EIGEN_PATH'],
                              os.environ['GTEST_SOURCE'] + '/include'])
-GCC_VERSION = commands.getoutput(env['CXX'] + ' -dumpversion')
+GCC_VERSION = subprocess.getoutput(env['CXX'] + ' -dumpversion')
 if GCC_VERSION.startswith('4.6'):
   # The override keyword is not supported in GCC 4.6, so we define it away.
   env.MergeFlags(['-std=c++0x -Doverride='])
