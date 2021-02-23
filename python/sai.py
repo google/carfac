@@ -1,4 +1,4 @@
-# Lint as: python2, python3
+# Lint as: python3
 # Copyright 2013 The CARFAC Authors. All Rights Reserved.
 #
 # This file is part of an implementation of Lyon's cochlear model:
@@ -18,14 +18,10 @@
 
 """Classes to compute Stabilized Auditory Images from filterbank outputs."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
 
 
-class SAIParams(object):
+class SAIParams:
   """Design parameters for an SAI object.
 
   Terminology: Each call to SAI.RunSegment consumes a fixed-length input
@@ -71,7 +67,7 @@ class SAIParams(object):
     return "SAIParams({})".format(kwargs_str)
 
 
-class _SAIBase(object):
+class _SAIBase:
   """Base class for the monaural and binaural SAI implementations."""
 
   def __init__(self, params):
@@ -172,7 +168,7 @@ class SAI(_SAIBase):
   """
 
   def __init__(self, params):
-    super(SAI, self).__init__(params)
+    super().__init__(params)
 
   def Reset(self):
     """Resets the internal state."""

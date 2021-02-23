@@ -1,4 +1,4 @@
-# Lint as: python2, python3
+# Lint as: python3
 #!/usr/bin/env python
 
 # Copyright 2013 The CARFAC Authors. All Rights Reserved.
@@ -19,10 +19,6 @@
 # limitations under the License.
 
 """Tests for carfac.python.sai."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 import unittest
