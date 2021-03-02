@@ -1,0 +1,12 @@
+*.o
+*.a
+*.dblite
+# Matlab ASV autosave files
+*.asv
+# Pychache files
+*.pyc
+# Graphical files
+*.mpg
+*.png
+# VScode files
+cpp/.vs/*
