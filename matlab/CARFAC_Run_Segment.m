@@ -94,7 +94,7 @@ for k = 1:n_samp
       BM(k, :, ear) = car_out;
       state = CF.ears(ear).CAR_state;
       seg_ohc(k, :, ear) = state.zA_memory;
-      seg_agc(k, :, ear) = state.zB_memory;;
+      seg_agc(k, :, ear) = state.zB_memory;
     end
   end
   

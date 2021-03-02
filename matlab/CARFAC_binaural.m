@@ -24,18 +24,16 @@ agc_plot_fig_num = 1;
 
 tic
 
-file_signal = wavread('../test_data/binaural_test.wav');
+file_signal = audioread('../test_data/binaural_test.wav');
 file_signal = file_signal(9000+(1:15000));  % trim for a faster test
 
 itd_offset = 22;  % about 1 ms
 test_signal = [file_signal((itd_offset+1):end), ...
                file_signal(1:(end-itd_offset))] / 10;
-             
-CF_struct = CARFAC_Design;  % default design
-
 % Run stereo test:
-n_ears = 2
-CF_struct = CARFAC_Init(CF_struct, n_ears);
+n_ears = 2;             
+CF_struct = CARFAC_Design(n_ears);  % default design with 2 ears
+CF_struct = CARFAC_Init(CF_struct);
   
 [CF_struct, nap_decim, nap] = CARFAC_Run(CF_struct, test_signal, agc_plot_fig_num);
 
@@ -43,17 +41,15 @@ CF_struct = CARFAC_Init(CF_struct, n_ears);
 for ear = 1:n_ears
   smooth_nap = nap_decim(:, :, ear);
   figure(ear + n_ears)  % Makes figures 3 and 4
-  image(63 * ((smooth_nap)' .^ 0.5))
-
+  % Rectify since nap can go slightly negative.
+  image(63 * (max(0, smooth_nap)' .^ 0.5));
   colormap(1 - gray);
 end
 
 toc
 
 % Show resulting data, even though M-Lint complains:
-CF_struct
-CF_struct.CAR_state
-CF_struct.AGC_state
+CF_struct;
 min_max = [min(nap(:)), max(nap(:))]
 min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
 

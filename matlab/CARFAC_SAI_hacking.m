@@ -19,8 +19,15 @@
 %% Test/demo hacking for CARFAC_SAI Matlab stuff:
 
 clear variables
+clear_old_files = true;
 
-system('mkdir frames');
+[status, msg, msgID] = mkdir('frames');
+
+if (status && clear_old_files && strcmp(msgID, 'MATLAB:MKDIR:DirectoryExists'))
+    disp("Clearing old frames");
+    delete('frames/*');
+end
+
 
 %%
 
@@ -32,8 +39,8 @@ if ~exist(['./', wav_fn], 'file')
   error('wav file not found')
 end
 
-wav_fn
-[file_signal, fs] = wavread(wav_fn);
+disp(wav_fn)
+[file_signal, fs] = audioread(wav_fn);
 
 % if fs == 44100
 %   file_signal = (file_signal(1:2:end-1, :) + file_signal(2:2:end, :)) / 2;
@@ -64,9 +71,5 @@ CF_struct = CARFAC_Init(CF_struct);
 %%
 png_name_pattern = 'frames/frame%05d.png';
 MakeMovieFromPngsAndWav(round(frame_rate), png_name_pattern, ...
-  wav_fn, ['CARFAC_SAI_movie_', wav_fn(1:end-4), '.mpg'])
-
-%%
-system('rm -r frames');
-
+  wav_fn, [wav_fn(1:end-4), '.mpg'])
 
