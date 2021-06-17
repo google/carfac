@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-import carfac.tf.pz as pz
+import google3.third_party.carfac.tf.pz as pz
 
 
 StatesTuple = Tuple[tf.Tensor, tf.Tensor, tf.Tensor]

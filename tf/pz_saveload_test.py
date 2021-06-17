@@ -26,7 +26,7 @@ from absl import app
 import numpy as np
 import tensorflow as tf
 
-import carfac.tf.pz as pz
+import google3.third_party.carfac.tf.pz as pz
 
 
 class RNN(tf.keras.layers.RNN):
