@@ -25,7 +25,7 @@ from absl import app
 import numpy as np
 import tensorflow as tf
 
-import google3.third_party.carfac.tf.car as car
+from . import car
 
 
 class CARTest(unittest.TestCase):

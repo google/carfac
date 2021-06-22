@@ -26,7 +26,7 @@ from absl import app
 import numpy as np
 import tensorflow as tf
 
-import google3.third_party.carfac.tf.pz as pz
+from . import pz
 
 
 class CoeffTest(unittest.TestCase):
