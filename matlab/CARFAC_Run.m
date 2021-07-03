@@ -147,7 +147,7 @@ for seg_num = 1:n_segs
     maxmax = 0;
     for ear = 1:n_ears
       hold on
-      for stage = 1:4;
+      for stage = 1:4
         stage_response = 2^(stage-1) * CF.ears(ear).AGC_state(stage).AGC_memory;
         plot(stage_response);
         maxmax = max(maxmax, max(stage_response));
