@@ -29,19 +29,12 @@ import tensorflow as tf
 from . import pz
 
 
-class RNN(tf.keras.layers.RNN):
-  pass
-
-
 class PZTest(unittest.TestCase):
 
   def testSaveLoad(self):
     poles = [(-0.05429768147702485+1.4172655611120915e-05j),
-             (0.2917622403739163+0.7731812636894612j),
-             (0.8768382244780407-0.31120458350060115j),
              (0.6598943546882394-0.46728573398560225j)]
     zeros = [(0.635496172349615+0.14499945287904842j),
-             (0.30987058966944614-0.8574194617385421j),
              (0.5721096307971768-2.2915816453724273e-05j)]
     pz_cell = pz.PZCell(1.34,
                         tf.concat([poles, tf.math.conj(poles)], axis=0),
