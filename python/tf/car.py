@@ -8,7 +8,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http:#www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,6 @@ class CARCell(tf.keras.layers.Layer):
   Attributes:
     output_size: Shape of output. Required by
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
-
     state_size: Shape of state. Required by
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
   """
@@ -67,10 +66,9 @@ class CARCell(tf.keras.layers.Layer):
     Args:
       sample_rate_hz: Sample rate for the input samples.
       erb_per_step: Number of ERBs (see
-        https://en.wikipedia.org/wiki/Equivalent_rectangular_bandwidth)
-        between each cochlear place.
-      linear: Whether the CAR cell should incorporate nonlinearities or
-        not.
+        https://en.wikipedia.org/wiki/Equivalent_rectangular_bandwidth) between
+          each cochlear place.
+      linear: Whether the CAR cell should incorporate nonlinearities or not.
       max_frequency: The pole of the highest frequency channel.
       min_frequency: Guaranteed lower than than any channel pole frequency.
       **kwargs: Forwarded to superclass.
@@ -312,6 +310,7 @@ def plot_car_channels(car_cell: CARCell,
     car_cell: A CARCell to plot the output of.
     window_size: The window size for the frequency domain conversion.
     frequency_log_scale: Whether to plot the frequency axis in log scale.
+
   Returns:
     A matplotlib.Figure.
   """
@@ -325,5 +324,3 @@ def plot_car_channels(car_cell: CARCell,
   got: tf.Tensor = call_car_layer(impulse)
   got = tf.transpose(got, [0, 2, 1])[0]
   return pz.plot_z(np.fft.fft(got), frequency_log_scale=frequency_log_scale)
-
-
