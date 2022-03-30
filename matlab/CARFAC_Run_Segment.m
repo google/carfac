@@ -69,6 +69,15 @@ if do_BM
   seg_agc = zeros(n_samp, n_ch, n_ears);
 end
 
+% A 2022 addition to make open-loop running behave:
+if open_loop
+  % zero the deltas:
+  for ear = 1:CF.n_ears
+    CF.ears(ear).CAR_state.dzB_memory = 0;
+    CF.ears(ear).CAR_state.dg_memory = 0;
+  end
+end
+
 detects = zeros(n_ch, n_ears);
 for k = 1:n_samp
   % at each time step, possibly handle multiple channels
