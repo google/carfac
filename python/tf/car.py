@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2021 The CARFAC Authors. All Rights Reserved.
 #
 # This file is part of an implementation of Lyon's cochlear model:

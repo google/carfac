@@ -1,4 +1,3 @@
-# Lint as: python3
 #!/usr/bin/env python
 
 # Copyright 2013 The CARFAC Authors. All Rights Reserved.
