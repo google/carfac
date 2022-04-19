@@ -15,8 +15,6 @@ import google3.third_party.carfac.python.np.carfac as carfac
 #     blaze run third_party/carfac/python/np:carfac_test
 # Perhaps copying /tmp/*.png to your x20 drive to view them with a web browser.
 
-# pylint: disable=invalid-name  # Original Matlab names for initial version
-
 
 def linear_interp(x: np.ndarray, pos: float) -> float:
   if pos <= 0:
@@ -138,45 +136,45 @@ class CarfacUtilityTest(googletest.TestCase):
 
 class CarfacTest(googletest.TestCase):
 
-  def test_erb_hz(self):
+  def test_hz_to_erb(self):
     # Test: Simple, should asymptote to 9.2645
-    self.assertAlmostEqual(100 / carfac.ERB_Hz(100), 2.8173855225827538)
-    self.assertAlmostEqual(1000 / carfac.ERB_Hz(1000), 7.53926070009575)
-    self.assertAlmostEqual(2000 / carfac.ERB_Hz(2000), 8.313312106676422)
-    self.assertAlmostEqual(4000 / carfac.ERB_Hz(4000), 8.763166657903502)
-    self.assertAlmostEqual(8000 / carfac.ERB_Hz(8000), 9.006858722917503)
-    self.assertAlmostEqual(16000 / carfac.ERB_Hz(16000), 9.133858986918032)
+    self.assertAlmostEqual(100 / carfac.hz_to_erb(100), 2.8173855225827538)
+    self.assertAlmostEqual(1000 / carfac.hz_to_erb(1000), 7.53926070009575)
+    self.assertAlmostEqual(2000 / carfac.hz_to_erb(2000), 8.313312106676422)
+    self.assertAlmostEqual(4000 / carfac.hz_to_erb(4000), 8.763166657903502)
+    self.assertAlmostEqual(8000 / carfac.hz_to_erb(8000), 9.006858722917503)
+    self.assertAlmostEqual(16000 / carfac.hz_to_erb(16000), 9.133858986918032)
 
   def test_carfac_design(self):
     # Test: Simple.  But where do the divide by zeros come from????
-    carfac_filters = carfac.CARFAC_DesignFilters(carfac.CF_CAR_param_struct(),
-                                                 16000,
-                                                 math.pi * np.arange(1, 5) / 5.)
+    carfac_filters = carfac.design_filters(carfac.CarParams(),
+                                           16000,
+                                           math.pi * np.arange(1, 5) / 5.)
     print(carfac_filters)
 
   def test_carfac_detect(self):
     # Test: Simple
-    carfac.CARFAC_Detect(10)
-    carfac.CARFAC_Detect(np.array((1e6, 10.0, .0)))
+    carfac.ihc_detect(10)
+    carfac.ihc_detect(np.array((1e6, 10.0, .0)))
 
   def test_design_fir_coeffs(self):
-    carfac.Design_FIR_coeffs(3, 1, 1, 1)
-    carfac.Design_FIR_coeffs(5, 1, 1, 1)
+    carfac.design_fir_coeffs(3, 1, 1, 1)
+    carfac.design_fir_coeffs(5, 1, 1, 1)
 
   def test_car_freq_response(self):
-    CF = carfac.CARFAC_Design()
-    carfac.CARFAC_Init(CF)
+    cfp = carfac.design_carfac()
+    carfac.carfac_init(cfp)
     # Show impulse response for just the CAR Filter bank.
-    carfac.CARFAC_Init(CF)
+    carfac.carfac_init(cfp)
 
     n_points = 2**14
     impulse_response = None
     for i in range(n_points):
       # ??? Not sure how this works without state being recursed.
-      car_out, _ = carfac.CARFAC_CAR_Step(
+      car_out, _ = carfac.car_step(
           int(i == 0),
-          CF.ears[0].CAR_coeffs,
-          CF.ears[0].CAR_state,
+          cfp.ears[0].car_coeffs,
+          cfp.ears[0].car_state,
           linear=True)
       if impulse_response is None:  # Allocate now when number of channels known
         impulse_response = np.zeros((n_points * 2, len(car_out)))
@@ -195,7 +193,7 @@ class CarfacTest(googletest.TestCase):
 
     # Test: check overall frequency response of a cascade of CAR filters.
     # Match Figure 16.6 of Lyon's book
-    spectrum_freqs = np.arange(n_points + 1) / n_points * CF.fs / 2.0
+    spectrum_freqs = np.arange(n_points + 1) / n_points * cfp.fs / 2.0
 
     tests = [
         [10, 5604, 39.3, 705.6, 7.9],
@@ -223,10 +221,10 @@ class CarfacTest(googletest.TestCase):
 
   def run_ihc(self, test_freq=300):
     fs = 40000
-    T = 1 / fs
+    sampling_interval = 1 / fs
     tmax = 0.28  # a half second
 
-    t = np.arange(0, tmax, T)
+    t = np.arange(0, tmax, sampling_interval)
 
     # test signal, ramping square wave gating a sinusoid:
     omega0 = 2 * np.pi * 25  # for making a square wave envelope
@@ -236,15 +234,15 @@ class CarfacTest(googletest.TestCase):
     amplitude = 0.09 * 2**stim_num
     omega = 2 * np.pi * test_freq * present
 
-    CF = carfac.CARFAC_Design(fs=fs)
-    CF = carfac.CARFAC_Init(CF)
+    cfp = carfac.design_carfac(fs=fs)
+    cfp = carfac.carfac_init(cfp)
 
     # mn = 0
     phase = 0
     quad_sin = np.sin(omega * t + phase)
     quad_cos = np.cos(omega * t + phase)
     x_in = quad_sin * amplitude
-    neuro_output = carfac.IHC_model_run(x_in, fs)
+    neuro_output = carfac.ihc_model_run(x_in, fs)
 
     plt.clf()
     plt.plot(t, neuro_output)
@@ -295,7 +293,7 @@ class CarfacTest(googletest.TestCase):
 
   def test_shift_right(self):
     # Test: By direct comparison to the 5 cases in the
-    # Matab CARFAC_Spatial_Smooth
+    # Matab Spatial_Smooth
     # function.  Test these 5 cases, for these exact values.
     expected = {
         -2: [2, 3, 4, 5, 6, 6, 5],
@@ -312,24 +310,24 @@ class CarfacTest(googletest.TestCase):
   def test_agc_steady_state(self):
     # Test: Steady state response
     # Analagous to figure 19.7
-    CF = carfac.CARFAC_Design()
-    CF = carfac.CARFAC_Init(CF)
+    cfp = carfac.design_carfac()
+    cf = carfac.carfac_init(cfp)
 
-    agc_input = np.zeros(CF.n_ch)
+    agc_input = np.zeros(cfp.n_ch)
     test_channel = 40
     n_points = 16384
-    num_stages = CF.AGC_params.n_stages
-    agc_response = np.zeros((num_stages, n_points, CF.n_ch))
+    num_stages = cfp.agc_params.n_stages
+    agc_response = np.zeros((num_stages, n_points, cfp.n_ch))
     num_outputs = 0
     for i in range(n_points):
       agc_input[test_channel] = 100
-      agc_state, agc_updated = carfac.CARFAC_AGC_Step(agc_input,
-                                                      CF.ears[0].AGC_coeffs,
-                                                      CF.ears[0].AGC_state)
+      agc_state, agc_updated = carfac.agc_step(agc_input,
+                                               cfp.ears[0].agc_coeffs,
+                                               cfp.ears[0].agc_state)
       if agc_updated:
-        CF.ears[0].AGC_state = agc_state
+        cfp.ears[0].AGC_state = agc_state
         for stage in range(num_stages):
-          agc_response[stage, num_outputs, :] = agc_state[stage].AGC_memory
+          agc_response[stage, num_outputs, :] = agc_state[stage].agc_memory
         num_outputs += 1
 
     # Truncate the response (since we decimated and didn't get an output
@@ -380,22 +378,22 @@ class CarfacTest(googletest.TestCase):
     impulse = np.zeros(t.shape)
     impulse[0] = 1e-4
 
-    CF = carfac.CARFAC_Design(fs=fs)
-    CF = carfac.CARFAC_Init(CF)
-    _, CF, BM_initial, _, _ = carfac.CARFAC_Run_Segment(
-        CF, impulse, open_loop=1, linear_car=True)
+    cfp = carfac.design_carfac(fs=fs)
+    cfp = carfac.carfac_init(cfp)
+    _, cfp, bm_initial, _, _ = carfac.run_segment(
+        cfp, impulse, open_loop=1, linear_car=True)
 
-    carfac.CARFAC_Run_Segment(CF, sinusoid, open_loop=0)
+    carfac.run_segment(cfp, sinusoid, open_loop=0)
 
     # Let filter ringing die, linear_car=true overflowed car
-    carfac.CARFAC_Run_Segment(CF, 0 * impulse, open_loop=1, linear_car=False)
-    _, CF, BM_final, _, _ = carfac.CARFAC_Run_Segment(
-        CF, impulse, open_loop=1, linear_car=False)
+    carfac.run_segment(cfp, 0 * impulse, open_loop=1, linear_car=False)
+    _, cfp, bm_final, _, _ = carfac.run_segment(
+        cfp, impulse, open_loop=1, linear_car=False)
 
-    initial_freq_response = np.fft.rfft(BM_initial[:1024, :, 0], axis=0)
+    initial_freq_response = np.fft.rfft(bm_initial[:1024, :, 0], axis=0)
     initial_freq_response = 20 * np.log10(np.abs(initial_freq_response))
 
-    final_freq_response = np.fft.rfft(BM_final[:1024, :, 0], axis=0)
+    final_freq_response = np.fft.rfft(bm_final[:1024, :, 0], axis=0)
     final_freq_response = 20 * np.log10(np.abs(final_freq_response))
 
     # Match Figure 19.9(right) of Lyon's book
