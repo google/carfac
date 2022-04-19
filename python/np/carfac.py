@@ -32,7 +32,6 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 
 # TODO(malcolmslaney): Make sure everything is type annotated & has doc string.
-# TODO(malcolmslaney): Perhaps rearrange functions to keep each block together.
 # TODO(malcolmslaney): Get rid of bare generic warnings
 # TODO(malcolmslaney): Figure out attribute lint errors
 # TODO(malcolmslaney, dicklyon): Check out ???s in the documentation.
@@ -54,6 +53,10 @@ import numpy as np
 # pylint: disable=g-bare-generic
 # pytype: disable=attribute-error
 
+############################################################################
+# CAR - Cascade of Asymmetric Resonators
+############################################################################
+
 
 @dataclasses.dataclass
 class CarParams:
@@ -72,16 +75,199 @@ class CarParams:
 
 
 @dataclasses.dataclass
-class AgcParams:
-  """All the parameters needed to define the behavior of the AGC filters."""
-  n_stages: int = 4
-  time_constants: np.ndarray = 0.002 * 4**np.arange(4)
-  agc_stage_gain: float = 2  # gain from each stage to next slower stage
-  decimation: tuple = (8, 2, 2, 2)  # how often to update the AGC states
-  agc1_scales: list = 1.0 * np.sqrt(2)**np.arange(4)  # in units of channels
-  agc2_scales: list = 1.65 * math.sqrt(2)**np.arange(
-      4)  # spread more toward base
-  agc_mix_coeff: float = 0.5
+class CarCoeffs:
+  n_ch: int
+  velocity_scale: float
+  v_offset: float
+
+  r1_coeffs: np.float64 = None
+  a0_coeffs: np.float64 = None
+  c0_coeffs: np.float64 = None
+  h_coeffs: np.float64 = None
+  g0_coeffs: np.float64 = None
+
+
+def hz_to_erb(cf_hz: Union[float, np.ndarray],
+              erb_break_freq: float = 1000 / 4.37,
+              erb_q: float = 1000 / (24.7 * 4.37)):
+  """Auditory filter nominal Equivalent Rectangular Bandwidth.
+
+  Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
+  ERB = 24.7 * (1 + 4.37 * cf_hz / 1000)
+
+  Args:
+    cf_hz: A scalar or a vector of frequencies (CF) to convert to ERB scale
+    erb_break_freq: The corner frequency where we go from linear to log
+      bandwidth
+    erb_q: The width of one filter (Q = cf/Bandwidth)
+
+  Returns:
+    A scalar or vector with the ERB scale for the input frequencies.
+  """
+  return (erb_break_freq + cf_hz) / erb_q
+
+
+def design_filters(car_params, fs, pole_freqs):
+  """Design the actual CAR filters."""
+
+  n_ch = len(pole_freqs)
+  pole_freqs = np.asarray(pole_freqs)
+
+  # the filter design coeffs:
+  # scalars first:
+  car_coeffs = CarCoeffs(
+      n_ch=n_ch,
+      velocity_scale=car_params.velocity_scale,
+      v_offset=car_params.v_offset)
+
+  # zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
+  # and that a is here 1 / (1+f) where h = f*c.
+  # solve for f:  1/zero_ratio^2 = 1 / (1+f)
+  # zero_ratio^2 = 1+f => f = zero_ratio^2 - 1
+  f = car_params.zero_ratio**2 - 1  # nominally 1 for half-octave
+
+  # Make pole positions, s and c coeffs, h and g coeffs, etc.,
+  # which mostly depend on the pole angle theta:
+  theta = pole_freqs * (2 * math.pi / fs)
+
+  c0 = np.sin(theta)
+  a0 = np.cos(theta)
+
+  # different possible interpretations for min-damping r:
+  # r = exp(-theta * car_params.min_zeta).
+  # Compress theta to give somewhat higher Q at highest thetas:
+  ff = car_params.high_f_damping_compression  # 0 to 1; typ. 0.5
+  x = theta / math.pi
+
+  zr_coeffs = math.pi * (x - ff * x**3)  # when ff is 0, this is just theta,
+  #                       and when ff is 1 it goes to zero at theta = pi.
+  max_zeta = car_params.max_zeta
+  car_coeffs.r1_coeffs = (1 - zr_coeffs * max_zeta
+                         )  # "r1" for the max-damping condition
+  min_zeta = car_params.min_zeta
+  # Increase the min damping where channels are spaced out more, by pulling
+  # 25% of the way toward hz_to_erb/pole_freqs (close to 0.1 at high f)
+  min_zetas = min_zeta + 0.25 * (
+      hz_to_erb(pole_freqs, car_params.erb_break_freq, car_params.erb_q) /
+      pole_freqs - min_zeta)
+  car_coeffs.zr_coeffs = zr_coeffs * (max_zeta - min_zetas)
+  # how r relates to undamping
+
+  # undamped coupled-form coefficients:
+  car_coeffs.a0_coeffs = a0
+  car_coeffs.c0_coeffs = c0
+
+  # the zeros follow via the h_coeffs
+  h = c0 * f
+  car_coeffs.h_coeffs = h
+
+  # for unity gain at min damping, radius r; only used in Init:
+  relative_undamping = np.ones((n_ch,))  # max undamping to start
+  # this function needs to take car_coeffs even if we haven't finished
+  # constucting it by putting in the g0_coeffs:
+  car_coeffs.g0_coeffs = stage_g(car_coeffs, relative_undamping)
+
+  return car_coeffs
+
+
+@dataclasses.dataclass
+class CarState:
+  """All the state variables for the CAR filterbank."""
+  z1_memory: np.ndarray
+  z2_memory: np.ndarray
+  za_memory: np.ndarray
+  zb_memory: np.ndarray  # , coeffs.zr_coeffs, ...
+  dzb_memory: np.ndarray  # (n_ch, 1), ...
+  zy_memory: np.ndarray  # zeros(n_ch, 1), ...
+  g_memory: np.ndarray  # coeffs.g0_coeffs, ...
+  dg_memory: np.ndarray  #  zeros(n_ch, 1) ...
+
+  def __init__(self, coeffs: CarCoeffs, dtype=np.float32):
+    n_ch = coeffs.n_ch
+    self.z1_memory = np.zeros((n_ch,), dtype=dtype)
+    self.z2_memory = np.zeros((n_ch,), dtype=dtype)
+    self.za_memory = np.zeros((n_ch,), dtype=dtype)
+    self.zb_memory = coeffs.zr_coeffs
+    self.dzb_memory = np.zeros((n_ch,), dtype=dtype)
+    self.zy_memory = np.zeros((n_ch,), dtype=dtype)
+    self.g_memory = coeffs.g0_coeffs
+    self.dg_memory = np.zeros((n_ch,), dtype=dtype)
+
+
+def car_init_state(coeffs):
+  return CarState(coeffs)
+
+
+def car_step(x_in: float,
+             car_coeffs: CarCoeffs,
+             car_state: CarState,
+             linear: bool = False):
+  """One sample-time update step for the filter part of the CARFAC.
+
+  Most of the update is parallel; finally we ripple inputs at the end.
+  do the DOHC stuff:
+
+  Args:
+    x_in: the input audio
+    car_coeffs: the implementation parameters for the filterbank
+    car_state: The car_state of the filters before adding this one input sample
+    linear: for testing, don't run through the outer hair cell model.
+
+  Returns:
+    The filterbank output vector and the new state variables for the filterbank.
+  """
+
+  g = car_state.g_memory + car_state.dg_memory  # interp g
+  zb = car_state.zb_memory + car_state.dzb_memory  # AGC interpolation car_state
+  # update the nonlinear function of "velocity", and za (delay of z2):
+  za = car_state.za_memory
+  v = car_state.z2_memory - za
+  if linear:
+    nlf = 1  # To allow testing
+  else:
+    nlf = ohc_nlf(v, car_coeffs)
+  #  zb * nfl is "undamping" delta r:
+  r = car_coeffs.r1_coeffs + zb * nlf
+  za = car_state.z2_memory
+
+  #  now reduce car_state by r and rotate with the fixed cos/sin coeffs:
+  z1 = r * (
+      car_coeffs.a0_coeffs * car_state.z1_memory -
+      car_coeffs.c0_coeffs * car_state.z2_memory)
+  #  z1 = z1 + inputs
+  z2 = r * (
+      car_coeffs.c0_coeffs * car_state.z1_memory +
+      car_coeffs.a0_coeffs * car_state.z2_memory)
+
+  zy = car_coeffs.h_coeffs * z2  # partial output
+
+  #  Ripple input-output path, instead of parallel, to avoid delay...
+  # this is the only part that doesn't get computed "in parallel":
+  in_out = x_in
+  for ch in range(len(zy)):
+    #  could do this here, or later in parallel:
+    z1[ch] = z1[ch] + in_out
+    # ripple, saving final channel outputs in zy
+    in_out = g[ch] * (in_out + zy[ch])
+    zy[ch] = in_out
+
+  #  put new car_state back in place of old
+  #  (z1 is a genuine temp; the others can update by reference in C)
+  car_state.z1_memory = z1
+  car_state.z2_memory = z2
+  car_state.za_memory = za
+  car_state.zb_memory = zb
+  car_state.zy_memory = zy
+  car_state.g_memory = g
+
+  car_out = zy
+
+  return car_out, car_state
+
+
+############################################################################
+# IHC - Inner Hair Cell
+############################################################################
 
 
 # The next three classes define three different types of inner-hair cell models.
@@ -144,9 +330,6 @@ def ihc_detect(x: Union[float, np.ndarray]):
   return conductance
 
 
-### Inner Hair Cell Design
-
-
 @dataclasses.dataclass
 class IhcCoeffs:
   """Variables needed for the inner hair cell implementation."""
@@ -169,7 +352,6 @@ class IhcCoeffs:
   in_rate: float = 0
 
 
-## the IHC design coeffs:
 def design_ihc(ihc_params, fs, n_ch):
   """Design the inner hair cell implementation from parameters."""
   if ihc_params.just_hwr:
@@ -226,7 +408,161 @@ def design_ihc(ihc_params, fs, n_ch):
   return ihc_coeffs
 
 
-### AGC Design
+@dataclasses.dataclass
+class IhcState:
+  """All the state variables for the inner-hair cell implementation."""
+  ihc_accum: np.ndarray = np.array(0)  # Placeholders
+  cap_voltage: np.ndarray = np.array(0)
+  lpf1_state: np.ndarray = np.array(0)
+  lpf2_state: np.ndarray = np.array(0)
+  ac_coupler: np.ndarray = np.array(0)
+
+  cap1_voltage: np.ndarray = np.array(0)
+  cap2_voltage: np.ndarray = np.array(0)
+
+  def __init__(self, coeffs):
+    n_ch = coeffs.n_ch
+    if coeffs.just_hwr:
+      self.ihc_accum = np.zeros((n_ch,))
+      self.ac_coupler = np.zeros((n_ch,))
+    else:
+      if coeffs.one_cap:
+        self.ihc_accum = np.zeros((n_ch,))
+        self.cap_voltge = coeffs.rest_cap * np.ones((n_ch,))
+        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
+        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
+        self.ac_coupler = np.zeros((n_ch,))
+      else:
+        self.ihc_accum = np.zeros((n_ch,))
+        self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,))
+        self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,))
+        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
+        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
+        self.ac_coupler = np.zeros((n_ch,))
+
+
+def ihc_init_state(coeffs):
+  return IhcState(coeffs)
+
+
+def ohc_nlf(velocities, car_coeffs: CarCoeffs):
+  #  function nlf = ohc_nlf(velocities, car_coeffs)
+  # start with a quadratic nonlinear function, and limit it via a
+  # rational function; make the result go to zero at high
+  #  absolute velocities, so it will do nothing there.
+
+  nlf = 1.0 / (
+      1 + (velocities * car_coeffs.velocity_scale + car_coeffs.v_offset)**2)
+
+  return nlf
+
+
+def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
+             ihc_state: IhcState):
+  """Step the inner-hair cell model with ont input sample.
+
+  One sample-time update of inner-hair-cell (IHC) model, including the
+  detection nonlinearity and one or two capacitor state variables.
+
+  Args:
+    filters_out: The output from the CAR filterbank
+    coeffs: The run-time parameters for the inner hair cells
+    ihc_state: The run-time state
+
+  Returns:
+    The firing probability (??) for the hair cells in each channel
+    and the new state.
+  """
+  # TODO(malcolmslaney) change coeffs to ihc_coeffs for consistency.
+
+  # AC couple the filters_out, with 20 Hz corner
+  ac_diff = filters_out - ihc_state.ac_coupler
+  ihc_state.ac_coupler = ihc_state.ac_coupler + coeffs.ac_coeff * ac_diff
+
+  if coeffs.just_hwr:
+    ihc_out = np.min(2, np.max(0, ac_diff))
+    #  limit it for stability
+  else:
+    conductance = ihc_detect(ac_diff)  # rectifying nonlinearity
+
+    if coeffs.one_cap:
+      ihc_out = conductance * ihc_state.cap_voltage
+      ihc_state.cap_voltage = (
+          ihc_state.cap_voltage - ihc_out * coeffs.out_rate +
+          (1 - ihc_state.cap_voltage) * coeffs.in_rate)
+    else:
+      # change to 2-cap version more like Meddis's:
+      ihc_out = conductance * ihc_state.cap2_voltage
+      ihc_state.cap1_voltage = (
+          ihc_state.cap1_voltage -
+          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.out1_rate +
+          (1 - ihc_state.cap1_voltage) * coeffs.in1_rate)
+
+      ihc_state.cap2_voltage = (
+          ihc_state.cap2_voltage - ihc_out * coeffs.out2_rate +
+          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.in2_rate)
+
+    #  smooth it twice with LPF:
+    ihc_out = ihc_out * coeffs.output_gain
+    ihc_state.lpf1_state = (
+        ihc_state.lpf1_state +
+        coeffs.lpf_coeff * (ihc_out - ihc_state.lpf1_state))
+    ihc_state.lpf2_state = (
+        ihc_state.lpf2_state + coeffs.lpf_coeff *
+        (ihc_state.lpf1_state - ihc_state.lpf2_state))
+    ihc_out = ihc_state.lpf2_state - coeffs.rest_output
+
+  # for where decimated output is useful
+  ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out
+
+  return ihc_out, ihc_state
+
+
+def ihc_model_run(input_data, fs):
+  """Design and run the inner hair cell model for some input audio."""
+  cfp = design_carfac(fs=fs)
+  cfp = carfac_init(cfp)
+
+  output = input_data * 0.0
+  ihc_state = cfp.ears[0].ihc_state
+  for i in range(input_data.shape[0]):
+    car_out = input_data[i]
+    ihc_out, ihc_state = ihc_step(car_out, cfp.ears[0].ihc_coeffs,
+                                  ihc_state)
+    output[i] = ihc_out[0]
+  return output
+
+
+############################################################################
+# AGC - Automatic Gain Control
+############################################################################
+
+
+@dataclasses.dataclass
+class AgcParams:
+  """All the parameters needed to define the behavior of the AGC filters."""
+  n_stages: int = 4
+  time_constants: np.ndarray = 0.002 * 4**np.arange(4)
+  agc_stage_gain: float = 2  # gain from each stage to next slower stage
+  decimation: tuple = (8, 2, 2, 2)  # how often to update the AGC states
+  agc1_scales: list = 1.0 * np.sqrt(2)**np.arange(4)  # in units of channels
+  agc2_scales: list = 1.65 * math.sqrt(2)**np.arange(
+      4)  # spread more toward base
+  agc_mix_coeff: float = 0.5
+
+
+@dataclasses.dataclass
+class AgcCoeffs:
+  n_ch: int
+  n_agc_stages: int
+  agc_stage_gain: float
+  decimation: int = 0  # check this type
+  agc_spatial_iterations: int = 0
+  agc_spatial_fir: Optional[list] = None  # Check this type
+  agc_spatial_n_taps: int = 0
+  detect_scale: float = 1
+
+
 def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
   """Design the finite-impulse-response filter needed for AGC smoothing.
 
@@ -274,21 +610,6 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
     raise ValueError('Bad n_taps (%d) in agc_spatial_fir' % n_taps)
 
   return fir, ok
-
-
-## the AGC design coeffs:
-
-
-@dataclasses.dataclass
-class AgcCoeffs:
-  n_ch: int
-  n_agc_stages: int
-  agc_stage_gain: float
-  decimation: int = 0  # check this type
-  agc_spatial_iterations: int = 0
-  agc_spatial_fir: Optional[list] = None  # Check this type
-  agc_spatial_n_taps: int = 0
-  detect_scale: float = 1
 
 
 def design_agc(agc_params, fs, n_ch):
@@ -401,109 +722,112 @@ def stage_g(car_coeffs, relative_undamping):
   return g
 
 
-# Test below after we design the stage filters
+@dataclasses.dataclass
+class AgcState:
+  """All the state variables for one stage of the AGC."""
+  agc_memory: np.float64
+  input_accum: np.float64
+  decim_phase: int = 0
 
-### CAR Design
+  def __init__(self, coeffs: List[AgcCoeffs]):
+    n_ch = coeffs[0].n_ch
+
+    self.agc_memory = np.zeros((n_ch,))
+    self.input_accum = np.zeros((n_ch,))
 
 
-def hz_to_erb(cf_hz: Union[float, np.ndarray],
-              erb_break_freq: float = 1000 / 4.37,
-              erb_q: float = 1000 / (24.7 * 4.37)):
-  """Auditory filter nominal Equivalent Rectangular Bandwidth.
+def agc_init_state(coeffs):
+  n_agc_stages = coeffs[0].n_agc_stages
+  state = []
+  for _ in range(n_agc_stages):
+    state.append(AgcState(coeffs))
 
-  Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  ERB = 24.7 * (1 + 4.37 * cf_hz / 1000)
+  return state
+
+
+def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
+                state: List[AgcState]):
+  """Compute the AGC output for one stage, doing the recursion.
 
   Args:
-    cf_hz: A scalar or a vector of frequencies (CF) to convert to ERB scale
-    erb_break_freq: The corner frequency where we go from linear to log
-      bandwidth
-    erb_q: The width of one filter (Q = cf/Bandwidth)
+    coeffs: the details of the AGC design
+    agc_in: the input data for this stage, a vector of channel values
+    stage: Which stage are we computing?
+    state: The state of each channel's AGC.
 
   Returns:
-    A scalar or vector with the ERB scale for the input frequencies.
+    The new state and a flag indicating whether the outputs have been updated
+    (often not because of decimation.)
   """
-  return (erb_break_freq + cf_hz) / erb_q
+
+  # Design consistency checks
+  if len(coeffs) != len(state):
+    raise ValueError('Length of coeffs (%d) and state (%d) do not agree.' %
+                     (len(coeffs), len(state)))
+  if len(state[stage].agc_memory) != coeffs[stage].n_ch:
+    raise ValueError('Width of agc_memory (%d) and n_ch (%d) do not agree.' %
+                     (len(state[stage].agc_memory), coeffs[stage].n_ch))
+  if len(agc_in) != coeffs[stage].n_ch:
+    raise ValueError('Width of AGC (%d) and n_ch (%d) do not agree.' %
+                     (len(agc_in), coeffs[stage].n_ch))
+  assert len(agc_in) == coeffs[stage].n_ch
+
+  # decim factor for this stage, relative to input or prev. stage:
+  decim = coeffs[stage].decimation
+
+  #  decim phase of this stage (do work on phase 0 only):
+  def mod(a: int, b: int):
+    return a % b
+
+  decim_phase = mod(state[stage].decim_phase + 1, decim)
+  state[stage].decim_phase = decim_phase
+
+  # accumulate input for this stage from detect or previous stage:
+  state[stage].input_accum = state[stage].input_accum + agc_in
+
+  # nothing else to do if it's not the right decim_phase
+  if decim_phase == 0:
+    # Do lots of work, at decimated rate.
+    # decimated inputs for this stage, and to be decimated more for next:
+    agc_in = state[stage].input_accum / decim
+    state[stage].input_accum[:] = 0  # reset accumulator
+
+    if stage < coeffs[0].n_agc_stages - 1:
+      state, updated = agc_recurse(coeffs, agc_in, stage + 1, state)
+      # and add its output to this stage input, whether it updated or not:
+      agc_in = agc_in + coeffs[stage].agc_stage_gain * state[stage +
+                                                             1].agc_memory
+
+    agc_stage_state = state[stage].agc_memory
+    # first-order recursive smoothing filter update, in time:
+    agc_stage_state = agc_stage_state + coeffs[stage].agc_epsilon * (
+        agc_in - agc_stage_state)
+    # spatial smooth:
+    agc_stage_state = spatial_smooth(coeffs[stage], agc_stage_state)
+    # and store the state back (in C++, do it all in place?)
+    state[stage].agc_memory = agc_stage_state
+
+    updated = 1  # bool to say we have new state
+  else:
+    updated = 0
+
+  return state, updated
 
 
-@dataclasses.dataclass
-class CarCoeffs:
-  n_ch: int
-  velocity_scale: float
-  v_offset: float
+def agc_step(detects, coeffs: List[AgcCoeffs],
+             state: List[AgcState]):
+  #  function [state, updated] = agc_step(detects, coeffs, state)
+  #
+  # one time step of the AGC state update; decimates internally
 
-  r1_coeffs: np.float64 = None
-  a0_coeffs: np.float64 = None
-  c0_coeffs: np.float64 = None
-  h_coeffs: np.float64 = None
-  g0_coeffs: np.float64 = None
+  stage = 0
+  agc_in = coeffs[0].detect_scale * detects
+  return agc_recurse(coeffs, agc_in, stage, state)
 
 
-## Design the filter coeffs:
-def design_filters(car_params, fs, pole_freqs):
-  """Design the actual CAR filters."""
-
-  n_ch = len(pole_freqs)
-  pole_freqs = np.asarray(pole_freqs)
-
-  # the filter design coeffs:
-  # scalars first:
-  car_coeffs = CarCoeffs(
-      n_ch=n_ch,
-      velocity_scale=car_params.velocity_scale,
-      v_offset=car_params.v_offset)
-
-  # zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
-  # and that a is here 1 / (1+f) where h = f*c.
-  # solve for f:  1/zero_ratio^2 = 1 / (1+f)
-  # zero_ratio^2 = 1+f => f = zero_ratio^2 - 1
-  f = car_params.zero_ratio**2 - 1  # nominally 1 for half-octave
-
-  # Make pole positions, s and c coeffs, h and g coeffs, etc.,
-  # which mostly depend on the pole angle theta:
-  theta = pole_freqs * (2 * math.pi / fs)
-
-  c0 = np.sin(theta)
-  a0 = np.cos(theta)
-
-  # different possible interpretations for min-damping r:
-  # r = exp(-theta * car_params.min_zeta).
-  # Compress theta to give somewhat higher Q at highest thetas:
-  ff = car_params.high_f_damping_compression  # 0 to 1; typ. 0.5
-  x = theta / math.pi
-
-  zr_coeffs = math.pi * (x - ff * x**3)  # when ff is 0, this is just theta,
-  #                       and when ff is 1 it goes to zero at theta = pi.
-  max_zeta = car_params.max_zeta
-  car_coeffs.r1_coeffs = (1 - zr_coeffs * max_zeta
-                         )  # "r1" for the max-damping condition
-  min_zeta = car_params.min_zeta
-  # Increase the min damping where channels are spaced out more, by pulling
-  # 25% of the way toward hz_to_erb/pole_freqs (close to 0.1 at high f)
-  min_zetas = min_zeta + 0.25 * (
-      hz_to_erb(pole_freqs, car_params.erb_break_freq, car_params.erb_q) /
-      pole_freqs - min_zeta)
-  car_coeffs.zr_coeffs = zr_coeffs * (max_zeta - min_zetas)
-  # how r relates to undamping
-
-  # undamped coupled-form coefficients:
-  car_coeffs.a0_coeffs = a0
-  car_coeffs.c0_coeffs = c0
-
-  # the zeros follow via the h_coeffs
-  h = c0 * f
-  car_coeffs.h_coeffs = h
-
-  # for unity gain at min damping, radius r; only used in Init:
-  relative_undamping = np.ones((n_ch,))  # max undamping to start
-  # this function needs to take car_coeffs even if we haven't finished
-  # constucting it by putting in the g0_coeffs:
-  car_coeffs.g0_coeffs = stage_g(car_coeffs, relative_undamping)
-
-  return car_coeffs
-
-
-### Overall CARFAC Design
+############################################################################
+# CARFAC - Cascade of asymmetric resonators with fast acting compression
+############################################################################
 
 
 @dataclasses.dataclass
@@ -512,9 +836,9 @@ class CarfacCoeffs:
   agc_coeffs: List[AgcCoeffs]  # One element per AGC layer (typically 4)
   ihc_coeffs: IhcCoeffs
 
-  car_state: Optional['CarState'] = None
-  ihc_state: Optional['IhcState'] = None
-  agc_state: Optional[List['AgcState']] = None
+  car_state: Optional[CarState] = None
+  ihc_state: Optional[IhcState] = None
+  agc_state: Optional[List[AgcState]] = None
 
 
 @dataclasses.dataclass
@@ -642,248 +966,6 @@ def carfac_init(cfp: CarfacParams):
   return cfp
 
 
-@dataclasses.dataclass
-class CarState:
-  """All the state variables for the CAR filterbank."""
-  z1_memory: np.ndarray
-  z2_memory: np.ndarray
-  za_memory: np.ndarray
-  zb_memory: np.ndarray  # , coeffs.zr_coeffs, ...
-  dzb_memory: np.ndarray  # (n_ch, 1), ...
-  zy_memory: np.ndarray  # zeros(n_ch, 1), ...
-  g_memory: np.ndarray  # coeffs.g0_coeffs, ...
-  dg_memory: np.ndarray  #  zeros(n_ch, 1) ...
-
-  def __init__(self, coeffs: CarCoeffs, dtype=np.float32):
-    n_ch = coeffs.n_ch
-    self.z1_memory = np.zeros((n_ch,), dtype=dtype)
-    self.z2_memory = np.zeros((n_ch,), dtype=dtype)
-    self.za_memory = np.zeros((n_ch,), dtype=dtype)
-    self.zb_memory = coeffs.zr_coeffs
-    self.dzb_memory = np.zeros((n_ch,), dtype=dtype)
-    self.zy_memory = np.zeros((n_ch,), dtype=dtype)
-    self.g_memory = coeffs.g0_coeffs
-    self.dg_memory = np.zeros((n_ch,), dtype=dtype)
-
-
-def car_init_state(coeffs):
-  return CarState(coeffs)
-
-
-@dataclasses.dataclass
-class AgcState:
-  """All the state variables for one stage of the AGC."""
-  agc_memory: np.float64
-  input_accum: np.float64
-  decim_phase: int = 0
-
-  def __init__(self, coeffs: List[AgcCoeffs]):
-    n_ch = coeffs[0].n_ch
-
-    self.agc_memory = np.zeros((n_ch,))
-    self.input_accum = np.zeros((n_ch,))
-
-
-def agc_init_state(coeffs):
-  n_agc_stages = coeffs[0].n_agc_stages
-  state = []
-  for _ in range(n_agc_stages):
-    state.append(AgcState(coeffs))
-
-  return state
-
-
-@dataclasses.dataclass
-class IhcState:
-  """All the state variables for the inner-hair cell implementation."""
-  ihc_accum: np.ndarray = np.array(0)  # Placeholders
-  cap_voltage: np.ndarray = np.array(0)
-  lpf1_state: np.ndarray = np.array(0)
-  lpf2_state: np.ndarray = np.array(0)
-  ac_coupler: np.ndarray = np.array(0)
-
-  cap1_voltage: np.ndarray = np.array(0)
-  cap2_voltage: np.ndarray = np.array(0)
-
-  def __init__(self, coeffs):
-    n_ch = coeffs.n_ch
-    if coeffs.just_hwr:
-      self.ihc_accum = np.zeros((n_ch,))
-      self.ac_coupler = np.zeros((n_ch,))
-    else:
-      if coeffs.one_cap:
-        self.ihc_accum = np.zeros((n_ch,))
-        self.cap_voltge = coeffs.rest_cap * np.ones((n_ch,))
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
-        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
-        self.ac_coupler = np.zeros((n_ch,))
-      else:
-        self.ihc_accum = np.zeros((n_ch,))
-        self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,))
-        self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,))
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
-        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
-        self.ac_coupler = np.zeros((n_ch,))
-
-
-def ihc_init_state(coeffs):
-  return IhcState(coeffs)
-
-
-def ohc_nlf(velocities, car_coeffs: CarCoeffs):
-  #  function nlf = ohc_nlf(velocities, car_coeffs)
-  # start with a quadratic nonlinear function, and limit it via a
-  # rational function; make the result go to zero at high
-  #  absolute velocities, so it will do nothing there.
-
-  nlf = 1.0 / (
-      1 + (velocities * car_coeffs.velocity_scale + car_coeffs.v_offset)**2)
-
-  return nlf
-
-
-def car_step(x_in: float,
-             car_coeffs: CarCoeffs,
-             car_state: CarState,
-             linear: bool = False):
-  """One sample-time update step for the filter part of the CARFAC.
-
-  Most of the update is parallel; finally we ripple inputs at the end.
-  do the DOHC stuff:
-
-  Args:
-    x_in: the input audio
-    car_coeffs: the implementation parameters for the filterbank
-    car_state: The car_state of the filters before adding this one input sample
-    linear: for testing, don't run through the outer hair cell model.
-
-  Returns:
-    The filterbank output vector and the new state variables for the filterbank.
-  """
-
-  g = car_state.g_memory + car_state.dg_memory  # interp g
-  zb = car_state.zb_memory + car_state.dzb_memory  # AGC interpolation car_state
-  # update the nonlinear function of "velocity", and za (delay of z2):
-  za = car_state.za_memory
-  v = car_state.z2_memory - za
-  if linear:
-    nlf = 1  # To allow testing
-  else:
-    nlf = ohc_nlf(v, car_coeffs)
-  #  zb * nfl is "undamping" delta r:
-  r = car_coeffs.r1_coeffs + zb * nlf
-  za = car_state.z2_memory
-
-  #  now reduce car_state by r and rotate with the fixed cos/sin coeffs:
-  z1 = r * (
-      car_coeffs.a0_coeffs * car_state.z1_memory -
-      car_coeffs.c0_coeffs * car_state.z2_memory)
-  #  z1 = z1 + inputs
-  z2 = r * (
-      car_coeffs.c0_coeffs * car_state.z1_memory +
-      car_coeffs.a0_coeffs * car_state.z2_memory)
-
-  zy = car_coeffs.h_coeffs * z2  # partial output
-
-  #  Ripple input-output path, instead of parallel, to avoid delay...
-  # this is the only part that doesn't get computed "in parallel":
-  in_out = x_in
-  for ch in range(len(zy)):
-    #  could do this here, or later in parallel:
-    z1[ch] = z1[ch] + in_out
-    # ripple, saving final channel outputs in zy
-    in_out = g[ch] * (in_out + zy[ch])
-    zy[ch] = in_out
-
-  #  put new car_state back in place of old
-  #  (z1 is a genuine temp; the others can update by reference in C)
-  car_state.z1_memory = z1
-  car_state.z2_memory = z2
-  car_state.za_memory = za
-  car_state.zb_memory = zb
-  car_state.zy_memory = zy
-  car_state.g_memory = g
-
-  car_out = zy
-
-  return car_out, car_state
-
-
-def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
-             ihc_state: IhcState):
-  """Step the inner-hair cell model with ont input sample.
-
-  One sample-time update of inner-hair-cell (IHC) model, including the
-  detection nonlinearity and one or two capacitor state variables.
-
-  Args:
-    filters_out: The output from the CAR filterbank
-    coeffs: The run-time parameters for the inner hair cells
-    ihc_state: The run-time state
-
-  Returns:
-    The firing probability (??) for the hair cells in each channel
-    and the new state.
-  """
-
-  # AC couple the filters_out, with 20 Hz corner
-  ac_diff = filters_out - ihc_state.ac_coupler
-  ihc_state.ac_coupler = ihc_state.ac_coupler + coeffs.ac_coeff * ac_diff
-
-  if coeffs.just_hwr:
-    ihc_out = np.min(2, np.max(0, ac_diff))
-    #  limit it for stability
-  else:
-    conductance = ihc_detect(ac_diff)  # rectifying nonlinearity
-
-    if coeffs.one_cap:
-      ihc_out = conductance * ihc_state.cap_voltage
-      ihc_state.cap_voltage = (
-          ihc_state.cap_voltage - ihc_out * coeffs.out_rate +
-          (1 - ihc_state.cap_voltage) * coeffs.in_rate)
-    else:
-      # change to 2-cap version more like Meddis's:
-      ihc_out = conductance * ihc_state.cap2_voltage
-      ihc_state.cap1_voltage = (
-          ihc_state.cap1_voltage -
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.out1_rate +
-          (1 - ihc_state.cap1_voltage) * coeffs.in1_rate)
-
-      ihc_state.cap2_voltage = (
-          ihc_state.cap2_voltage - ihc_out * coeffs.out2_rate +
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.in2_rate)
-
-    #  smooth it twice with LPF:
-    ihc_out = ihc_out * coeffs.output_gain
-    ihc_state.lpf1_state = (
-        ihc_state.lpf1_state +
-        coeffs.lpf_coeff * (ihc_out - ihc_state.lpf1_state))
-    ihc_state.lpf2_state = (
-        ihc_state.lpf2_state + coeffs.lpf_coeff *
-        (ihc_state.lpf1_state - ihc_state.lpf2_state))
-    ihc_out = ihc_state.lpf2_state - coeffs.rest_output
-
-  # for where decimated output is useful
-  ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out
-
-  return ihc_out, ihc_state
-
-
-def ihc_model_run(input_data, fs):
-  """Design and run the inner hair cell model for some input audio."""
-  cfp = design_carfac(fs=fs)
-  cfp = carfac_init(cfp)
-
-  output = input_data * 0.0
-  ihc_state = cfp.ears[0].ihc_state
-  for i in range(input_data.shape[0]):
-    car_out = input_data[i]
-    ihc_out, ihc_state = ihc_step(car_out, cfp.ears[0].ihc_coeffs,
-                                  ihc_state)
-    output[i] = ihc_out[0]
-  return output
-
-
 def shift_right(s: np.float, amount: int):
   if amount > 0:
     return np.concatenate((s[0:amount, ...], s[:-amount, ...]), axis=0)
@@ -935,86 +1017,6 @@ def smooth_double_exponential(signal_vecs, polez1, polez2, fast_matlab_way):
   # Not sure why this was forgotten in the first conversion of Matlab to np..
   # but not needed for now.
   raise NotImplementedError
-
-
-def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
-                state: List[AgcState]):
-  """Compute the AGC output for one stage, doing the recursion.
-
-  Args:
-    coeffs: the details of the AGC design
-    agc_in: the input data for this stage, a vector of channel values
-    stage: Which stage are we computing?
-    state: The state of each channel's AGC.
-
-  Returns:
-    The new state and a flag indicating whether the outputs have been updated
-    (often not because of decimation.)
-  """
-
-  # Design consistency checks
-  if len(coeffs) != len(state):
-    raise ValueError('Length of coeffs (%d) and state (%d) do not agree.' %
-                     (len(coeffs), len(state)))
-  if len(state[stage].agc_memory) != coeffs[stage].n_ch:
-    raise ValueError('Width of agc_memory (%d) and n_ch (%d) do not agree.' %
-                     (len(state[stage].agc_memory), coeffs[stage].n_ch))
-  if len(agc_in) != coeffs[stage].n_ch:
-    raise ValueError('Width of AGC (%d) and n_ch (%d) do not agree.' %
-                     (len(agc_in), coeffs[stage].n_ch))
-  assert len(agc_in) == coeffs[stage].n_ch
-
-  # decim factor for this stage, relative to input or prev. stage:
-  decim = coeffs[stage].decimation
-
-  #  decim phase of this stage (do work on phase 0 only):
-  def mod(a: int, b: int):
-    return a % b
-
-  decim_phase = mod(state[stage].decim_phase + 1, decim)
-  state[stage].decim_phase = decim_phase
-
-  # accumulate input for this stage from detect or previous stage:
-  state[stage].input_accum = state[stage].input_accum + agc_in
-
-  # nothing else to do if it's not the right decim_phase
-  if decim_phase == 0:
-    # Do lots of work, at decimated rate.
-    # decimated inputs for this stage, and to be decimated more for next:
-    agc_in = state[stage].input_accum / decim
-    state[stage].input_accum[:] = 0  # reset accumulator
-
-    if stage < coeffs[0].n_agc_stages - 1:
-      state, updated = agc_recurse(coeffs, agc_in, stage + 1, state)
-      # and add its output to this stage input, whether it updated or not:
-      agc_in = agc_in + coeffs[stage].agc_stage_gain * state[stage +
-                                                             1].agc_memory
-
-    agc_stage_state = state[stage].agc_memory
-    # first-order recursive smoothing filter update, in time:
-    agc_stage_state = agc_stage_state + coeffs[stage].agc_epsilon * (
-        agc_in - agc_stage_state)
-    # spatial smooth:
-    agc_stage_state = spatial_smooth(coeffs[stage], agc_stage_state)
-    # and store the state back (in C++, do it all in place?)
-    state[stage].agc_memory = agc_stage_state
-
-    updated = 1  # bool to say we have new state
-  else:
-    updated = 0
-
-  return state, updated
-
-
-def agc_step(detects, coeffs: List[AgcCoeffs],
-             state: List[AgcState]):
-  #  function [state, updated] = agc_step(detects, coeffs, state)
-  #
-  # one time step of the AGC state update; decimates internally
-
-  stage = 0
-  agc_in = coeffs[0].detect_scale * detects
-  return agc_recurse(coeffs, agc_in, stage, state)
 
 
 def close_agc_loop(cfp: CarfacParams):
