@@ -31,25 +31,22 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-# TODO(malcolmslaney): Make sure everything is type annotated & has doc string.
 # TODO(malcolmslaney): Get rid of bare generic warnings
 # TODO(malcolmslaney): Figure out attribute lint errors
-# TODO(malcolmslaney, dicklyon): Check out ???s in the documentation.
 
 
 # Note in general, a functional block (i.e. IHC or AGC) has parameters.  After
 # a design phase they become coefficients that describe how to do the
-# calculation.  And each block has some state.  In other words:
+# calculation quickly on audio.  And each block has some state.  In other words:
 #  Params -> Coeffs -> State
+#
 # The CarfacParams structure, usually stored as a cfp, also points to the
 # ear(s), and each ear has a pointer to the coeffs structure and those include
 # the state variables.
 
-# In addition there are three blocks that act in sequence to create the entire
+# There are three blocks that act in sequence to create the entire
 # CARFAC model.  The three blocks are: CAR, IHC, AGC.
-## CARFAC Design Functions
 
-### CARFAC Parameter Structures
 # pylint: disable=g-bare-generic
 # pytype: disable=attribute-error
 
@@ -107,8 +104,18 @@ def hz_to_erb(cf_hz: Union[float, np.ndarray],
   return (erb_break_freq + cf_hz) / erb_q
 
 
-def design_filters(car_params, fs, pole_freqs):
-  """Design the actual CAR filters."""
+def design_filters(car_params: CarParams, fs: float,
+                   pole_freqs: Union[List[float], np.ndarray]) -> CarCoeffs:
+  """Design the actual CAR filters.
+
+  Args:
+    car_params: The parameters of the desired CAR filterbank.
+    fs: The sampling rate in Hz
+    pole_freqs: Where to put the poles for each channel.
+
+  Returns:
+    The CAR coefficient structure which allows the filters be computed quickly.
+  """
 
   n_ch = len(pole_freqs)
   pole_freqs = np.asarray(pole_freqs)
@@ -170,6 +177,29 @@ def design_filters(car_params, fs, pole_freqs):
   return car_coeffs
 
 
+def stage_g(car_coeffs: CarCoeffs, relative_undamping: float) -> np.ndarray:
+  """Return the stage gain g needed to get unity gain at DC.
+
+  Args:
+    car_coeffs: The already-designed coefficients for the filterbank.
+    relative_undamping:  The r variable, defined in section 17.4 of Lyon's book
+    to be  (1-b) * NLF(v). The first term is undamping (because b is the gain).
+
+  Returns:
+    A float vector with the gain for each AGC stage.
+  """
+
+  r1 = car_coeffs.r1_coeffs  # at max damping
+  a0 = car_coeffs.a0_coeffs
+  c0 = car_coeffs.c0_coeffs
+  h = car_coeffs.h_coeffs
+  zr = car_coeffs.zr_coeffs
+  r = r1 + zr * relative_undamping
+  g = (1 - 2 * r * a0 + r**2) / (1 - 2 * r * a0 + h * r * c0 + r**2)
+
+  return g
+
+
 @dataclasses.dataclass
 class CarState:
   """All the state variables for the CAR filterbank."""
@@ -194,7 +224,7 @@ class CarState:
     self.dg_memory = np.zeros((n_ch,), dtype=dtype)
 
 
-def car_init_state(coeffs):
+def car_init_state(coeffs: CarCoeffs) -> CarState:
   return CarState(coeffs)
 
 
@@ -301,7 +331,7 @@ class IhcTwoCapParams:
 
 
 # See Section 18.3 (A Digital IHC Model)
-def ihc_detect(x: Union[float, np.ndarray]):
+def ihc_detect(x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
   """An IHC-like sigmoidal detection nonlinearity for the CARFAC.
 
   Resulting conductance is in about [0...1.3405]
@@ -351,9 +381,20 @@ class IhcCoeffs:
   out_rate: float = 0
   in_rate: float = 0
 
+IhcParams = Union[IhcJustHwrParams, IhcOneCapParams, IhcTwoCapParams]
 
-def design_ihc(ihc_params, fs, n_ch):
-  """Design the inner hair cell implementation from parameters."""
+
+def design_ihc(ihc_params: IhcParams, fs: float, n_ch: int) -> IhcCoeffs:
+  """Design the inner hair cell implementation from parameters.
+
+  Args:
+    ihc_params: The parameters specifying the details of the IHC implementation.
+    fs: The sampling rate (Hz) for the DSP operations.
+    n_ch: How many channels in the filterbank.
+
+  Returns:
+    A IHC coefficient class.
+  """
   if ihc_params.just_hwr:
     ihc_coeffs = IhcCoeffs(n_ch=n_ch, just_hwr=True)
   else:
@@ -383,7 +424,7 @@ def design_ihc(ihc_params, fs, n_ch):
       r2 = ihc_params.tau2_in / c2
       c1 = ihc_params.tau1_out / r2
       r1 = ihc_params.tau1_in / c1
-      # to get steady-state average, double ro for 50# duty cycle
+      # to get steady-state average, double ro for 50% duty cycle
       saturation_output = 1 / (2 * ro + r2 + r1)
       # also consider the zero-signal equilibrium:
       r0 = 1 / ihc_detect(0)
@@ -445,11 +486,21 @@ def ihc_init_state(coeffs):
   return IhcState(coeffs)
 
 
-def ohc_nlf(velocities, car_coeffs: CarCoeffs):
-  #  function nlf = ohc_nlf(velocities, car_coeffs)
-  # start with a quadratic nonlinear function, and limit it via a
-  # rational function; make the result go to zero at high
-  #  absolute velocities, so it will do nothing there.
+def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
+  """The outer hair cell non-linearity.
+
+  Start with a quadratic nonlinear function, and limit it via a
+  rational function; make the result go to zero at high
+  absolute velocities, so it will do nothing there. See section 17.2 of Lyon's
+  book.
+
+  Args:
+    velocities: the BM velocities
+    car_coeffs: an object that describes the CAR filterbank implementation.
+    `
+  Returns:
+    The limited velocities.
+  """
 
   nlf = 1.0 / (
       1 + (velocities * car_coeffs.velocity_scale + car_coeffs.v_offset)**2)
@@ -470,8 +521,9 @@ def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
     ihc_state: The run-time state
 
   Returns:
-    The firing probability (??) for the hair cells in each channel
+    The firing probability  the hair cells in each channel
     and the new state.
+    TODO(dicklyon): Is this correct?
   """
   # TODO(malcolmslaney) change coeffs to ihc_coeffs for consistency.
 
@@ -518,8 +570,16 @@ def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
   return ihc_out, ihc_state
 
 
-def ihc_model_run(input_data, fs):
-  """Design and run the inner hair cell model for some input audio."""
+def ihc_model_run(input_data: np.ndarray, fs: float) -> np.ndarray:
+  """Design and run the inner hair cell model for some input audio.
+
+  Args:
+    input_data: Sound data to run through the IHC model.
+    fs: The sampling rate (Hz) for the data,
+
+  Returns:
+    The output after ther IHC model.
+  """
   cfp = design_carfac(fs=fs)
   cfp = carfac_init(cfp)
 
@@ -587,6 +647,7 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
     List of FIR coefficients, and a boolen saying the design was done
     correctly.
   """
+  # TODO(dicklyon): Can you correct the arg explanations?
 
   # reduce mean and variance of smoothing distribution by n_iterations:
   mean_delay = mean_delay / n_iter
@@ -612,8 +673,18 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
   return fir, ok
 
 
-def design_agc(agc_params, fs, n_ch):
-  """Design the AGC implementation from the parameters."""
+def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
+  """Design the AGC implementation from the parameters.
+
+  Args:
+    agc_params: The parameters desired for this AGC block
+    fs: The sampling rate (Hz)
+    n_ch: The number of channels in the filterbank.
+
+  Returns:
+    The coefficients for all the stages.
+
+  """
   n_agc_stages = agc_params.n_stages
 
   # AGC1 pass is smoothing from base toward apex;
@@ -645,7 +716,7 @@ def design_agc(agc_params, fs, n_ch):
 
     # decide on target spread (variance) and delay (mean) of impulse
     # response as a distribution to be convolved ntimes:
-    # TODO(dicklyon): specify spread and delay instead of scales???
+    # TODO(dicklyon): specify spread and delay instead of scales?
     delay = (agc2_scales[stage] - agc1_scales[stage]) / ntimes
     spread_sq = (agc1_scales[stage]**2 + agc2_scales[stage]**2) / ntimes
 
@@ -708,20 +779,6 @@ def design_agc(agc_params, fs, n_ch):
   return agc_coeffs
 
 
-def stage_g(car_coeffs, relative_undamping):
-  """Return the stage gain g needed to get unity gain at DC."""
-
-  r1 = car_coeffs.r1_coeffs  # at max damping
-  a0 = car_coeffs.a0_coeffs
-  c0 = car_coeffs.c0_coeffs
-  h = car_coeffs.h_coeffs
-  zr = car_coeffs.zr_coeffs
-  r = r1 + zr * relative_undamping
-  g = (1 - 2 * r * a0 + r**2) / (1 - 2 * r * a0 + h * r * c0 + r**2)
-
-  return g
-
-
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
@@ -736,7 +793,7 @@ class AgcState:
     self.input_accum = np.zeros((n_ch,))
 
 
-def agc_init_state(coeffs):
+def agc_init_state(coeffs: List[AgcCoeffs]) -> List[AgcState]:
   n_agc_stages = coeffs[0].n_agc_stages
   state = []
   for _ in range(n_agc_stages):
@@ -746,7 +803,7 @@ def agc_init_state(coeffs):
 
 
 def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
-                state: List[AgcState]):
+                state: List[AgcState]) -> Tuple[List[AgcState], bool]:
   """Compute the AGC output for one stage, doing the recursion.
 
   Args:
@@ -757,7 +814,7 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
 
   Returns:
     The new state and a flag indicating whether the outputs have been updated
-    (often not because of decimation.)
+    (often not because of decimation).
   """
 
   # Design consistency checks
@@ -807,18 +864,26 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
     # and store the state back (in C++, do it all in place?)
     state[stage].agc_memory = agc_stage_state
 
-    updated = 1  # bool to say we have new state
+    updated = True  # bool to say we have new state
   else:
-    updated = 0
+    updated = False
 
   return state, updated
 
 
-def agc_step(detects, coeffs: List[AgcCoeffs],
-             state: List[AgcState]):
-  #  function [state, updated] = agc_step(detects, coeffs, state)
-  #
-  # one time step of the AGC state update; decimates internally
+def agc_step(detects: np.ndarray, coeffs: List[AgcCoeffs],
+             state: List[AgcState]) -> Tuple[List[AgcState], bool]:
+  """One time step of the AGC state update; decimates internally.
+
+  Args:
+    detects: The output of the IHC stage.
+    coeffs: A list of AGC coefficients, one per stage (typically 4)
+    state: A list of AGC states
+
+  Returns:
+    A tuple: the new state and whether the state was updated (based on the
+    decimation factor).
+  """
 
   stage = 0
   agc_in = coeffs[0].detect_scale * detects
@@ -861,7 +926,7 @@ def design_carfac(
     agc_params: Optional[AgcParams] = None,
     ihc_params: Optional[Union[IhcJustHwrParams,
                                IhcOneCapParams,
-                               IhcTwoCapParams]] = None):
+                               IhcTwoCapParams]] = None) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
   CARFAC is a Cascade of Asymmetric Resonators with Fast-Acting Compression);
@@ -896,8 +961,9 @@ def design_carfac(
 
   if not ihc_params:
     # HACK: these constant control the defaults
-    one_cap = 1  # bool; 1 for Allen model, as text states we use
-    just_hwr = 0  # book; 0 for normal/fancy IHC; 1 for HWR
+    # TODO(malcolmslaney) make these flags parameters.
+    one_cap = True  # True for Allen model, as text states we use in book.
+    just_hwr = False  # False for normal/fancy IHC; True for HWR.
     if just_hwr:
       ihc_params = IhcJustHwrParams()
     else:
@@ -944,7 +1010,7 @@ def design_carfac(
   return cfp
 
 
-def carfac_init(cfp: CarfacParams):
+def carfac_init(cfp: CarfacParams) -> CarfacParams:
   """Initialize state for one or more ears of a CARFAC model.
 
   This allocates and zeros all the state vector storage in the cfp struct.
@@ -966,7 +1032,8 @@ def carfac_init(cfp: CarfacParams):
   return cfp
 
 
-def shift_right(s: np.float, amount: int):
+def shift_right(s: np.ndarray, amount: int) -> np.ndarray:
+  """Rotate a vector to the right by amount, or to the left if negative."""
   if amount > 0:
     return np.concatenate((s[0:amount, ...], s[:-amount, ...]), axis=0)
   elif amount < 0:
@@ -976,8 +1043,18 @@ def shift_right(s: np.float, amount: int):
 
 
 def spatial_smooth(coeffs: AgcCoeffs,
-                   stage_state: AgcState):
-  """Design the AGC spatial smoothing filter."""
+                   stage_state: np.ndarray) -> np.ndarray:
+  """Design the AGC spatial smoothing filter.
+
+  TODO(dicklyon): Can you say more??
+
+  Args:
+    coeffs: The coefficient description for this state
+    stage_state: The state of the AGC right now.
+
+  Returns:
+    A new stage stage object.
+  """
 
   n_iterations = coeffs.agc_spatial_iterations
 
@@ -1019,7 +1096,7 @@ def smooth_double_exponential(signal_vecs, polez1, polez2, fast_matlab_way):
   raise NotImplementedError
 
 
-def close_agc_loop(cfp: CarfacParams):
+def close_agc_loop(cfp: CarfacParams) -> None:
   """Fastest decimated rate determines interp needed."""
   decim1 = cfp.agc_params.decimation[0]
 
