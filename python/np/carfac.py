@@ -31,8 +31,6 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-# TODO(malcolmslaney): Figure out attribute lint errors
-
 
 # Note in general, a functional block (i.e. IHC or AGC) has parameters.  After
 # a design phase they become coefficients that describe how to do the
@@ -45,8 +43,6 @@ import numpy as np
 
 # There are three blocks that act in sequence to create the entire
 # CARFAC model.  The three blocks are: CAR, IHC, AGC.
-
-# pytype: disable=attribute-error
 
 ############################################################################
 # CAR - Cascade of Asymmetric Resonators
@@ -71,15 +67,17 @@ class CarParams:
 
 @dataclasses.dataclass
 class CarCoeffs:
+  """Coefficients used by the CAR filter signal-graph implementation."""
   n_ch: int
   velocity_scale: float
   v_offset: float
 
-  r1_coeffs: np.float64 = None
-  a0_coeffs: np.float64 = None
-  c0_coeffs: np.float64 = None
-  h_coeffs: np.float64 = None
-  g0_coeffs: np.float64 = None
+  r1_coeffs: np.ndarray = np.zeros(())
+  a0_coeffs: np.ndarray = np.zeros(())
+  c0_coeffs: np.ndarray = np.zeros(())
+  h_coeffs: np.ndarray = np.zeros(())
+  g0_coeffs: np.ndarray = np.zeros(())
+  zr_coeffs: np.ndarray = np.zeros(())
 
 
 def hz_to_erb(cf_hz: Union[float, np.ndarray],
@@ -307,7 +305,7 @@ class IhcJustHwrParams:
 
 
 @dataclasses.dataclass
-class IhcOneCapParams:
+class IhcOneCapParams(IhcJustHwrParams):
   just_hwr: bool = False  # not just a simple HWR
   one_cap: bool = True  # bool; 0 for new two-cap hack
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
@@ -317,7 +315,7 @@ class IhcOneCapParams:
 
 
 @dataclasses.dataclass
-class IhcTwoCapParams:
+class IhcTwoCapParams(IhcJustHwrParams):
   just_hwr: bool = False  # not just a simple HWR
   one_cap: bool = False  # bool; 0 for new two-cap hack
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
@@ -379,10 +377,8 @@ class IhcCoeffs:
   out_rate: float = 0
   in_rate: float = 0
 
-IhcParams = Union[IhcJustHwrParams, IhcOneCapParams, IhcTwoCapParams]
 
-
-def design_ihc(ihc_params: IhcParams, fs: float, n_ch: int) -> IhcCoeffs:
+def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
   """Design the inner hair cell implementation from parameters.
 
   Args:
@@ -395,53 +391,54 @@ def design_ihc(ihc_params: IhcParams, fs: float, n_ch: int) -> IhcCoeffs:
   """
   if ihc_params.just_hwr:
     ihc_coeffs = IhcCoeffs(n_ch=n_ch, just_hwr=True)
+  elif isinstance(ihc_params, IhcOneCapParams):
+    ro = 1 / ihc_detect(10)  # output resistance at a very high level
+    c = ihc_params.tau_out / ro
+    ri = ihc_params.tau_in / c
+    # to get steady-state average, double ro for 50# duty cycle
+    saturation_output = 1 / (2 * ro + ri)
+    # also consider the zero-signal equilibrium:
+    r0 = 1 / ihc_detect(0)
+    current = 1 / (ri + r0)
+    cap_voltage = 1 - current * ri
+    ihc_coeffs = IhcCoeffs(
+        n_ch=n_ch,
+        just_hwr=False,
+        lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
+        out_rate=ro / (ihc_params.tau_out * fs),
+        in_rate=1 / (ihc_params.tau_in * fs),
+        one_cap=ihc_params.one_cap,
+        output_gain=1 / (saturation_output - current),
+        rest_output=current / (saturation_output - current),
+        rest_cap=cap_voltage)
+  elif isinstance(ihc_params, IhcTwoCapParams):
+    ro = 1 / ihc_detect(10)  # output resistance at a very high level
+    c2 = ihc_params.tau2_out / ro
+    r2 = ihc_params.tau2_in / c2
+    c1 = ihc_params.tau1_out / r2
+    r1 = ihc_params.tau1_in / c1
+    # to get steady-state average, double ro for 50% duty cycle
+    saturation_output = 1 / (2 * ro + r2 + r1)
+    # also consider the zero-signal equilibrium:
+    r0 = 1 / ihc_detect(0)
+    current = 1 / (r1 + r2 + r0)
+    cap1_voltage = 1 - current * r1
+    cap2_voltage = cap1_voltage - current * r2
+    ihc_coeffs = IhcCoeffs(
+        n_ch=n_ch,
+        just_hwr=False,
+        lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
+        out1_rate=1 / (ihc_params.tau1_out * fs),
+        in1_rate=1 / (ihc_params.tau1_in * fs),
+        out2_rate=ro / (ihc_params.tau2_out * fs),
+        in2_rate=1 / (ihc_params.tau2_in * fs),
+        one_cap=ihc_params.one_cap,
+        output_gain=1 / (saturation_output - current),
+        rest_output=current / (saturation_output - current),
+        rest_cap2=cap2_voltage,
+        rest_cap1=cap1_voltage)
   else:
-    if ihc_params.one_cap:
-      ro = 1 / ihc_detect(10)  # output resistance at a very high level
-      c = ihc_params.tau_out / ro
-      ri = ihc_params.tau_in / c
-      # to get steady-state average, double ro for 50# duty cycle
-      saturation_output = 1 / (2 * ro + ri)
-      # also consider the zero-signal equilibrium:
-      r0 = 1 / ihc_detect(0)
-      current = 1 / (ri + r0)
-      cap_voltage = 1 - current * ri
-      ihc_coeffs = IhcCoeffs(
-          n_ch=n_ch,
-          just_hwr=False,
-          lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
-          out_rate=ro / (ihc_params.tau_out * fs),
-          in_rate=1 / (ihc_params.tau_in * fs),
-          one_cap=ihc_params.one_cap,
-          output_gain=1 / (saturation_output - current),
-          rest_output=current / (saturation_output - current),
-          rest_cap=cap_voltage)
-    else:
-      ro = 1 / ihc_detect(10)  # output resistance at a very high level
-      c2 = ihc_params.tau2_out / ro
-      r2 = ihc_params.tau2_in / c2
-      c1 = ihc_params.tau1_out / r2
-      r1 = ihc_params.tau1_in / c1
-      # to get steady-state average, double ro for 50% duty cycle
-      saturation_output = 1 / (2 * ro + r2 + r1)
-      # also consider the zero-signal equilibrium:
-      r0 = 1 / ihc_detect(0)
-      current = 1 / (r1 + r2 + r0)
-      cap1_voltage = 1 - current * r1
-      cap2_voltage = cap1_voltage - current * r2
-      ihc_coeffs = IhcCoeffs(
-          n_ch=n_ch,
-          just_hwr=False,
-          lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
-          out1_rate=1 / (ihc_params.tau1_out * fs),
-          in1_rate=1 / (ihc_params.tau1_in * fs),
-          out2_rate=ro / (ihc_params.tau2_out * fs),
-          in2_rate=1 / (ihc_params.tau2_in * fs),
-          one_cap=ihc_params.one_cap,
-          output_gain=1 / (saturation_output - current),
-          rest_output=current / (saturation_output - current),
-          rest_cap2=cap2_voltage,
-          rest_cap1=cap1_voltage)
+    raise NotImplementedError
   # one more late addition that applies to all cases:
   ihc_coeffs.ac_coeff = 2 * math.pi * ihc_params.ac_corner_hz / fs
   return ihc_coeffs
@@ -616,7 +613,8 @@ class AgcCoeffs:
   n_ch: int
   n_agc_stages: int
   agc_stage_gain: float
-  decimation: int = 0  # check this type
+  agc_epsilon: float = 0  # Will be updated during the design
+  decimation: int = 0
   agc_spatial_iterations: int = 0
   agc_spatial_fir: Optional[List[float]] = None
   agc_spatial_n_taps: int = 0
@@ -782,8 +780,8 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
-  agc_memory: np.float64
-  input_accum: np.float64
+  agc_memory: float
+  input_accum: float
   decim_phase: int = 0
 
   def __init__(self, coeffs: List[AgcCoeffs]):
@@ -914,7 +912,7 @@ class CarfacParams:
   agc_params: AgcParams
   ihc_params: Optional[IhcCoeffs]
   n_ch: int
-  pole_freqs: np.float64
+  pole_freqs: float
   ears: List[CarfacCoeffs]
   n_ears: int
 
