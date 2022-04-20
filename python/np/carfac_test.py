@@ -12,8 +12,6 @@ import google3.third_party.carfac.python.np.carfac as carfac
 # Note some of these tests create plots for easier comparison to the results
 # in Dick Lyon's Human and Machine Hearing.  The plots are stored in /tmp, and
 # the easiest way to see them is to run the test on your machine:
-#     blaze run third_party/carfac/python/np:carfac_test
-# Perhaps copying /tmp/*.png to your x20 drive to view them with a web browser.
 
 
 def linear_interp(x: np.ndarray, pos: float) -> float:

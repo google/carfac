@@ -31,7 +31,6 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-# TODO(malcolmslaney): Get rid of bare generic warnings
 # TODO(malcolmslaney): Figure out attribute lint errors
 
 
@@ -47,7 +46,6 @@ import numpy as np
 # There are three blocks that act in sequence to create the entire
 # CARFAC model.  The three blocks are: CAR, IHC, AGC.
 
-# pylint: disable=g-bare-generic
 # pytype: disable=attribute-error
 
 ############################################################################
@@ -508,8 +506,8 @@ def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
   return nlf
 
 
-def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
-             ihc_state: IhcState):
+def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
+             ihc_state: IhcState) -> Tuple[np.ndarray, IhcState]:
   """Step the inner-hair cell model with ont input sample.
 
   One sample-time update of inner-hair-cell (IHC) model, including the
@@ -517,7 +515,7 @@ def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
 
   Args:
     filters_out: The output from the CAR filterbank
-    coeffs: The run-time parameters for the inner hair cells
+    ihc_coeffs: The run-time parameters for the inner hair cells
     ihc_state: The run-time state
 
   Returns:
@@ -525,44 +523,45 @@ def ihc_step(filters_out: np.float64, coeffs: IhcCoeffs,
     and the new state.
     TODO(dicklyon): Is this correct?
   """
-  # TODO(malcolmslaney) change coeffs to ihc_coeffs for consistency.
 
   # AC couple the filters_out, with 20 Hz corner
   ac_diff = filters_out - ihc_state.ac_coupler
-  ihc_state.ac_coupler = ihc_state.ac_coupler + coeffs.ac_coeff * ac_diff
+  ihc_state.ac_coupler = ihc_state.ac_coupler + ihc_coeffs.ac_coeff * ac_diff
 
-  if coeffs.just_hwr:
+  if ihc_coeffs.just_hwr:
     ihc_out = np.min(2, np.max(0, ac_diff))
     #  limit it for stability
   else:
     conductance = ihc_detect(ac_diff)  # rectifying nonlinearity
 
-    if coeffs.one_cap:
+    if ihc_coeffs.one_cap:
       ihc_out = conductance * ihc_state.cap_voltage
       ihc_state.cap_voltage = (
-          ihc_state.cap_voltage - ihc_out * coeffs.out_rate +
-          (1 - ihc_state.cap_voltage) * coeffs.in_rate)
+          ihc_state.cap_voltage - ihc_out * ihc_coeffs.out_rate +
+          (1 - ihc_state.cap_voltage) * ihc_coeffs.in_rate)
     else:
       # change to 2-cap version more like Meddis's:
       ihc_out = conductance * ihc_state.cap2_voltage
       ihc_state.cap1_voltage = (
           ihc_state.cap1_voltage -
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.out1_rate +
-          (1 - ihc_state.cap1_voltage) * coeffs.in1_rate)
+          (ihc_state.cap1_voltage -
+           ihc_state.cap2_voltage) * ihc_coeffs.out1_rate +
+          (1 - ihc_state.cap1_voltage) * ihc_coeffs.in1_rate)
 
       ihc_state.cap2_voltage = (
-          ihc_state.cap2_voltage - ihc_out * coeffs.out2_rate +
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) * coeffs.in2_rate)
+          ihc_state.cap2_voltage - ihc_out * ihc_coeffs.out2_rate +
+          (ihc_state.cap1_voltage -
+           ihc_state.cap2_voltage) * ihc_coeffs.in2_rate)
 
     #  smooth it twice with LPF:
-    ihc_out = ihc_out * coeffs.output_gain
+    ihc_out = ihc_out * ihc_coeffs.output_gain
     ihc_state.lpf1_state = (
         ihc_state.lpf1_state +
-        coeffs.lpf_coeff * (ihc_out - ihc_state.lpf1_state))
+        ihc_coeffs.lpf_coeff * (ihc_out - ihc_state.lpf1_state))
     ihc_state.lpf2_state = (
-        ihc_state.lpf2_state + coeffs.lpf_coeff *
+        ihc_state.lpf2_state + ihc_coeffs.lpf_coeff *
         (ihc_state.lpf1_state - ihc_state.lpf2_state))
-    ihc_out = ihc_state.lpf2_state - coeffs.rest_output
+    ihc_out = ihc_state.lpf2_state - ihc_coeffs.rest_output
 
   # for where decimated output is useful
   ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out
@@ -604,9 +603,10 @@ class AgcParams:
   n_stages: int = 4
   time_constants: np.ndarray = 0.002 * 4**np.arange(4)
   agc_stage_gain: float = 2  # gain from each stage to next slower stage
-  decimation: tuple = (8, 2, 2, 2)  # how often to update the AGC states
-  agc1_scales: list = 1.0 * np.sqrt(2)**np.arange(4)  # in units of channels
-  agc2_scales: list = 1.65 * math.sqrt(2)**np.arange(
+  # how often to update the AGC states
+  decimation: Tuple[int, ...] = (8, 2, 2, 2)
+  agc1_scales: List[float] = 1.0 * np.sqrt(2)**np.arange(4)  # 1 per channel
+  agc2_scales: List[float] = 1.65 * math.sqrt(2)**np.arange(
       4)  # spread more toward base
   agc_mix_coeff: float = 0.5
 
@@ -618,7 +618,7 @@ class AgcCoeffs:
   agc_stage_gain: float
   decimation: int = 0  # check this type
   agc_spatial_iterations: int = 0
-  agc_spatial_fir: Optional[list] = None  # Check this type
+  agc_spatial_fir: Optional[List[float]] = None
   agc_spatial_n_taps: int = 0
   detect_scale: float = 1
 
@@ -926,7 +926,9 @@ def design_carfac(
     agc_params: Optional[AgcParams] = None,
     ihc_params: Optional[Union[IhcJustHwrParams,
                                IhcOneCapParams,
-                               IhcTwoCapParams]] = None) -> CarfacParams:
+                               IhcTwoCapParams]] = None,
+    one_cap: bool = True,
+    just_hwr: bool = False) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
   CARFAC is a Cascade of Asymmetric Resonators with Fast-Acting Compression);
@@ -950,6 +952,8 @@ def design_carfac(
     car_params: bundles all the pole-zero filter cascade parameters
     agc_params: bundles all the automatic gain control parameters
     ihc_params: bundles all the inner hair cell parameters
+    one_cap: True for Allen model, as Lyon's book describes
+    just_hwr: False for normal/fancy IHC; True for HWR.
 
   Returns:
     A Carfac filter structure (for running the calcs.)
@@ -960,10 +964,6 @@ def design_carfac(
   agc_params = agc_params or AgcParams()
 
   if not ihc_params:
-    # HACK: these constant control the defaults
-    # TODO(malcolmslaney) make these flags parameters.
-    one_cap = True  # True for Allen model, as text states we use in book.
-    just_hwr = False  # False for normal/fancy IHC; True for HWR.
     if just_hwr:
       ihc_params = IhcJustHwrParams()
     else:
