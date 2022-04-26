@@ -780,8 +780,8 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
-  agc_memory: float
-  input_accum: float
+  agc_memory: np.ndarray
+  input_accum: np.ndarray
   decim_phase: int = 0
 
   def __init__(self, coeffs: List[AgcCoeffs]):

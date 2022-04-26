@@ -48,7 +48,7 @@ def find_peak_response(freqs, db_gains, bw_level=3):
   return cf, amplitude, 0
 
 
-def find_zero_crossings(x: np.float, y: np.float) -> List[int]:
+def find_zero_crossings(x: np.ndarray, y: np.ndarray) -> List[int]:
   locs = list(np.where(y[1:] * y[:-1] < 0)[0])
 
   def interpolate_zc(x, y, i):
