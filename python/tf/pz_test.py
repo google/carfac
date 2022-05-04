@@ -17,7 +17,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for carfac.tf.pz."""
+"""Tests for carfac.python.tf.pz."""
 
 from typing import Callable
 import unittest

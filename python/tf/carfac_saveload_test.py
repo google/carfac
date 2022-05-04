@@ -1,3 +1,4 @@
+# Lint as: python3
 #!/usr/bin/env python
 
 # Copyright 2021 The CARFAC Authors. All Rights Reserved.
@@ -17,38 +18,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for carfac.tf.pz."""
+"""Tests for carfac.python.tf.carfac."""
 
 import tempfile
-import unittest
-from absl import app
+from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
-from . import car
+from . import carfac
 
 
-class CARTest(unittest.TestCase):
+class CARFACSaveloadTest(absltest.TestCase):
 
   def testSaveLoad(self):
-    car_cell = car.CARCell()
-    car_layer = tf.keras.layers.RNN(car_cell, return_sequences=True)
-    model = tf.keras.Sequential()
-    model.add(car_layer)
-    impulse: np.ndarray = np.zeros([3, 10, 1], dtype=np.float32)
-    impulse[:, 0, :] = 1
-    impulse: tf.Tensor = tf.constant(impulse)
-    model.build(impulse.shape)
+    carfac_cell = carfac.CARFACCell(num_ears=4)
+    carfac_layer = tf.keras.layers.RNN(carfac_cell, return_sequences=True,
+                                       dtype=tf.float32)
+    model = tf.keras.Sequential([carfac_layer])
+    impulse: np.ndarray = np.zeros([3, 10, 4, 1], dtype=np.float32)
+    impulse[:, 0, :, :] = 1
+    model(impulse)
     with tempfile.TemporaryDirectory() as savefile:
       model.save(savefile)
-      loaded_model: tf.keras.models.Model = tf.keras.models.load_model(
-          savefile, custom_objects={'CARCell': car.CARCell})
+      loaded_model = tf.saved_model.load(savefile)
       np.testing.assert_array_almost_equal(model(impulse),
                                            loaded_model(impulse))
 
 
-def main(_):
-  unittest.main()
-
 if __name__ == '__main__':
-  app.run(main)
+  absltest.main()

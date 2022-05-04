@@ -64,7 +64,7 @@ def plot_z(z: ArrayLike,
 
 def plot_pz(poles: ArrayLike,
             zeros: ArrayLike,
-            figsize: Tuple[float, float] = (4.4, 4)) -> plt.Figure:
+            figsize: Tuple[float, float] = (4.2, 4)) -> plt.Figure:
   """Creates a pole/zero plot.
 
   Args:
