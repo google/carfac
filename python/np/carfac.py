@@ -1112,10 +1112,10 @@ def close_agc_loop(cfp: CarfacParams) -> None:
 
 def run_segment(cfp: CarfacParams,
                 input_waves: np.ndarray,
-                open_loop=0,
-                linear_car=False) -> Tuple[np.ndarray, CarfacParams,
-                                           np.ndarray, np.ndarray,
-                                           np.ndarray]:
+                open_loop: bool = False,
+                linear_car: bool = False) -> Tuple[np.ndarray, CarfacParams,
+                                                   np.ndarray, np.ndarray,
+                                                   np.ndarray]:
   """This function runs the entire CARFAC model.
 
   That is, filters a 1 or more channel
