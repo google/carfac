@@ -33,7 +33,7 @@ class CARFACGradientTest(absltest.TestCase):
     # Execute one step of the CARFAC implementation and make sure that all the
     # parameters show up on the gradient tape.
     ihc_params = carfac.IHCParams()
-    ihc_params.one_capacitor = tf.constant(False)
+    ihc_params.one_capacitor = tf.constant(0.0)
     car_params = carfac.CARParams()
     car_params.erb_per_step = tf.constant(3.0)
     carfac_cell = carfac.CARFACCell(ihc_params=ihc_params,

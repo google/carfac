@@ -40,7 +40,8 @@ class CARFACSaveloadTest(absltest.TestCase):
     model(impulse)
     with tempfile.TemporaryDirectory() as savefile:
       model.save(savefile)
-      loaded_model = tf.saved_model.load(savefile)
+      loaded_model = tf.keras.models.load_model(
+          savefile, custom_objects={'CARFACCell': carfac.CARFACCell})
       np.testing.assert_array_almost_equal(model(impulse),
                                            loaded_model(impulse))
 

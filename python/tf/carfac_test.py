@@ -22,6 +22,7 @@
 
 from typing import Optional
 from absl.testing import absltest
+from absl.testing import parameterized
 import numpy as np
 import tensorflow as tf
 
@@ -44,7 +45,7 @@ class _TestCallable:
                                          1))).numpy()[0]
 
 
-class CARFACTest(absltest.TestCase):
+class CARFACTest(parameterized.TestCase):
 
   def testConvolvers(self):
     # Verifies that all convolver options produce the same values.
@@ -113,7 +114,7 @@ class CARFACTest(absltest.TestCase):
             carfac.CARFACCell(
                 num_ears=2,
                 ihc_params=carfac.IHCParams(
-                    just_half_wave_rectify=tf.constant(True)),
+                    just_half_wave_rectify=tf.constant(1.0)),
                 outputs=[carfac.CARFACOutput.BM,
                          carfac.CARFACOutput.NAP],
                 car_params=carfac.CARParams(
@@ -194,11 +195,19 @@ class CARFACTest(absltest.TestCase):
                 agc_coeffs.agc_spatial_iterations.numpy() == -1))
     pass
 
-  # pylint: disable=g-unreachable-test-method
-  def _verify_mode(self,
-                   just_half_wave_rectify: bool,
-                   one_capacitor: bool,
-                   graph_mode: bool):
+  @parameterized.parameters(
+      (1.0, 1.0, True),
+      (1.0, 1.0, False),
+      (1.0, 0.0, True),
+      (1.0, 0.0, False),
+      (0.0, 1.0, True),
+      (0.0, 1.0, False),
+      (0.0, 0.0, True),
+      (0.0, 0.0, False))
+  def testModes(self,
+                just_half_wave_rectify: float,
+                one_capacitor: float,
+                graph_mode: bool):
     ihc_params = carfac.IHCParams()
     ihc_params.one_capacitor = tf.constant(one_capacitor)
     ihc_params.just_half_wave_rectify = tf.constant(just_half_wave_rectify)
@@ -216,45 +225,6 @@ class CARFACTest(absltest.TestCase):
     o = tf.function(compute)(impulse) if graph_mode else compute(impulse)
     self.assertEqual(o.shape, tf.TensorShape((1, 3, 12, 1)))
 
-  def testHalfWaveOneCapGraph(self):
-    self._verify_mode(just_half_wave_rectify=True,
-                      one_capacitor=True,
-                      graph_mode=True)
-
-  def testHalfWaveOneCapEager(self):
-    self._verify_mode(just_half_wave_rectify=True,
-                      one_capacitor=True,
-                      graph_mode=False)
-
-  def testHalfWaveTwoCapGraph(self):
-    self._verify_mode(just_half_wave_rectify=True,
-                      one_capacitor=False,
-                      graph_mode=True)
-
-  def testHalfWaveTwoCapEager(self):
-    self._verify_mode(just_half_wave_rectify=True,
-                      one_capacitor=False,
-                      graph_mode=False)
-
-  def testIHCOneCapGraph(self):
-    self._verify_mode(just_half_wave_rectify=False,
-                      one_capacitor=True,
-                      graph_mode=True)
-
-  def testIHCOneCapEager(self):
-    self._verify_mode(just_half_wave_rectify=False,
-                      one_capacitor=True,
-                      graph_mode=False)
-
-  def testIHCTwoCapGraph(self):
-    self._verify_mode(just_half_wave_rectify=False,
-                      one_capacitor=False,
-                      graph_mode=True)
-
-  def testIHCTwoCapEager(self):
-    self._verify_mode(just_half_wave_rectify=False,
-                      one_capacitor=False,
-                      graph_mode=False)
 
 if __name__ == '__main__':
   absltest.main()

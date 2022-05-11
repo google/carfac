@@ -101,8 +101,13 @@ class IHCParams:
 
   Mirrors IHCParams in cpp/ihc.h.
   """
-  just_half_wave_rectify: tf.Tensor = tf.constant(False)
-  one_capacitor: tf.Tensor = tf.constant(True)
+  # The attributes `just_half_wave_rectify` and `one_capacitor` are treated as
+  # booleans.
+  # The reason they are actually floats is that loading a saved model converts
+  # the bool to a float, which introduces some unintuitive conversion
+  # complications.
+  just_half_wave_rectify: tf.Tensor = tf.constant(0.0)
+  one_capacitor: tf.Tensor = tf.constant(1.0)
   tau_lpf: tf.Tensor = tf.constant(0.000080)
   tau1_out: tf.Tensor = tf.constant(0.0005)
   tau1_in: tf.Tensor = tf.constant(0.010)
@@ -931,7 +936,7 @@ class CARFACCell(tf.keras.layers.Layer):
     return cls(car_params=car_params,
                ihc_params=ihc_params,
                agc_params=agc_params,
-               outputs=config['outputs'],
+               outputs=tuple(map(CARFACOutput, config['outputs'])),
                num_ears=config['num_ears'],
                linear=config['linear'],
                open_loop=config['open_loop'])
@@ -1419,11 +1424,11 @@ class CARFACCell(tf.keras.layers.Layer):
         ihc_coeffs.rest_cap2 = ihc_coeffs.cap2_voltage
         return ihc_coeffs.convert()
       return tf.cond(
-          self._ihc_params.one_capacitor,
+          self._ihc_params.one_capacitor != 0.0,
           one_capacitor,
           two_capacitors)
     return tf.cond(
-        self._ihc_params.just_half_wave_rectify,
+        self._ihc_params.just_half_wave_rectify != 0.0,
         ihc_coeffs.convert,
         build_capacitors)
 
@@ -1511,7 +1516,7 @@ class CARFACCell(tf.keras.layers.Layer):
              ihc_coeffs.in2_rate))
         return ihc_state.convert()
       ihc_state_et = tf.cond(
-          self._ihc_params.one_capacitor,
+          self._ihc_params.one_capacitor != 0.0,
           lambda: one_capacitor(ihc_state_et),
           lambda: two_capacitors(ihc_state_et))
       ihc_state = ihc_state_et.convert()
@@ -1525,7 +1530,7 @@ class CARFACCell(tf.keras.layers.Layer):
           ihc_state.lpf2_state - ihc_coeffs.rest_output)
       return ihc_state.convert()
     return tf.cond(
-        self._ihc_params.just_half_wave_rectify,
+        self._ihc_params.just_half_wave_rectify != 0.0,
         lambda: just_half_wave_rectify(ihc_state.convert(),
                                        ac_diff),
         lambda: lpf_step(ihc_state.convert(),
