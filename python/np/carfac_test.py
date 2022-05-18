@@ -3,11 +3,11 @@
 import math
 from typing import List, Tuple
 
+from absl.testing import absltest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from google3.testing.pybase import googletest
-import google3.third_party.carfac.python.np.carfac as carfac
+from . import carfac
 
 # Note some of these tests create plots for easier comparison to the results
 # in Dick Lyon's Human and Machine Hearing.  The plots are stored in /tmp, and
@@ -63,7 +63,7 @@ def find_zero_crossings(x: np.ndarray, y: np.ndarray) -> List[int]:
   return [interpolate_zc(x, y, i) for i in locs]
 
 
-class CarfacUtilityTest(googletest.TestCase):
+class CarfacUtilityTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -132,7 +132,7 @@ class CarfacUtilityTest(googletest.TestCase):
     plt.savefig('/tmp/peak_response.png')
 
 
-class CarfacTest(googletest.TestCase):
+class CarfacTest(absltest.TestCase):
 
   def test_hz_to_erb(self):
     # Test: Simple, should asymptote to 9.2645
@@ -445,4 +445,4 @@ class CarfacTest(googletest.TestCase):
 
 
 if __name__ == '__main__':
-  googletest.main()
+  absltest.main()
