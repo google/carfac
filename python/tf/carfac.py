@@ -911,12 +911,8 @@ class CARFACCell(tf.keras.layers.Layer):
   contains the selected output values.
 
   When wrapped in a tf.keras.layers.RNN layer the input and output respectively
-  becomes [batch_idx, sample_idx, ear_idx, output_idx] and
+  becomes [batch_idx, sample_idx, ear_idx, 1] and
   [batch_idx, sample_idx, ear_idx, channel_idx, output_idx].
-
-  Due to AutoGraph requirements to track the creation of tensors (in particular
-  when loading and saving models), the design of coefficients doesn't happen on
-  construction, but in the `call` method.
 
   Attributes:
     output_size: Shape of output. Required by
