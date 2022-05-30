@@ -46,18 +46,16 @@ def plot_z(z: ArrayLike,
     A matplotlib.Figure.
   """
   num_transfer_functions, num_samples = z.shape
-  xaxis: np.ndarray = np.tile(np.linspace(0,
-                                          (num_samples - 1) * sample_rate *
-                                          0.5 / num_samples,
-                                          num_samples),
-                              [num_transfer_functions, 1])
+  xaxis = np.tile(
+      np.linspace(0, (num_samples - 1) * sample_rate * 0.5 / num_samples,
+                  num_samples), [num_transfer_functions, 1])
   fig, ax = plt.subplots()
   if frequency_log_scale:
     ax.set_xscale('log')
   ax.set_xlim((10, 20000))
   ax.set_ylim((-20, 70))
-  x: np.ndarray = (xaxis[:, :xaxis.shape[1]//2]).T
-  y: np.ndarray = (20 * np.log10(1e-20+np.abs(z[:, :z.shape[1]//2]))).T
+  x = (xaxis[:, :xaxis.shape[1]//2]).T
+  y = (20 * np.log10(1e-20+np.abs(z[:, :z.shape[1]//2]))).T
   ax.plot(x, y)
   return fig
 
@@ -121,18 +119,17 @@ def coeffs_from_zeros(
     [num_zeros + 1]-complex tensor with the coefficients to use when creating
     the difference equation for the given zeros.
   """
-  length: tf.TensorShape = polynomial_zeros.shape[0]
-  res: tf.TensorArray = tf.TensorArray(size=length+1,
-                                       dtype=polynomial_zeros.dtype)
-  c0: tf.Tensor = tf.constant(0.0, dtype=polynomial_zeros.dtype)
-  c1: tf.Tensor = tf.constant(1.0, dtype=polynomial_zeros.dtype)
+  length = polynomial_zeros.shape[0]
+  res = tf.TensorArray(size=length+1, dtype=polynomial_zeros.dtype)
+  c0 = tf.constant(0.0, dtype=polynomial_zeros.dtype)
+  c1 = tf.constant(1.0, dtype=polynomial_zeros.dtype)
   for num in range(length+1):
     # s representes Qc[num] or Pc[num] in the doc comment above.
-    s: tf.Tensor = c0
+    s = c0
     for parts in itertools.combinations(np.arange(length), num):
       # prod represents the contribution to each coefficient from multiplying
       # P0 or -1 of (P0 * z^-1 - 1) with P1 or -1 of (P1 * z^-1 - 1).
-      prod: tf.Tensor = c1
+      prod = c1
       for part in parts:
         prod *= -polynomial_zeros[part]
       s += prod
@@ -191,31 +188,30 @@ class PZCell(tf.keras.layers.Layer):
     if self.dtype != tf.float32 and self.dtype != tf.float64:
       raise TypeError(f'Got `dtype` parameter {self.dtype}, expected to be '
                       'either tf.float32 or tf.float64')
-    self._complex_dtype: tf.dtype = tf.complex64
+    self._complex_dtype = tf.complex64
     if self.dtype == tf.float64:
       self._complex_dtype = tf.complex128
-    self.gain: tf.Variable = self.add_weight(
+    self.gain = self.add_weight(
         name='gain',
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
             tf.cast(gain, self._complex_dtype)))
-    self.poles: tf.Variable = self.add_weight(
+    self.poles = self.add_weight(
         name='poles',
         shape=poles.shape,
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
             tf.cast(poles, self._complex_dtype)))
-    self._n_poles: int = poles.shape[0]
-    self.zeros: tf.Variable = self.add_weight(
+    self._n_poles = poles.shape[0]
+    self.zeros = self.add_weight(
         name='zeros',
         shape=zeros.shape,
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
             tf.cast(zeros, self._complex_dtype)))
-    self._n_zeros: int = zeros.shape[0]
-    self.output_size: int = 1
-    self.state_size: Tuple[int, int] = (self.poles.shape[0]+1,
-                                        self.poles.shape[0]+1)
+    self._n_zeros = zeros.shape[0]
+    self.output_size = 1
+    self.state_size = (self.poles.shape[0]+1, self.poles.shape[0]+1)
 
   def get_config(self) -> Dict[str, float]:
     return {
@@ -245,32 +241,26 @@ class PZCell(tf.keras.layers.Layer):
         states_at_t_plus_1: A ([len(poles) + 1], [len(poles) + 1])-tuple of
           tensors with state for next step.
     """
-    input_dtype: tf.dtype = input_at_t.dtype
-    states_dtype: tf.dtype = states_at_t[0].dtype
-    input_at_t: tf.Tensor = tf.cast(input_at_t, dtype=self._complex_dtype)
-    x_memory: tf.Tensor = tf.cast(states_at_t[0], self._complex_dtype)
-    y_memory: tf.Tensor = tf.cast(states_at_t[1], self._complex_dtype)
+    input_dtype = input_at_t.dtype
+    states_dtype = states_at_t[0].dtype
+    input_at_t = tf.cast(input_at_t, dtype=self._complex_dtype)
+    x_memory = tf.cast(states_at_t[0], self._complex_dtype)
+    y_memory = tf.cast(states_at_t[1], self._complex_dtype)
     x_memory = tf.concat(
         [input_at_t, x_memory[:, :x_memory.shape[1]-1]],
         axis=1)
-    pole_coeffs: tf.Tensor = coeffs_from_zeros(self.poles)
-    zero_coeffs: tf.Tensor = coeffs_from_zeros(self.zeros)
-    zero_offset: tf.Tensor = tf.math.maximum(0, self._n_poles - self._n_zeros)
-    output_at_t: tf.Tensor = tf.constant(0,
-                                         dtype=self._complex_dtype) * input_at_t
-    zero_components: tf.Tensor = (x_memory[:, zero_offset:] *
-                                  self.gain *
-                                  zero_coeffs)
+    pole_coeffs = coeffs_from_zeros(self.poles)
+    zero_coeffs = coeffs_from_zeros(self.zeros)
+    zero_offset = tf.math.maximum(0, self._n_poles - self._n_zeros)
+    output_at_t = tf.constant(0, dtype=self._complex_dtype) * input_at_t
+    zero_components = (x_memory[:, zero_offset:] * self.gain * zero_coeffs)
     output_at_t += tf.math.reduce_sum(zero_components, axis=1)[:, None]
-    pole_components: tf.Tensor = (y_memory[:, :y_memory.shape[1]-1] *
-                                  pole_coeffs[1:])
+    pole_components = (y_memory[:, :y_memory.shape[1]-1] * pole_coeffs[1:])
     output_at_t -= tf.math.reduce_sum(pole_components, axis=1)[:, None]
-    output_at_t: tf.Tensor = tf.math.divide_no_nan(output_at_t, pole_coeffs[0])
-    y_memory: tf.Tensor = tf.concat(
-        [output_at_t, y_memory[:, :y_memory.shape[1]-1]],
-        axis=1)
-    states_at_t_plus_1: Tuple[tf.Tensor, tf.Tensor] = (
-        tf.cast(tf.math.real(x_memory), states_dtype),
-        tf.cast(tf.math.real(y_memory), states_dtype))
-    output_at_t: tf.Tensor = tf.cast(output_at_t, input_dtype)
+    output_at_t = tf.math.divide_no_nan(output_at_t, pole_coeffs[0])
+    y_memory = tf.concat([output_at_t, y_memory[:, :y_memory.shape[1] - 1]],
+                         axis=1)
+    states_at_t_plus_1 = (tf.cast(tf.math.real(x_memory), states_dtype),
+                          tf.cast(tf.math.real(y_memory), states_dtype))
+    output_at_t = tf.cast(output_at_t, input_dtype)
     return output_at_t, states_at_t_plus_1
