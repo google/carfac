@@ -359,6 +359,15 @@ class _IHCCoeffs:
   cap1_voltage: tf.Tensor = tf.constant(0.0)
   cap2_voltage: tf.Tensor = tf.constant(0.0)
 
+  # Disclaimer[3]: This type of metaprogramming is not good practice.
+  # This function is used to simplify casting all fields of the instance to the
+  # provided dtype.
+  def cast(self, dtype: tf.DType) -> '_IHCCoeffs':
+    params = {}
+    for name in vars(type(self))['__annotations__']:
+      params[name] = tf.cast(getattr(self, name), dtype)
+    return _IHCCoeffs(**params)
+
   def convert(self) -> '_IHCCoeffsET':
     return _convert(self, _IHCCoeffsET)
 
@@ -842,13 +851,13 @@ def mat_mul_recurrence_expansion(a_0: tf.Tensor,
   Returns:
     a[1:], the series without a_0, with the same shape as f and g.
   """
-  f_cp = tf.math.cumsum(tf.math.log(f), axis=-1)
+  f_log_cs = tf.math.cumsum(tf.math.log(f), axis=-1)
   dim_range = tf.range(f.shape[-1])
-  f_mult = tf.where(dim_range[:, tf.newaxis] > dim_range[tf.newaxis, :],
-                    tf.constant(0, dtype=f_cp.dtype),
-                    tf.math.exp(f_cp[..., tf.newaxis, :] -
-                                f_cp[..., tf.newaxis]))
-  return (tf.math.exp(f_cp) * a_0[..., tf.newaxis] +
+  f_mult = tf.where(
+      dim_range[:, tf.newaxis] > dim_range[tf.newaxis, :],
+      tf.constant(0, dtype=f_log_cs.dtype),
+      tf.math.exp(f_log_cs[..., tf.newaxis, :] - f_log_cs[..., tf.newaxis]))
+  return (tf.math.exp(f_log_cs) * a_0[..., tf.newaxis] +
           tf.squeeze(g[..., tf.newaxis, :] @ f_mult, -2))
 
 
@@ -914,10 +923,13 @@ class CARFACCell(tf.keras.layers.Layer):
   becomes [batch_idx, sample_idx, ear_idx, 1] and
   [batch_idx, sample_idx, ear_idx, channel_idx, output_idx].
 
+  Note that with erb_per_step smaller than ~0.3 the CARFACCell needs to use
+  tf.float64 instead of the default tf.float32, or numerical problems will cause
+  not-a-number gradients.
+
   Attributes:
     output_size: Shape of output. Required by
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
-
     state_size: Shape of state. Required by
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
   """
@@ -970,9 +982,8 @@ class CARFACCell(tf.keras.layers.Layer):
       car_params: CARParams defining the CAR step of this cell.
       ihc_params: IHCParams defining the IHC step of this cell.
       agc_params: AGCParams defining the AGC step of this cell.
-      num_ears: Number of simulated ears. Input has shape
-        [batch_idx, ear_idx, 1], and output has shape
-        [batch_idx, channel_idx, ear_idx, output_idx].
+      num_ears: Number of simulated ears. Input has shape [batch_idx, ear_idx,
+        1], and output has shape [batch_idx, channel_idx, ear_idx, output_idx].
         Note that after wrapping a CARFACCell in an RNN layer, the input and
         output respectively will have shapes [batch_idx, step_idx, ear_idx, 1]
         and [batch_idx, step_idx, ear_idx, channel_idx, output_idx].
@@ -1029,8 +1040,10 @@ class CARFACCell(tf.keras.layers.Layer):
       if item[0] in ['erb_per_step',
                      'min_pole_hz',
                      'sample_rate_hz',
-                     'max_pole_hz']:
-        params[item[0]] = tf.constant(item[1], name=item[0])
+                     'max_pole_hz',
+                     'just_half_wave_rectify',
+                     'one_capacitor']:
+        params[item[0]] = tf.cast(item[1], name=item[0], dtype=self.dtype)
       else:
         params[item[0]] = self._add_weight(item[0], item[1])
     return type(values)(**params)
@@ -1115,14 +1128,11 @@ class CARFACCell(tf.keras.layers.Layer):
     return tuple(initial_state)
 
   def _add_weight(self, name: str, value: tf.Tensor) -> tf.Variable:
-    dtype = self.dtype
-    if isinstance(value, tf.Tensor) and value.dtype == tf.bool:
-      dtype = value.dtype
     return self.add_weight(
         name=name,
-        dtype=dtype,
+        dtype=self.dtype,
         shape=tf.convert_to_tensor(value).shape,
-        initializer=tf.keras.initializers.Constant(value))
+        initializer=tf.keras.initializers.Constant(tf.cast(value, self.dtype)))
 
   def get_config(self) -> Dict[str, Any]:
     """Required by superclass for serialization.
@@ -1149,10 +1159,10 @@ class CARFACCell(tf.keras.layers.Layer):
   def _design_agc_coeffs(self) -> _AGCCoeffsET:
     # Many comments in this function copied from cpp/carfac.cc:
     agc_coeffs = []
-    previous_stage_gain = tf.constant(0.0)
-    decim = tf.constant(1.0)
-    delay = tf.constant(0.0)
-    spread_sq = tf.constant(0.0)
+    previous_stage_gain = tf.constant(0.0, dtype=self.dtype)
+    decim = tf.constant(1.0, dtype=self.dtype)
+    delay = tf.constant(0.0, dtype=self.dtype)
+    spread_sq = tf.constant(0.0, dtype=self.dtype)
     for stage in range(self._agc_params.decimation.shape[0]):
       agc_coeff = _AGCCoeffs()
       agc_coeffs.append(agc_coeff)
@@ -1173,7 +1183,7 @@ class CARFACCell(tf.keras.layers.Layer):
           self._agc_params.decimation.shape[0])
       agc_coeff.agc_stage_gain = self._agc_params.agc_stage_gain
       agc_coeff.decimation = self._agc_params.decimation[stage]
-      total_dc_gain: float = previous_stage_gain
+      total_dc_gain = previous_stage_gain
       # Calculate the parameters for the current stage.
       tau = time_constants[stage]
       agc_coeff.decim = agc_coeff.decimation * decim
@@ -1372,7 +1382,7 @@ class CARFACCell(tf.keras.layers.Layer):
     return tf.math.pow(c, 3) / (tf.math.pow(c, 3) + tf.math.square(c) + b)
 
   def _design_ihc_coeffs(self) -> _IHCCoeffsET:
-    ihc_coeffs = _IHCCoeffs()
+    ihc_coeffs = _IHCCoeffs().cast(self.dtype)
     ihc_coeffs.ac_coeff = (
         2 * np.pi * self._ihc_params.ac_corner_hz /
         self._car_params.sample_rate_hz)
@@ -1804,14 +1814,13 @@ class CARFACCell(tf.keras.layers.Layer):
 
     Args:
       input_at_t: A [batch_size, n_ears, 1]-tensor with input at this step.
-      states_at_t: A tuple (prev_u, prev_v, prev_prev_v) with state tensors at
-        this step, where each element is a [batch_size]-complex128-tensor.
+      states_at_t: A tuple of state tensors at this step, where each element is
+        a [batch_size]-tensor.
 
     Returns:
       A tuple (output_amplitudes, states), where `output_amplitudes` is a
-        [batch_size, n_ears, n_channels]-complex128-tensor, and `states` is a
-        tuple (u, v, prev_v) with state tensors at the next step, where each
-        element is a [batch_size]-tensor.
+        [batch_size, n_ears, n_channels]-tensor, and `states` is a
+        tuple of with state tensors at the next step.
     """
 
     car_coeffs = _CARCoeffsET.from_tensors(

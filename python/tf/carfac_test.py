@@ -68,7 +68,7 @@ class CARFACTest(parameterized.TestCase):
            tf.constant(0.51, dtype=tf.float64))
     f = (0.9 + (0.2 / 92) * tf.ones((3, 4, 92), dtype=tf.float64) *
          tf.range(92, dtype=tf.float64))
-    g = (-1.0 + (2.0 / 92) * tf.ones((3, 4, 92), dtype=tf.float64) *
+    g = (0.01 + (2.0 / 92) * tf.ones((3, 4, 92), dtype=tf.float64) *
          tf.range(92, dtype=tf.float64))
     for expander in carfac.recurrence_expansion_methods.values():
       output = expander(a_0, f, g)
@@ -196,18 +196,27 @@ class CARFACTest(parameterized.TestCase):
     pass
 
   @parameterized.parameters(
-      (1.0, 1.0, True),
-      (1.0, 1.0, False),
-      (1.0, 0.0, True),
-      (1.0, 0.0, False),
-      (0.0, 1.0, True),
-      (0.0, 1.0, False),
-      (0.0, 0.0, True),
-      (0.0, 0.0, False))
+      (1.0, 1.0, True, tf.float32),
+      (1.0, 1.0, False, tf.float32),
+      (1.0, 0.0, True, tf.float32),
+      (1.0, 0.0, False, tf.float32),
+      (0.0, 1.0, True, tf.float32),
+      (0.0, 1.0, False, tf.float32),
+      (0.0, 0.0, True, tf.float32),
+      (0.0, 0.0, False, tf.float32),
+      (1.0, 1.0, True, tf.float64),
+      (1.0, 1.0, False, tf.float64),
+      (1.0, 0.0, True, tf.float64),
+      (1.0, 0.0, False, tf.float64),
+      (0.0, 1.0, True, tf.float64),
+      (0.0, 1.0, False, tf.float64),
+      (0.0, 0.0, True, tf.float64),
+      (0.0, 0.0, False, tf.float64))
   def testModes(self,
                 just_half_wave_rectify: float,
                 one_capacitor: float,
-                graph_mode: bool):
+                graph_mode: bool,
+                dtype: tf.DType):
     ihc_params = carfac.IHCParams()
     ihc_params.one_capacitor = tf.constant(one_capacitor)
     ihc_params.just_half_wave_rectify = tf.constant(just_half_wave_rectify)
@@ -215,7 +224,8 @@ class CARFACTest(parameterized.TestCase):
     car_params.erb_per_step = tf.constant(3.0)
     carfac_cell = carfac.CARFACCell(ihc_params=ihc_params,
                                     car_params=car_params,
-                                    num_ears=3)
+                                    num_ears=3,
+                                    dtype=dtype)
     carfac_layer = tf.keras.layers.RNN(carfac_cell)
     model = tf.keras.Sequential([carfac_layer])
     impulse: np.ndarray = np.zeros([1, 128, 3, 1], dtype=np.float32)
