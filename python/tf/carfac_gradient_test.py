@@ -20,14 +20,13 @@
 
 """Tests for carfac.python.tf.carfac."""
 
-from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
 
 
-class CARFACGradientTest(absltest.TestCase):
+class CARFACGradientTest(tf.test.TestCase):
 
   def testGradients(self):
     # Execute one step of the CARFAC implementation and make sure that all the
@@ -75,4 +74,4 @@ class CARFACGradientTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()

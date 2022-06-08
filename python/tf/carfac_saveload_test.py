@@ -21,14 +21,13 @@
 """Tests for carfac.python.tf.carfac."""
 
 import tempfile
-from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
 
 
-class CARFACSaveloadTest(absltest.TestCase):
+class CARFACSaveloadTest(tf.test.TestCase):
 
   def testSaveLoad(self):
     carfac_cell = carfac.CARFACCell(num_ears=4)
@@ -47,4 +46,4 @@ class CARFACSaveloadTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()

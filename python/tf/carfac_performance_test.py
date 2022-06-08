@@ -22,14 +22,13 @@
 
 import time
 from typing import Dict, Tuple
-from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
 
 
-class CARFACPerformanceTest(absltest.TestCase):
+class CARFACPerformanceTest(tf.test.TestCase):
 
   def testPerformance(self):
     # Not functional tests. Prints run time in eager and graph mode.
@@ -142,4 +141,4 @@ class CARFACPerformanceTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()

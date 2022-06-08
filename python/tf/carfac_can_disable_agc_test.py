@@ -20,14 +20,13 @@
 
 """Tests for carfac.python.tf.carfac."""
 
-from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
 
 
-class CARFACCanDisableAGCTest(absltest.TestCase):
+class CARFACCanDisableAGCTest(tf.test.TestCase):
 
   def testCanDisableAGC(self):
     # Design two different carfac objects, one normal and one with the AGC
@@ -77,4 +76,4 @@ class CARFACCanDisableAGCTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()

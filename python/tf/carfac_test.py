@@ -21,10 +21,14 @@
 """Tests for carfac.python.tf.carfac."""
 
 from typing import Optional
-from absl.testing import absltest
-from absl.testing import parameterized
+
 import numpy as np
+from parameterized import parameterized
 import tensorflow as tf
+
+import google3.third_party.carfac.python.testing as carfac_testing
+from google3.third_party.carfac.python.tf import carfac
+
 
 from .. import testing as carfac_testing
 from . import carfac
@@ -45,7 +49,7 @@ class _TestCallable:
                                          1))).numpy()[0]
 
 
-class CARFACTest(parameterized.TestCase):
+class CARFACTest(tf.test.TestCase):
 
   def testConvolvers(self):
     # Verifies that all convolver options produce the same values.
@@ -195,7 +199,7 @@ class CARFACTest(parameterized.TestCase):
                 agc_coeffs.agc_spatial_iterations.numpy() == -1))
     pass
 
-  @parameterized.parameters(
+  @parameterized.expand((
       (1.0, 1.0, True, tf.float32),
       (1.0, 1.0, False, tf.float32),
       (1.0, 0.0, True, tf.float32),
@@ -211,7 +215,7 @@ class CARFACTest(parameterized.TestCase):
       (0.0, 1.0, True, tf.float64),
       (0.0, 1.0, False, tf.float64),
       (0.0, 0.0, True, tf.float64),
-      (0.0, 0.0, False, tf.float64))
+      (0.0, 0.0, False, tf.float64)))
   def testModes(self,
                 just_half_wave_rectify: float,
                 one_capacitor: float,
@@ -237,4 +241,4 @@ class CARFACTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()

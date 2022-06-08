@@ -22,14 +22,13 @@
 
 import pathlib
 import tempfile
-from absl.testing import absltest
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
 
 
-class CARFACGoldenDataTest(absltest.TestCase):
+class CARFACGoldenDataTest(tf.test.TestCase):
 
   def testEagerModeAgainstGoldenData(self):
     # This tests most of CARFAC (it doesn't run with all possible filter or IHC
@@ -59,4 +58,4 @@ class CARFACGoldenDataTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  tf.test.main()
