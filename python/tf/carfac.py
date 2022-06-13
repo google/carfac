@@ -990,9 +990,9 @@ class CARFACCell(tf.keras.layers.Layer):
       outputs: The requested output. The output dimension will be populated with
         the outputs specified in this parameter.
       linear: Whether the CAR cell should incorporate nonlinearities or
-        not.
-      open_loop: Whether to run in open loop, which will turn off IHC/AGC
-        feedback.
+        not. Will turn off the short term nonlinearity in the CAR cell, and
+        prevent the IHC and AGC layers from running.
+      open_loop: Whether to run in open loop, which will turn off AGC feedback.
       recurrence_expander: The method to expand recurrence relation series.
       convolver: The method to convolve over 1 dimension.
       **kwargs: Forwarded to superclass.
@@ -1948,7 +1948,8 @@ class CARFACCell(tf.keras.layers.Layer):
 
 
 def plot_car_channels(cell: CARFACCell,
-                      window_size: int = 2048,
+                      window_size: int = 8192,
+                      figsize: Tuple[float, float] = (10, 5),
                       frequency_log_scale: bool = True) -> plt.Figure:
   """Plots the frequency response of the output channels of a CARCell.
 
@@ -1957,6 +1958,7 @@ def plot_car_channels(cell: CARFACCell,
   Args:
     cell: A CARFACCell to plot the output of.
     window_size: The window size for the frequency domain conversion.
+    figsize: The size of the returned figure.
     frequency_log_scale: Whether to plot the frequency axis in log scale.
   Returns:
     A matplotlib.Figure.
@@ -1966,5 +1968,6 @@ def plot_car_channels(cell: CARFACCell,
   impulse: np.ndarray = np.zeros([1, window_size, 1, 1], dtype=cell.dtype)
   impulse[:, 0, :, :] = 1
   got = layer(impulse)
-  got = tf.transpose(got, [0, 2, 3, 1])[0, 0]
-  return pz.plot_z(np.fft.fft(got), frequency_log_scale=frequency_log_scale)
+  got = tf.transpose(got[0, :, 0, :, 0], [1, 0])
+  return pz.plot_z(
+      np.fft.fft(got), frequency_log_scale=frequency_log_scale, figsize=figsize)

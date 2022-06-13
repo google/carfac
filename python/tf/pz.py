@@ -34,12 +34,18 @@ FloatLike = Union[float, tf.Tensor]
 
 def plot_z(z: ArrayLike,
            sample_rate: float = 48000,
+           figsize: Tuple[float, float] = (10, 5),
+           xlim: Tuple[float, float] = (10, 20000),
+           ylim: Tuple[float, float] = (-20, 100),
            frequency_log_scale: bool = True) -> plt.Figure:
   """Plots a number of transfer functions in dB FS on a log frequency scale.
 
   Args:
     z: [num_transfer_functions, num_samples]-complex array of FFT coefficients.
     sample_rate: The sample rate used when generating the window.
+    figsize: The size of the returned figure.
+    xlim: The limits of the x axis of the returned figure.
+    ylim: The limits of the y axis of the returned figure.
     frequency_log_scale: Whether the frequency axis of the plot should be in log
       scale.
   Returns:
@@ -49,11 +55,13 @@ def plot_z(z: ArrayLike,
   xaxis = np.tile(
       np.linspace(0, (num_samples - 1) * sample_rate * 0.5 / num_samples,
                   num_samples), [num_transfer_functions, 1])
-  fig, ax = plt.subplots()
+  fig, ax = plt.subplots(figsize=figsize)
   if frequency_log_scale:
     ax.set_xscale('log')
-  ax.set_xlim((10, 20000))
-  ax.set_ylim((-20, 70))
+  ax.set_xlim(xlim)
+  ax.set_ylim(ylim)
+  ax.set_xlabel('Hz')
+  ax.set_ylabel('dB')
   x = (xaxis[:, :xaxis.shape[1]//2]).T
   y = (20 * np.log10(1e-20+np.abs(z[:, :z.shape[1]//2]))).T
   ax.plot(x, y)
