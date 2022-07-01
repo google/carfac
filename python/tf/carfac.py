@@ -932,6 +932,9 @@ class CARFACCell(tf.keras.layers.Layer):
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
     state_size: Shape of state. Required by
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
+    car_params: The CARParams used by this CARFACCell.
+    ihc_params: The IHCParams used by this CARFACCell.
+    agc_params: The AGCParams used by this CARFACCell.
   """
 
   output_size: tf.TensorShape
@@ -942,9 +945,9 @@ class CARFACCell(tf.keras.layers.Layer):
   _open_loop: bool
   _outputs: Tuple[CARFACOutput]
 
-  _car_params: CARParams
-  _ihc_params: IHCParams
-  _agc_params: AGCParams
+  car_params: Optional[CARParams]
+  ihc_params: Optional[IHCParams]
+  agc_params: Optional[AGCParams]
 
   @classmethod
   def from_config(cls, config: Dict[str, Any]) -> 'CARFACCell':
@@ -989,10 +992,9 @@ class CARFACCell(tf.keras.layers.Layer):
         and [batch_idx, step_idx, ear_idx, channel_idx, output_idx].
       outputs: The requested output. The output dimension will be populated with
         the outputs specified in this parameter.
-      linear: Whether the CAR cell should incorporate nonlinearities or
-        not. Will turn off the short term nonlinearity in the CAR cell, and
-        prevent the IHC and AGC layers from running.
-      open_loop: Whether to run in open loop, which will turn off AGC feedback.
+      linear: Whether the cell should incorporate nonlinearities or not.
+      open_loop: Whether to run in open loop, which will turn off IHC/AGC
+        feedback.
       recurrence_expander: The method to expand recurrence relation series.
       convolver: The method to convolve over 1 dimension.
       **kwargs: Forwarded to superclass.
@@ -1010,9 +1012,9 @@ class CARFACCell(tf.keras.layers.Layer):
       curr_freq -= car_params.erb_per_step * car_params.erb_hz(curr_freq)
       num_channels += 1
 
-    self._car_params = self._copy_params_from(car_params)
-    self._ihc_params = self._copy_params_from(ihc_params)
-    self._agc_params = self._copy_params_from(agc_params)
+    self.car_params = self._copy_params_from(car_params)
+    self.ihc_params = self._copy_params_from(ihc_params)
+    self.agc_params = self._copy_params_from(agc_params)
 
     self.output_size = tf.TensorShape((num_ears,
                                        num_channels,
@@ -1024,13 +1026,13 @@ class CARFACCell(tf.keras.layers.Layer):
                   _IHCCoeffs.tensor_shapes_except_batch() +
                   _IHCState.tensor_shapes_except_batch(self.output_size[0],
                                                        self.output_size[1]))
-    if self._agc_params.decimation.shape.as_list():
+    if self.agc_params.decimation.shape.as_list():
       state_size.extend(
           _AGCCoeffs.tensor_shapes_except_batch(
-              self._agc_params.decimation.shape[0]) +
+              self.agc_params.decimation.shape[0]) +
           _AGCState.tensor_shapes_except_batch(
               self.output_size[0], self.output_size[1],
-              self._agc_params.decimation.shape[0]))
+              self.agc_params.decimation.shape[0]))
 
     self.state_size = tuple(state_size)
 
@@ -1111,7 +1113,7 @@ class CARFACCell(tf.keras.layers.Layer):
         ihc_coeffs.to_tensors() +
         ihc_state.convert().to_tensors())
 
-    if self._agc_params.decimation.shape.as_list():
+    if self.agc_params.decimation.shape.as_list():
       agc_coeffs = self._design_agc_coeffs()
 
       agc_state = _AGCState()
@@ -1119,7 +1121,7 @@ class CARFACCell(tf.keras.layers.Layer):
       agc_state.agc_memory = zeros
       agc_state.input_accum = zeros
       agc_state = _AGCState.concat(
-          [agc_state for _ in range(self._agc_params.decimation.shape[0])])
+          [agc_state for _ in range(self.agc_params.decimation.shape[0])])
 
       initial_state.extend(
           agc_coeffs.to_tensors() +
@@ -1144,11 +1146,11 @@ class CARFACCell(tf.keras.layers.Layer):
     """
     return {
         'car_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self._car_params).items()},
+                                 for k, v in vars(self.car_params).items()},
         'ihc_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self._ihc_params).items()},
+                                 for k, v in vars(self.ihc_params).items()},
         'agc_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self._agc_params).items()},
+                                 for k, v in vars(self.agc_params).items()},
         'outputs': self._outputs,
         'linear': self._linear,
         'open_loop': self._open_loop,
@@ -1163,34 +1165,34 @@ class CARFACCell(tf.keras.layers.Layer):
     decim = tf.constant(1.0, dtype=self.dtype)
     delay = tf.constant(0.0, dtype=self.dtype)
     spread_sq = tf.constant(0.0, dtype=self.dtype)
-    for stage in range(self._agc_params.decimation.shape[0]):
+    for stage in range(self.agc_params.decimation.shape[0]):
       agc_coeff = _AGCCoeffs()
       agc_coeffs.append(agc_coeff)
-      time_constants = self._agc_params.linear_growth(
+      time_constants = self.agc_params.linear_growth(
           self._recurrence_expander,
-          self._agc_params.time_constants0,
-          self._agc_params.time_constants_mul,
-          self._agc_params.decimation.shape[0])
-      agc1_scales = self._agc_params.linear_growth(
+          self.agc_params.time_constants0,
+          self.agc_params.time_constants_mul,
+          self.agc_params.decimation.shape[0])
+      agc1_scales = self.agc_params.linear_growth(
           self._recurrence_expander,
-          self._agc_params.agc1_scales0,
-          self._agc_params.agc1_scales_mul,
-          self._agc_params.decimation.shape[0])
-      agc2_scales = self._agc_params.linear_growth(
+          self.agc_params.agc1_scales0,
+          self.agc_params.agc1_scales_mul,
+          self.agc_params.decimation.shape[0])
+      agc2_scales = self.agc_params.linear_growth(
           self._recurrence_expander,
-          self._agc_params.agc2_scales0,
-          self._agc_params.agc2_scales_mul,
-          self._agc_params.decimation.shape[0])
-      agc_coeff.agc_stage_gain = self._agc_params.agc_stage_gain
-      agc_coeff.decimation = self._agc_params.decimation[stage]
+          self.agc_params.agc2_scales0,
+          self.agc_params.agc2_scales_mul,
+          self.agc_params.decimation.shape[0])
+      agc_coeff.agc_stage_gain = self.agc_params.agc_stage_gain
+      agc_coeff.decimation = self.agc_params.decimation[stage]
       total_dc_gain = previous_stage_gain
       # Calculate the parameters for the current stage.
       tau = time_constants[stage]
       agc_coeff.decim = agc_coeff.decimation * decim
       agc_coeff.agc_epsilon = (
           1.0 - tf.math.exp((-1.0 * agc_coeff.decim) /
-                            (tau * self._car_params.sample_rate_hz)))
-      n_times = tau * (self._car_params.sample_rate_hz / agc_coeff.decim)
+                            (tau * self.car_params.sample_rate_hz)))
+      n_times = tau * (self.car_params.sample_rate_hz / agc_coeff.decim)
       delay = (agc2_scales[stage] -
                agc1_scales[stage]) / n_times
       spread_sq = (
@@ -1361,8 +1363,8 @@ class CARFACCell(tf.keras.layers.Layer):
       total_dc_gain += tf.math.pow(agc_coeff.agc_stage_gain, stage)
       agc_coeff.agc_mix_coeffs = tf.constant(0, dtype=self.dtype)
       if stage != 0:
-        agc_coeff.agc_mix_coeffs = (self._agc_params.agc_mix_coeff /
-                                    (tau * (self._car_params.sample_rate_hz /
+        agc_coeff.agc_mix_coeffs = (self.agc_params.agc_mix_coeff /
+                                    (tau * (self.car_params.sample_rate_hz /
                                             agc_coeff.decim)))
       agc_coeff.agc_gain = total_dc_gain
       agc_coeff.detect_scale = 1 / total_dc_gain
@@ -1384,8 +1386,8 @@ class CARFACCell(tf.keras.layers.Layer):
   def _design_ihc_coeffs(self) -> _IHCCoeffsET:
     ihc_coeffs = _IHCCoeffs().cast(self.dtype)
     ihc_coeffs.ac_coeff = (
-        2 * np.pi * self._ihc_params.ac_corner_hz /
-        self._car_params.sample_rate_hz)
+        2 * np.pi * self.ihc_params.ac_corner_hz /
+        self.car_params.sample_rate_hz)
     def build_capacitors() -> _IHCCoeffsET:
       conduct_at_10 = self._carfac_detect(
           tf.constant(10.0, dtype=self.dtype))
@@ -1393,20 +1395,20 @@ class CARFACCell(tf.keras.layers.Layer):
           tf.constant(0.0, dtype=self.dtype))
       def one_capacitor() -> _IHCCoeffsET:
         ro = 1.0 / conduct_at_10
-        c = self._ihc_params.tau1_out / ro
-        ri = self._ihc_params.tau1_in / c
+        c = self.ihc_params.tau1_out / ro
+        ri = self.ihc_params.tau1_in / c
         saturation_output = 1.0 / ((2.0 * ro) + ri)
         r0 = 1.0 / conduct_at_0
         current = 1.0 / (ri + r0)
         ihc_coeffs.cap1_voltage = 1.0 - (current * ri)
         ihc_coeffs.lpf_coeff = (
             1.0 - tf.math.exp(-1.0 /
-                              (self._ihc_params.tau_lpf *
-                               self._car_params.sample_rate_hz)))
-        ihc_coeffs.out1_rate = ro / (self._ihc_params.tau1_out *
-                                     self._car_params.sample_rate_hz)
-        ihc_coeffs.in1_rate = 1.0 / (self._ihc_params.tau1_in *
-                                     self._car_params.sample_rate_hz)
+                              (self.ihc_params.tau_lpf *
+                               self.car_params.sample_rate_hz)))
+        ihc_coeffs.out1_rate = ro / (self.ihc_params.tau1_out *
+                                     self.car_params.sample_rate_hz)
+        ihc_coeffs.in1_rate = 1.0 / (self.ihc_params.tau1_in *
+                                     self.car_params.sample_rate_hz)
         ihc_coeffs.output_gain = 1.0 / (saturation_output - current)
         ihc_coeffs.rest_output = current / (saturation_output - current)
         ihc_coeffs.rest_cap1 = ihc_coeffs.cap1_voltage
@@ -1419,10 +1421,10 @@ class CARFACCell(tf.keras.layers.Layer):
         return ihc_coeffs.convert()
       def two_capacitors() -> _IHCCoeffsET:
         ro = 1.0 / conduct_at_10
-        c2 = self._ihc_params.tau2_out / ro
-        r2 = self._ihc_params.tau2_in / c2
-        c1 = self._ihc_params.tau1_out / r2
-        r1 = self._ihc_params.tau1_in / c1
+        c2 = self.ihc_params.tau2_out / ro
+        r2 = self.ihc_params.tau2_in / c2
+        c1 = self.ihc_params.tau1_out / r2
+        r1 = self.ihc_params.tau1_in / c1
         saturation_output = 1.0 / (2.0 * ro + r2 + r1)
         r0 = 1.0 / conduct_at_0
         current = 1.0 / (r1 + r2 + r0)
@@ -1431,66 +1433,66 @@ class CARFACCell(tf.keras.layers.Layer):
                                    (current * r2))
         ihc_coeffs.lpf_coeff = (
             1.0 - tf.math.exp(-1.0 /
-                              (self._ihc_params.tau_lpf *
-                               self._car_params.sample_rate_hz)))
-        ihc_coeffs.out1_rate = 1.0 / (self._ihc_params.tau1_out *
-                                      self._car_params.sample_rate_hz)
-        ihc_coeffs.in1_rate = 1.0 / (self._ihc_params.tau1_in *
-                                     self._car_params.sample_rate_hz)
-        ihc_coeffs.out2_rate = ro / (self._ihc_params.tau2_out *
-                                     self._car_params.sample_rate_hz)
-        ihc_coeffs.in2_rate = 1.0 / (self._ihc_params.tau2_in *
-                                     self._car_params.sample_rate_hz)
+                              (self.ihc_params.tau_lpf *
+                               self.car_params.sample_rate_hz)))
+        ihc_coeffs.out1_rate = 1.0 / (self.ihc_params.tau1_out *
+                                      self.car_params.sample_rate_hz)
+        ihc_coeffs.in1_rate = 1.0 / (self.ihc_params.tau1_in *
+                                     self.car_params.sample_rate_hz)
+        ihc_coeffs.out2_rate = ro / (self.ihc_params.tau2_out *
+                                     self.car_params.sample_rate_hz)
+        ihc_coeffs.in2_rate = 1.0 / (self.ihc_params.tau2_in *
+                                     self.car_params.sample_rate_hz)
         ihc_coeffs.output_gain = 1.0 / (saturation_output - current)
         ihc_coeffs.rest_output = current / (saturation_output - current)
         ihc_coeffs.rest_cap1 = ihc_coeffs.cap1_voltage
         ihc_coeffs.rest_cap2 = ihc_coeffs.cap2_voltage
         return ihc_coeffs.convert()
       return tf.cond(
-          self._ihc_params.one_capacitor != 0.0,
+          self.ihc_params.one_capacitor != 0.0,
           one_capacitor,
           two_capacitors)
     return tf.cond(
-        self._ihc_params.just_half_wave_rectify != 0.0,
+        self.ihc_params.just_half_wave_rectify != 0.0,
         ihc_coeffs.convert,
         build_capacitors)
 
   def _design_car_coeffs(self) -> _CARCoeffsET:
-    max_hz = self._car_params.max_pole_ratio * self._car_params.sample_rate_hz
+    max_hz = self.car_params.max_pole_ratio * self.car_params.sample_rate_hz
     ones = tf.ones(shape=(self.output_size[1],),
                    dtype=self.dtype)
     pole_freqs = tf.concat([
         [max_hz],
         self._recurrence_expander(
             max_hz,
-            ones[1:] * (1 - self._car_params.erb_per_step /
-                        self._car_params.erb_q),
-            ones[1:] * (-self._car_params.erb_per_step *
-                        self._car_params.erb_break_freq /
-                        self._car_params.erb_q))], axis=0)
+            ones[1:] * (1 - self.car_params.erb_per_step /
+                        self.car_params.erb_q),
+            ones[1:] * (-self.car_params.erb_per_step *
+                        self.car_params.erb_break_freq /
+                        self.car_params.erb_q))], axis=0)
 
     car_coeffs = _CARCoeffs()
-    theta = pole_freqs * 2 * np.pi / self._car_params.sample_rate_hz
-    car_coeffs.velocity_scale = ones * self._car_params.velocity_scale
-    car_coeffs.v_offset = ones * self._car_params.v_offset
+    theta = pole_freqs * 2 * np.pi / self.car_params.sample_rate_hz
+    car_coeffs.velocity_scale = ones * self.car_params.velocity_scale
+    car_coeffs.v_offset = ones * self.car_params.v_offset
     car_coeffs.a0_coeffs = tf.math.cos(theta)
     car_coeffs.c0_coeffs = tf.math.sin(theta)
-    car_coeffs.min_zeta = ones * self._car_params.compute_zeta(
-        self._car_params.min_zeta_at_half_erb_per_step)
-    car_coeffs.max_zeta = ones * self._car_params.compute_zeta(
-        self._car_params.max_zeta_at_half_erb_per_step)
+    car_coeffs.min_zeta = ones * self.car_params.compute_zeta(
+        self.car_params.min_zeta_at_half_erb_per_step)
+    car_coeffs.max_zeta = ones * self.car_params.compute_zeta(
+        self.car_params.max_zeta_at_half_erb_per_step)
     x = theta / np.pi
     car_coeffs.zr_coeffs = np.pi * (
-        x - (self._car_params.high_f_damping_compression * tf.math.pow(x, 3)))
+        x - (self.car_params.high_f_damping_compression * tf.math.pow(x, 3)))
     car_coeffs.r1_coeffs = (1.0 - (
         car_coeffs.zr_coeffs * car_coeffs.max_zeta))
     min_zetas = (car_coeffs.min_zeta +
-                 (0.25 * ((self._car_params.erb_hz(pole_freqs) /
+                 (0.25 * ((self.car_params.erb_hz(pole_freqs) /
                            pole_freqs) -
                           car_coeffs.min_zeta)))
     car_coeffs.zr_coeffs *= car_coeffs.max_zeta - min_zetas
     car_coeffs.h_coeffs = car_coeffs.c0_coeffs * (
-        tf.math.square(self._car_params.zero_ratio) - 1.0)
+        tf.math.square(self.car_params.zero_ratio) - 1.0)
     r = car_coeffs.r1_coeffs + car_coeffs.zr_coeffs
     car_coeffs.g0_coeffs = (
         (1.0 - (2.0 * r * car_coeffs.a0_coeffs) + tf.math.square(r)) /
@@ -1539,7 +1541,7 @@ class CARFACCell(tf.keras.layers.Layer):
              ihc_coeffs.in2_rate))
         return ihc_state.convert()
       ihc_state_et = tf.cond(
-          self._ihc_params.one_capacitor != 0.0,
+          self.ihc_params.one_capacitor != 0.0,
           lambda: one_capacitor(ihc_state_et),
           lambda: two_capacitors(ihc_state_et))
       ihc_state = ihc_state_et.convert()
@@ -1553,7 +1555,7 @@ class CARFACCell(tf.keras.layers.Layer):
           ihc_state.lpf2_state - ihc_coeffs.rest_output)
       return ihc_state.convert()
     return tf.cond(
-        self._ihc_params.just_half_wave_rectify != 0.0,
+        self.ihc_params.just_half_wave_rectify != 0.0,
         lambda: just_half_wave_rectify(ihc_state.convert(),
                                        ac_diff),
         lambda: lpf_step(ihc_state.convert(),
@@ -1563,7 +1565,7 @@ class CARFACCell(tf.keras.layers.Layer):
                 agc_coeffs: _AGCCoeffsET,
                 agc_state_et: _AGCStateET,
                 ihc_state_et: _IHCStateET) -> Tuple[_AGCStateET, tf.Tensor]:
-    if self._agc_params.decimation.shape[0] == 0:
+    if self.agc_params.decimation.shape[0] == 0:
       return (agc_state_et, tf.constant(False))
     # First copy the ihc_out to the input accumulator of the first stage,
     # and if the stage has reached its decimation phase, copy the input
@@ -1593,7 +1595,7 @@ class CARFACCell(tf.keras.layers.Layer):
         agc_state.decim_phase = tf.zeros_like(agc_state.decim_phase)
         agc_states.update(stage, agc_state)
         return (agc_states.convert(),
-                stage >= self._agc_params.decimation.shape[0] - 1,
+                stage >= self.agc_params.decimation.shape[0] - 1,
                 stage,
                 agc_state.input_accum / agc_coeffs[stage].decimation)
       (agc_state_et,
@@ -1615,7 +1617,7 @@ class CARFACCell(tf.keras.layers.Layer):
               agc_in_out)
     agc_in_out = (
         ihc_state_et.ihc_out *
-        agc_coeffs[self._agc_params.decimation.shape[0] -1].detect_scale)
+        agc_coeffs[self.agc_params.decimation.shape[0] -1].detect_scale)
     (agc_state_et,
      _,
      last_decimated_stage,
@@ -1766,7 +1768,7 @@ class CARFACCell(tf.keras.layers.Layer):
           lambda: agc_state_et)
       stage += 1
       done = tf.cond(
-          stage >= self._agc_params.decimation.shape[0],
+          stage >= self.agc_params.decimation.shape[0],
           lambda: tf.constant(True),
           lambda: agc_state_et.decim_phase[0, 0, 0, stage] > 0)
       return (agc_state_et, stage, done)
@@ -1835,7 +1837,7 @@ class CARFACCell(tf.keras.layers.Layer):
     ihc_state = _IHCStateET.from_tensors(
         states_at_t[:_IHCState.num_annotations()])
     states_at_t = states_at_t[_IHCState.num_annotations():]
-    if self._agc_params.decimation.shape.as_list():
+    if self.agc_params.decimation.shape.as_list():
       agc_coeffs = _AGCCoeffsET.from_tensors(
           states_at_t[:_AGCCoeffs.num_annotations()])
       states_at_t = states_at_t[_AGCCoeffs.num_annotations():]
@@ -1848,7 +1850,7 @@ class CARFACCell(tf.keras.layers.Layer):
     agc_memory_updated = tf.constant(False)
     if (not self._open_loop and
         not self._linear and
-        self._agc_params.decimation.shape.as_list()):
+        self.agc_params.decimation.shape.as_list()):
       agc_state, agc_memory_updated = self._agc_step(agc_coeffs,
                                                      agc_state,
                                                      ihc_state)
@@ -1872,7 +1874,7 @@ class CARFACCell(tf.keras.layers.Layer):
         car_state.to_tensors() +
         ihc_coeffs.to_tensors() +
         ihc_state.to_tensors())
-    if self._agc_params.decimation.shape.as_list():
+    if self.agc_params.decimation.shape.as_list():
       next_state.extend(
           agc_coeffs.to_tensors() +
           agc_state.to_tensors())
@@ -1951,9 +1953,11 @@ def plot_car_channels(cell: CARFACCell,
                       window_size: int = 8192,
                       figsize: Tuple[float, float] = (10, 5),
                       frequency_log_scale: bool = True) -> plt.Figure:
-  """Plots the frequency response of the output channels of a CARCell.
+  """Plots the frequency response of the CAR layer of a CARFACCell.
 
-  Will replace cell.call with tf.function(cell.call) for performance reasons.
+  Will create a new linear and open-loop CARFACCell using the parameters of the
+  provided cell and plot the frequency response of the BM output of the new
+  cell.
 
   Args:
     cell: A CARFACCell to plot the output of.
@@ -1963,11 +1967,20 @@ def plot_car_channels(cell: CARFACCell,
   Returns:
     A matplotlib.Figure.
   """
-  layer = tf.keras.layers.RNN(cell, return_sequences=True)
+  linear_cell = CARFACCell(
+      linear=True,
+      outputs=(CARFACOutput.BM,),
+      open_loop=True,
+      car_params=cell.car_params,
+      ihc_params=cell.ihc_params,
+      agc_params=cell.agc_params)
+  layer = tf.keras.layers.RNN(linear_cell, return_sequences=True)
   layer.call = tf.function(layer.call)
   impulse: np.ndarray = np.zeros([1, window_size, 1, 1], dtype=cell.dtype)
   impulse[:, 0, :, :] = 1
   got = layer(impulse)
-  got = tf.transpose(got[0, :, 0, :, 0], [1, 0])
+  transposed_got = tf.transpose(got[0, :, 0, :, 0], [1, 0])
   return pz.plot_z(
-      np.fft.fft(got), frequency_log_scale=frequency_log_scale, figsize=figsize)
+      np.fft.fft(transposed_got),
+      frequency_log_scale=frequency_log_scale,
+      figsize=figsize)
