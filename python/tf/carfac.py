@@ -1594,7 +1594,7 @@ class CARFACCell(tf.keras.layers.Layer):
         agc_state = agc_states[stage]
         agc_state.decim_phase = tf.zeros_like(agc_state.decim_phase)
         agc_states.update(stage, agc_state)
-        return (agc_states.convert(),
+        return (agc_states.convert(),  # pytype: disable=bad-return-type  # dynamic-method-lookup
                 stage >= self.agc_params.decimation.shape[0] - 1,
                 stage,
                 agc_state.input_accum / agc_coeffs[stage].decimation)
@@ -1668,7 +1668,7 @@ class CARFACCell(tf.keras.layers.Layer):
                                                       stage,
                                                       agc_state.agc_memory)
       agc_states.update(stage, agc_state)
-      return (agc_states.convert(),
+      return (agc_states.convert(),  # pytype: disable=bad-return-type  # dynamic-method-lookup
               stage - 1,
               stage < 1)
     (agc_state_et,
