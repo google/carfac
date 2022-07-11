@@ -118,7 +118,12 @@ TEST(ImageTest, MapExistingMemory) {
 
 // Test behavior of Image<const float> read-only images.
 TEST(ImageTest, ReadOnlyImage) {
-  auto f = Image<float>(7, 12).Fill([](int x, int y) { return 0.0f; });
+  auto f = Image<float>(7, 12);
+  for (int y = 0; y < f.height(); ++y) {
+    for (int x = 0; x < f.width(); ++x) {
+      f(x, y) = 0.0f;
+    }
+  }
 
   Image<const float> read_only_view = f;
   ASSERT_EQ(f.use_count(), 2);
@@ -132,8 +137,9 @@ TEST(ImageTest, ReadOnlyImage) {
 
 void CheckFileBytes(const char* file_name, const uint8_t* expected_bytes,
                     size_t num_bytes) {
-  uint8_t* bytes = ABSL_DIE_IF_NULL((uint8_t *) std::malloc(num_bytes + 1));
-  std::FILE* f = ABSL_DIE_IF_NULL(std::fopen(file_name, "rb"));
+  uint8_t* bytes = reinterpret_cast<uint8_t*>(std::malloc(num_bytes + 1));
+  std::FILE* f = std::fopen(file_name, "rb");
+  ASSERT_TRUE(f != nullptr);
   ASSERT_EQ(std::fread(bytes, 1, num_bytes + 1, f), num_bytes);
   std::fclose(f);
   ASSERT_EQ(std::memcmp(bytes, expected_bytes, num_bytes), 0);
@@ -142,8 +148,13 @@ void CheckFileBytes(const char* file_name, const uint8_t* expected_bytes,
 
 TEST(ImageTest, WritePnmGrayscale) {
   const char* pnm_file_name = nullptr;
-  pnm_file_name = ABSL_DIE_IF_NULL(std::tmpnam(nullptr));
-  auto u = Image<uint8_t>(4, 3).Fill([](int x, int y) { return 10 * x + y; });
+  pnm_file_name = std::tmpnam(nullptr);
+  auto u = Image<uint8_t>(4, 3);
+  for (int y = 0; y < u.height(); ++y) {
+    for (int x = 0; x < u.width(); ++x) {
+      u(x, y) = 10 * x + y;
+    }
+  }
 
   ASSERT_TRUE(WritePnm(pnm_file_name, u));
 
@@ -160,9 +171,15 @@ TEST(ImageTest, WritePnmGrayscale) {
 
 TEST(ImageTest, WritePnmRgb) {
   const char* pnm_file_name = nullptr;
-  pnm_file_name = ABSL_DIE_IF_NULL(std::tmpnam(nullptr));
-  auto u = Image<uint8_t>(2, 3, 3).Fill(
-      [](int x, int y, int c) { return 100 * x + 10 * y + c; });
+  pnm_file_name = std::tmpnam(nullptr);
+  auto u = Image<uint8_t>(2, 3, 3);
+  for (int y = 0; y < u.height(); ++y) {
+    for (int x = 0; x < u.width(); ++x) {
+      for (int c = 0; c < u.channels(); ++c) {
+        u(x, y, c) = 100 * x + 10 * y + c;
+      }
+    }
+  }
 
   ASSERT_TRUE(WritePnm(pnm_file_name, u));
 

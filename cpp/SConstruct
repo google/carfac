@@ -23,12 +23,14 @@ To install dependencies on Ubuntu, run:
 
   sudo apt-get install libeigen3-dev scons cmake
 
-  You can install libgtest-dev from the apt package manager:
+You can install libgtest-dev from the apt package manager:
+
   sudo apt-get install libgtest-dev
 
-  You will also need these path environment variables
-    export EIGEN_PATH=/usr/include/eigen3
-    export GTEST_SOURCE=/usr/src/gtest
+You will also need these path environment variables
+
+  export EIGEN_PATH=/usr/include/eigen3
+  export GTEST_SOURCE=/usr/src/gtest
 
 If you have difficulites building with libgtest from apt,
 you can build and install gtest from source:
@@ -46,16 +48,14 @@ To run unit tests, run:
 To clean up binaries, run:
   scons --clean
 
-To use emscripten to compile the library to asm.js, run:
-  scons carfac.js
-
-To install emscripten and its dependencies on Ubuntu, follow the
-instructions on the emscriptenv website
+To compile the library to .js, install emscripten as described at
 https://emscripten.org/docs/getting_started/downloads.html
+Then set EM_CONFIG to the directory containing the em++ binary:
 
-(Note that you can download the prebuilt LLVM binaries from
-http://llvm.org/releases/download.html instead of building it from
-source.)
+  export EM_CONFIG=/path/to/emscripten
+
+Then run:
+  scons carfac.js
 """
 
 import subprocess
@@ -63,12 +63,7 @@ import os
 
 env = Environment(CPPPATH = [os.environ['EIGEN_PATH'],
                              os.environ['GTEST_SOURCE'] + '/include'])
-GCC_VERSION = subprocess.getoutput(env['CXX'] + ' -dumpversion')
-if GCC_VERSION.startswith('4.6'):
-  # The override keyword is not supported in GCC 4.6, so we define it away.
-  env.MergeFlags(['-std=c++0x -Doverride='])
-else:
-  env.MergeFlags(['-std=c++11'])
+env.MergeFlags(['-std=c++11'])
 
 carfac_sources = [
     'agc.h',
@@ -76,17 +71,21 @@ carfac_sources = [
     'car.h',
     'carfac.cc',
     'carfac_util.h',
+    'color.cc',
     'common.h',
     'ear.cc',
     'ihc.h',
+    'image.cc',
     'sai.cc'
     ]
 carfac = env.Library(target = 'carfac', source = carfac_sources)
 Default(carfac)
-# #8 rely on users gtest install into /usr/lib instead of making a copy to tmp
+
 test_targets = [
     'binaural_sai_test',
     'carfac_test',
+    'color_test',
+    'image_test',
     'sai_test',
     ]
 test_programs = [env.Program(target = test_target,
@@ -99,7 +98,6 @@ run_all_tests = env.Command('test',
                             ['./%s' % x for x in test_targets])
 
 emscripten_sources = ['carfac.cc', 'ear.cc', 'sai.cc', 'emscripten_bindings.cc']
-# #8 update path specifications from emscripten package for modern use
 emscripten_env = Environment(
   ENV = dict(PATH=os.path.pathsep.join([env['ENV']['PATH'],
                                         os.environ['EM_CONFIG']])))

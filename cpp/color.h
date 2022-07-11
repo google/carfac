@@ -38,7 +38,7 @@ class Color : public Eigen::Matrix<_Scalar, 3, 1> {
   Color(const Eigen::MatrixBase<OtherDerived>& other): Vector(other) {}
   template<typename OtherDerived>
   Color& operator=(const Eigen::MatrixBase<OtherDerived>& other) {
-    this->Base::operator=(other);
+    this->Vector::operator=(other);
     return *this;
   }
 

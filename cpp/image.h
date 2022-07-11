@@ -106,17 +106,6 @@ class Image {
     return *(data_ + x * x_stride_ + y * y_stride_ + c * c_stride_);
   }
 
-  template <typename Fun>
-  Image& Fill(Fun&& fun) {
-    constexpr int kNumArgs = NumArgs<Fun>::value;
-    static_assert(
-        kNumArgs == 2 || kNumArgs == 3,
-        "Fill(fun) expects a 2-arg function like `Scalar fun(int x, int y)` "
-        "or a 3-arg function like `Scalar fun(int x, int y, int c)`");
-    FillHelper<kNumArgs>()(*this, std::forward<Fun>(fun));
-    return *this;
-  }
-
  private:
   template <typename Fun>
   struct NumArgs : public NumArgs<decltype(&Fun::operator())> {};
@@ -124,36 +113,12 @@ class Image {
   struct NumArgs<ReturnType (ClassType::*)(Args...) const>
       : public std::integral_constant<int, sizeof...(Args)> {};
 
-  template <int kNumArgs> struct FillHelper {};
-  template <> struct FillHelper<2> {
-    template <typename Fun>
-    void operator()(Image& image, Fun&& fun) {
-      for (int y = 0; y < image.height(); ++y) {
-        for (int x = 0; x < image.width(); ++x) {
-          image(x, y) = fun(x, y);
-        }
-      }
-    }
-  };
-  template <> struct FillHelper<3> {
-    template <typename Fun>
-    void operator()(Image& image, Fun&& fun) {
-      for (int y = 0; y < image.height(); ++y) {
-        for (int x = 0; x < image.width(); ++x) {
-          for (int c = 0; c < image.channels(); ++c) {
-            image(x, y, c) = fun(x, y, c);
-          }
-        }
-      }
-    }
-  };
-
   void Allocate(int width, int height, int channels);
   template <typename RhsScalar>
   void AssertCanAssignFrom() const;
 
   typedef typename std::remove_const<Scalar>::type NonConstScalar;
-  std::shared_ptr<NonConstScalar[]> alloc_;
+  std::shared_ptr<NonConstScalar> alloc_;
   Scalar* data_;
   int width_;
   int height_;
@@ -180,7 +145,7 @@ void Image<Scalar>::Allocate(int width, int height, int channels) {
   CARFAC_ASSERT(height >= 0);
   CARFAC_ASSERT(channels >= 0);
   data_ = new NonConstScalar[width * height * channels];
-  alloc_.reset(data_);
+  alloc_.reset(data_, +[](NonConstScalar* p) { delete [] p; });
   width_ = width;
   height_ = height;
   channels_ = channels;
@@ -208,20 +173,20 @@ Image<Scalar>::Image(Scalar* data, int width, int x_stride,
       y_stride_(y_stride),
       c_stride_(c_stride) {
   if (!empty()) {
-    CHECK(data != nullptr);
+    CARFAC_ASSERT(data != nullptr);
   }
 }
 
 template <typename Scalar>
 Image<Scalar>::Image(int width, int height) {
-  static_assert(!std::is_const_v<Scalar>,
+  static_assert(!std::is_const<Scalar>::value,
                 "Image allocation must have nonconst type");
   Allocate(width, height, 1);
 }
 
 template <typename Scalar>
 Image<Scalar>::Image(int width, int height, int channels) {
-  static_assert(!std::is_const_v<Scalar>,
+  static_assert(!std::is_const<Scalar>::value,
                 "Image allocation must have nonconst type");
   Allocate(width, height, channels);
 }
@@ -229,10 +194,12 @@ Image<Scalar>::Image(int width, int height, int channels) {
 template <typename Scalar>
 template <typename RhsScalar>
 void Image<Scalar>::AssertCanAssignFrom() const {
-  static_assert(std::is_same_v<typename std::remove_const_t<Scalar>,
-                               typename std::remove_const_t<RhsScalar>>,
+  static_assert(std::is_same<typename std::remove_const<Scalar>::type,
+                             typename std::remove_const<RhsScalar>::type
+                             >::value,
                 "Invalid assignment from incompatible Image type");
-  static_assert(std::is_const_v<Scalar> || !std::is_const_v<RhsScalar>,
+  static_assert(std::is_const<Scalar>::value ||
+                !std::is_const<RhsScalar>::value,
                 "Invalid assignment from const to nonconst Image");
 }
 
