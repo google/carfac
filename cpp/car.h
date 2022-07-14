@@ -1,4 +1,4 @@
-// Copyright 2013 The CARFAC Authors. All Rights Reserved.
+// Copyright 2013, 2022 The CARFAC Authors. All Rights Reserved.
 // Author: Alex Brandmeyer
 //
 // This file is part of an implementation of Lyon's cochlear model:
@@ -79,5 +79,13 @@ struct CARState {
   ArrayX g_memory;
   ArrayX dg_memory;
 };
+
+// Computes CAR pole frequency in Hz for each channel.
+ArrayX CARPoleFrequencies(FPType sample_rate, const CARParams& car_params);
+
+// Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
+// filter at the given center frequency.
+// Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
+FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq, FPType erb_q);
 
 #endif  // CARFAC_CAR_H

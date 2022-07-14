@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<!--
+Copyright 2022 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<style>
+html {font-size:100%; font-family:'Roboto'; line-height:1.5;
+  background-color:#000; color:#ccc}
+body {font-size:18px; margin:auto; max-width:53em; background-color:#000; padding: 0 3em 1em 3em;}
+a {color:#82b1ff; text-decoration: none}
+h1, h2 {color: #e85362; margin-bottom:0;
+  font-weight: normal; font-family: 'Montserrat', sans-serif;}
+h1 {font-size: 2.5em; margin-top:1em; text-align: center}
+h2 {font-size: 1.7em; margin:0}
+p {margin:0 0 1ex 0; padding:0}
+</style>
+<link href="https://fonts.googleapis.com/css?family=Roboto|Montserrat" rel="stylesheet">
+<title>Pitchogram demo</title>
+</head>
+<body>
+
+<h1>Pitchogram demo</h1>
+
+<div style="margin: auto">
+<canvas id="canvas" width="1024" height="768"
+ style="border:3px solid #a6317d" onclick="SelectInputSource(1)">
+  Your browser does not support the canvas element.
+</canvas>
+</div>
+
+<p>Instructions: Enable your microphone and click the rectangle above to start.</p>
+
+<script src="./pitchogram_web_bindings.js"></script>
+<script>
+Module.canvas = document.querySelector('#canvas');
+Module.onRuntimeInitialized = async _ => { Module._OnLoad(); }
+
+let testSoundNode = null;
+let microphoneNode = null;
+let currentInputNode = null;
+let connectInputFun = null;
+
+function ConnectInputNode(inputNode, consumerNode) {
+  if (inputNode != null) {
+    inputNode.connect(consumerNode);
+    currentInputNode = inputNode;
+  }
+}
+
+function ConnectTestAudio(context, consumerNode) {
+  if (testSoundNode == null) {  // On first call only, reuse the node on subsequent calls.
+    testSoundNode = context.createMediaElementSource(
+        document.getElementById('test_audio'));
+  }
+  ConnectInputNode(testSoundNode, consumerNode);
+}
+
+function ConnectMicrophone(context, consumerNode) {
+  if (microphoneNode != null) {  // Reuse microphoneNode if we already have it.
+    ConnectInputNode(microphoneNode, consumerNode);
+    return;
+  }
+
+  if (navigator.mediaDevices) {
+    navigator.mediaDevices.getUserMedia({audio: true})
+      .then((stream) => {
+              microphoneNode = context.createMediaStreamSource(stream);
+              ConnectInputNode(microphoneNode, consumerNode);
+            })
+      .catch((e) => { alert("Error accessing microphone:\n" + e.name + ": " + e.message); });
+  } else {
+    alert("Error accessing microphone:\nmediaDevices not supported");
+  }
+}
+
+function CreateDemoNode(context) {
+  let chunkSize = 1024;
+  let decimatedChunkSize = chunkSize / 2;
+  let demoNode = context.createScriptProcessor(chunkSize, 1, 1);
+
+  Module._DemoInitAudio(context.sampleRate / 2, decimatedChunkSize);
+  let sampleBuffer = Module._malloc(4 * decimatedChunkSize);
+
+  demoNode.onaudioprocess = (e) => {
+    let buffer = e.inputBuffer.getChannelData(0);
+    // Copy audio to output buffer so that it can be played.
+    e.outputBuffer.getChannelData(0).set(buffer);
+    // Copy to heap with 2x decimation to make accessible to wasm code.
+    for (var i = 0; i < decimatedChunkSize; i++) {
+      HEAPF32[(sampleBuffer >> 2) + i] = buffer[2 * i];
+    }
+
+    Module._DemoProcessAudio(sampleBuffer, decimatedChunkSize);
+  };
+  return demoNode;
+}
+
+function InitWebAudio() {
+  document.querySelector('#canvas').onclick = null;
+  context = new AudioContext();
+  console.log("sampleRate = " + context.sampleRate);
+
+  // Use as a (not very good) anti-aliasing filter.
+  antiAliasFilterNode = context.createBiquadFilter();
+  antiAliasFilterNode.type.value = "lowpass";
+  antiAliasFilterNode.frequency.value = 8000;  // Hertz.
+  antiAliasFilterNode.Q.value = 1;
+
+  demoNode = CreateDemoNode(context);
+  gainNode = context.createGain();
+
+  antiAliasFilterNode.connect(demoNode);
+  demoNode.connect(gainNode);
+  gainNode.connect(context.destination);  // Hook up the sound output.
+
+  // This function changes the audio graph to select either the test audio or microphone as input.
+  connectInputFun = (i) => {
+    if (currentInputNode != null) { currentInputNode.disconnect(); }
+    switch (i) {
+      case 0:  // Use test sound as input source.
+        ConnectTestAudio(context, antiAliasFilterNode);
+        gainNode.gain.value = 1.0;  // Enable output so that test sound can be heard.
+        break;
+
+      case 1:  // Use microphone as input source.
+        ConnectMicrophone(context, antiAliasFilterNode);
+        gainNode.gain.value = 0.0;  // Set output to zero, otherwise there is feedback.
+        break;
+
+      default:
+        currentInputNode = null;
+    }
+  };
+}
+
+function SelectInputSource(i) {
+  document.getElementById('canvas').onclick = null;
+  document.getElementById('canvas').style.borderWidth = "1px";
+  document.getElementById('canvas').style.borderColor = "#444";
+
+  if (connectInputFun == null) {
+    // For security, WebAudio can only be initialized by a user action. We have SelectInputSource as
+    // an onclick handler for clicking an input source, and initialize WebAudio here on first call.
+    InitWebAudio();
+  }
+  connectInputFun(i);
+}
+</script>
+</body>
+</html>

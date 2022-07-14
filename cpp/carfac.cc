@@ -1,4 +1,4 @@
-// Copyright 2013 The CARFAC Authors. All Rights Reserved.
+// Copyright 2013, 2015, 2017, 2022 The CARFAC Authors. All Rights Reserved.
 // Author: Alex Brandmeyer
 //
 // This file is part of an implementation of Lyon's cochlear model:
@@ -45,20 +45,10 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
   car_params_ = car_params;
   ihc_params_ = ihc_params;
   agc_params_ = agc_params;
-  num_channels_ = 0;
-  FPType pole_hz = car_params_.first_pole_theta * sample_rate_ / (2 * M_PI);
-  while (pole_hz > car_params_.min_pole_hz) {
-    ++num_channels_;
-    pole_hz = pole_hz - car_params_.erb_per_step *
-        ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
-  }
-  pole_freqs_.resize(num_channels_);
-  pole_hz = car_params_.first_pole_theta * sample_rate_ / (2 * M_PI);
-  for (int channel = 0; channel < num_channels_; ++channel) {
-    pole_freqs_(channel) = pole_hz;
-    pole_hz = pole_hz - car_params_.erb_per_step *
-        ERBHz(pole_hz, car_params_.erb_break_freq, car_params_.erb_q);
-  }
+
+  pole_freqs_ = CARPoleFrequencies(sample_rate, car_params);
+  num_channels_ = pole_freqs_.size();
+
   max_channels_per_octave_ = log(2) / std::log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
   IHCCoeffs ihc_coeffs;
@@ -379,11 +369,6 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
     previous_stage_gain = agc_coeff.agc_gain;
     decim = agc_coeff.decim;
   }
-}
-
-FPType CARFAC::ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
-                     FPType erb_q) {
-  return (erb_break_freq + center_frequency_hz) / erb_q;
 }
 
 CARFACOutput::CARFACOutput(bool store_nap, bool store_bm, bool store_ohc,

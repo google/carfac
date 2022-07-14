@@ -1,4 +1,4 @@
-# Copyright 2013 The CARFAC Authors. All Rights Reserved.
+# Copyright 2013-2014, 2017, 2021-2022 The CARFAC Authors. All Rights Reserved.
 # Author: Ron Weiss <ronw@google.com>
 #
 # This file is part of an implementation of Lyon's cochlear model:
@@ -48,7 +48,7 @@ To run unit tests, run:
 To clean up binaries, run:
   scons --clean
 
-To compile the library to .js, install emscripten as described at
+To compile the web demos, install emscripten as described at
 https://emscripten.org/docs/getting_started/downloads.html
 Then set EM_CONFIG to the directory containing the em++ binary:
 
@@ -56,6 +56,7 @@ Then set EM_CONFIG to the directory containing the em++ binary:
 
 Then run:
   scons carfac.js
+  scons pitchogram_web_bindings.js
 """
 
 import subprocess
@@ -101,10 +102,38 @@ emscripten_sources = ['carfac.cc', 'ear.cc', 'sai.cc', 'emscripten_bindings.cc']
 emscripten_env = Environment(
   ENV = dict(PATH=os.path.pathsep.join([env['ENV']['PATH'],
                                         os.environ['EM_CONFIG']])))
-emscripten_env.Command(
-  'carfac.js', emscripten_sources,
-  [
-    'em++ -O2 --bind {sources} -I {EIGEN_PATH} -std=c++11 -o carfac.js'.format(
+def web_bindings(target, sources, options=''):
+  emscripten_env.Command(
+    target, sources,
+    [
+      'em++ {options} {sources} -I {EIGEN_PATH} -o {target}'.format(
       EIGEN_PATH = os.environ['EIGEN_PATH'],
-      sources = ' '.join(emscripten_sources))
+      target = target,
+      sources = ' '.join(sources),
+      options = ('-O2 -std=c++11 --bind -s ENVIRONMENT=web ' +
+                 '-fno-exceptions ' + options))
+    ])
+
+web_bindings(
+  'carfac.js',
+  [
+    'car.cc',
+    'carfac.cc',
+    'ear.cc',
+    'emscripten_bindings.cc',
+    'sai.cc',
   ])
+
+web_bindings(
+  'pitchogram_web_bindings.js',
+  [
+    'car.cc',
+    'carfac.cc',
+    'color.cc',
+    'ear.cc',
+    'image.cc',
+    'pitchogram.cc',
+    'pitchogram_web_bindings.cc',
+    'sai.cc',
+  ],
+  options = '-s USE_SDL=2')

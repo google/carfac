@@ -1,4 +1,4 @@
-// Copyright 2013 The CARFAC Authors. All Rights Reserved.
+// Copyright 2013-2014, 2017, 2022 The CARFAC Authors. All Rights Reserved.
 // Author: Alex Brandmeyer
 //
 // This file is part of an implementation of Lyon's cochlear model:
@@ -55,6 +55,8 @@ class CARFAC {
   // independent of previous calls.  Does not modify the filterbank design.
   void Reset();
 
+  const CARParams& car_params() const { return car_params_; }
+
   // Consumes the entire sound data segment specified by sound_data
   // and stores the model output in output overwriting it.  Setting
   // open_loop to true breaks the AGC feedback loop, making the
@@ -90,12 +92,6 @@ class CARFAC {
   // open_loop to freeze the car coeffs rather than keep them following what
   // the AGC feedback says.
   void CloseAGCLoop(bool open_loop);
-
-  // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
-  // filter at the given center frequency.
-  // Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
-  static FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq,
-                      FPType erb_q);
 
   CARParams car_params_;
   IHCParams ihc_params_;
