@@ -113,7 +113,7 @@ void SAIBase::StabilizeSegment(const ArrayXX& triggering_input_buffer,
       // Blend the window following the trigger into the output
       // buffer, weighted according to the the trigger strength (0.05
       // to near 1.0).
-      FPType alpha = (0.025 + peak_val) / (0.5 + peak_val);
+      FPType alpha = (0.025f + peak_val) / (0.5f + peak_val);
       output_buffer->row(i) *= 1 - alpha;
       output_buffer->row(i) +=
           alpha * nontriggering_nap_wave.segment(

@@ -19,7 +19,7 @@
 #ifndef CARFAC_COMMON_H
 #define CARFAC_COMMON_H
 
-#include <assert.h>
+#include <cassert>
 
 // The Eigen library is used extensively for floating point arrays.
 // For more information, see: http://eigen.tuxfamily.org

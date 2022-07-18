@@ -18,11 +18,9 @@
 
 #include "sai.h"
 
-#include <math.h>
+#include <cmath>
 #include <iostream>
 #include <string>
-
-#include <Eigen/Core>
 
 #include "gtest/gtest.h"
 
@@ -32,6 +30,7 @@
 #include "common.h"
 #include "ihc.h"
 #include "test_util.h"
+#include <Eigen/Core>
 
 using testing::Values;
 

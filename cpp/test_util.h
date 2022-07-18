@@ -24,12 +24,11 @@
 #include <fstream>
 #include <string>
 
-#include <Eigen/Core>
-
 #include "gtest/gtest.h"
 
 #include "common.h"
 #include "sai.h"
+#include <Eigen/Core>
 
 // Location of the text files produced by 'CARFAC_GenerateTestData.m' for
 // comparing the ouput of the Matlab implementation with the C++ one.

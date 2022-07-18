@@ -18,13 +18,10 @@
 
 #include "carfac.h"
 
-#include <math.h>
 #include <cmath>
 
 #include "carfac_util.h"
 #include "ear.h"
-
-using std::vector;
 
 CARFAC::CARFAC(int num_ears, FPType sample_rate, const CARParams& car_params,
                const IHCParams& ihc_params, const AGCParams& agc_params) {
@@ -49,10 +46,10 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
   pole_freqs_ = CARPoleFrequencies(sample_rate, car_params);
   num_channels_ = pole_freqs_.size();
 
-  max_channels_per_octave_ = log(2) / std::log(pole_freqs_(0) / pole_freqs_(1));
+  max_channels_per_octave_ = M_LN2 / std::log(pole_freqs_(0) / pole_freqs_(1));
   CARCoeffs car_coeffs;
   IHCCoeffs ihc_coeffs;
-  vector<AGCCoeffs> agc_coeffs;
+  std::vector<AGCCoeffs> agc_coeffs;
   DesignCARCoeffs(car_params_, sample_rate_, pole_freqs_, &car_coeffs);
   DesignIHCCoeffs(ihc_params_, sample_rate_, &ihc_coeffs);
   DesignAGCCoeffs(agc_params_, sample_rate_, &agc_coeffs);
@@ -125,7 +122,7 @@ void CARFAC::CrossCouple() {
         for (Ear* ear : ears_) {
           accumulator_ += ear->agc_memory(stage);
         }
-        accumulator_ *= FPType(1.0 / num_ears_);  // Ears' mean AGC state.
+        accumulator_ *= FPType(1.0) / num_ears_;  // Ears' mean AGC state.
         // Mix the mean into all.
         for (Ear* ear : ears_) {
           ear->CrossCouple(accumulator_, stage);
@@ -156,7 +153,7 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params,
   car_coeffs->h_coeffs.resize(num_channels);
   car_coeffs->g0_coeffs.resize(num_channels);
   FPType f = car_params.zero_ratio * car_params.zero_ratio - 1.0;
-  ArrayX theta = pole_freqs * ((2.0 * M_PI) / sample_rate);
+  ArrayX theta = pole_freqs * (FPType(2.0 * M_PI) / sample_rate);
   car_coeffs->c0_coeffs = theta.sin();
   car_coeffs->a0_coeffs = theta.cos();
   FPType ff = car_params.high_f_damping_compression;
@@ -247,16 +244,16 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
 }
 
 void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
-                             vector<AGCCoeffs>* agc_coeffs) {
+                             std::vector<AGCCoeffs>* agc_coeffs) {
   agc_coeffs->resize(agc_params.num_stages);
   FPType previous_stage_gain = 0.0;
   FPType decim = 1.0;
   for (int stage = 0; stage < agc_params.num_stages; ++stage) {
     AGCCoeffs& agc_coeff = agc_coeffs->at(stage);
     agc_coeff.agc_stage_gain = agc_params.agc_stage_gain;
-    vector<FPType> agc1_scales = agc_params.agc1_scales;
-    vector<FPType> agc2_scales = agc_params.agc2_scales;
-    vector<FPType> time_constants = agc_params.time_constants;
+    std::vector<FPType> agc1_scales = agc_params.agc1_scales;
+    std::vector<FPType> agc2_scales = agc_params.agc2_scales;
+    std::vector<FPType> time_constants = agc_params.time_constants;
     FPType mix_coeff = agc_params.agc_mix_coeff;
     agc_coeff.decimation = agc_params.decimation[stage];
     FPType total_dc_gain = previous_stage_gain;
@@ -272,7 +269,7 @@ void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
         (std::pow(agc1_scales[stage], 2) + std::pow(agc2_scales[stage], 2)) /
         n_times;
     FPType u = 1 + (1 / spread_sq);
-    FPType p = u - sqrt(std::pow(u, 2) - 1);
+    FPType p = u - std::sqrt(std::pow(u, 2) - 1);
     FPType dp = delay * (1 - (2 * p) + (p*p)) / 2;
     agc_coeff.agc_pole_z1 = p - dp;
     agc_coeff.agc_pole_z2 = p + dp;
@@ -381,13 +378,13 @@ CARFACOutput::CARFACOutput(bool store_nap, bool store_bm, bool store_ohc,
 
 namespace {
 void ResizeContainer(int num_ears, int num_channels, int num_samples,
-                     vector<ArrayXX>* container) {
+                     std::vector<ArrayXX>* container) {
   container->resize(num_ears);
   for (ArrayXX& matrix : *container) {
     matrix.resize(num_channels, num_samples);
   }
 }
-}  // anonymous namespace
+}  // namespace
 
 void CARFACOutput::Resize(int num_ears, int num_channels, int num_samples) {
   if (store_nap_) {
@@ -404,7 +401,8 @@ void CARFACOutput::Resize(int num_ears, int num_channels, int num_samples) {
   }
 }
 
-void CARFACOutput::AssignFromEars(const vector<Ear*>& ears, int sample_index) {
+void CARFACOutput::AssignFromEars(const std::vector<Ear*>& ears,
+                                  int sample_index) {
   for (int i = 0; i < ears.size(); ++i) {
     const Ear* ear = ears[i];
     if (store_nap_) {

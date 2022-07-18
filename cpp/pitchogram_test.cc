@@ -16,6 +16,7 @@
 #include "pitchogram.h"
 
 #include "gtest/gtest.h"
+
 #include "agc.h"
 #include "car.h"
 #include "carfac.h"

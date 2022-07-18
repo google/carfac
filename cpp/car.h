@@ -19,7 +19,7 @@
 #ifndef CARFAC_CAR_H
 #define CARFAC_CAR_H
 
-#include <math.h>
+#include <cmath>
 
 #include "common.h"
 

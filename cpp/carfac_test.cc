@@ -16,8 +16,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <Eigen/Core>
-#include <math.h>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -30,8 +29,7 @@
 #include "ear.h"
 #include "ihc.h"
 #include "test_util.h"
-
-using std::vector;
+#include <Eigen/Core>
 
 // Reads a two dimensional vector of audio data from a text file
 // containing the output of the Matlab wavread() function.
@@ -50,11 +48,11 @@ class CARFACTest : public testing::Test {
  protected:
   CARFACTest() : open_loop_(false) {}
 
-  vector<ArrayXX> LoadTestData(const std::string& basename,
-                               int num_samples,
-                               int num_ears,
-                               int num_channels) const {
-    vector<ArrayXX> test_data;
+  std::vector<ArrayXX> LoadTestData(const std::string& basename,
+                                    int num_samples,
+                                    int num_ears,
+                                    int num_channels) const {
+    std::vector<ArrayXX> test_data;
     for (int ear = 0; ear < num_ears; ++ear) {
       std::string filename = basename + std::to_string(ear + 1) + ".txt";
       // The Matlab CARFAC output is transposed compared to the C++.
@@ -64,8 +62,8 @@ class CARFACTest : public testing::Test {
     return test_data;
   }
 
-  void AssertCARFACOutputNear(const vector<ArrayXX>& expected,
-                              const vector<ArrayXX>& actual) const {
+  void AssertCARFACOutputNear(const std::vector<ArrayXX>& expected,
+                              const std::vector<ArrayXX>& actual) const {
     ASSERT_EQ(expected.size(), actual.size());
     for (int ear = 0; ear < expected.size(); ++ear) {
       AssertArrayNear(expected[ear], actual[ear], kTestPrecision);
@@ -84,10 +82,10 @@ class CARFACTest : public testing::Test {
     CARFACOutput output(true, true, false, false);
     carfac.RunSegment(sound_data, open_loop_, &output);
 
-    vector<ArrayXX> expected_nap = LoadTestData(
+    std::vector<ArrayXX> expected_nap = LoadTestData(
         test_name + "-matlab-nap", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_nap, output.nap());
-    vector<ArrayXX> expected_bm = LoadTestData(
+    std::vector<ArrayXX> expected_bm = LoadTestData(
         test_name + "-matlab-bm", num_samples, num_ears, num_channels);
     AssertCARFACOutputNear(expected_bm, output.bm());
 
@@ -192,7 +190,7 @@ TEST_F(CARFACTest, MatchesMatlabWithIHCJustHalfWaveRectifyOn) {
 TEST_F(CARFACTest, AGCDesignBehavesSensibly) {
   const int kNumEars = 2;
   const FPType kSampleRate = 22050.0;
-  const vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8, 3.5, 4.0};
+  const std::vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8, 3.5, 4.0};
   for (int i = 0; i < spreads.size(); ++i) {
     FPType spread = spreads[i];
     EXPECT_GE(spread, 0);
@@ -244,7 +242,7 @@ TEST_F(CARFACTest, AGCDesignBehavesSensibly) {
 TEST_F(CARFACTest, AGCDesignAtLowSampleRate) {
   const int kNumEars = 2;
   const FPType kSampleRate = 8000.0;
-  const vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8};
+  const std::vector<FPType> spreads = {0.0, 1.0, 1.4, 2.0, 2.8};
   for (int i = 0; i < spreads.size(); ++i) {
     FPType spread = spreads[i];
     EXPECT_GE(spread, 0);

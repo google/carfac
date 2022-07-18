@@ -23,18 +23,16 @@
 #include <cstdlib>
 #include <memory>
 
+#include "SDL2/SDL.h"
 #include "agc.h"
 #include "car.h"
 #include "carfac.h"
-#include "ihc.h"
-#include "sai.h"
-
-#include "common.h"
 #include "color.h"
+#include "common.h"
+#include "ihc.h"
 #include "image.h"
 #include "pitchogram.h"
-
-#include "SDL2/SDL.h"
+#include "sai.h"
 
 // Width of the pitchogram in frames.
 constexpr int kNumFrames = 400;
