@@ -87,7 +87,7 @@ function ConnectMicrophone(context, consumerNode) {
 }
 
 function CreateDemoNode(context) {
-  let chunkSize = 1024;
+  let chunkSize = 512;
   let decimatedChunkSize = chunkSize / 2;
   let demoNode = context.createScriptProcessor(chunkSize, 1, 1);
 

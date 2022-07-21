@@ -47,15 +47,23 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
     // If log_lag is true, set up ResamplingCells to warp the pitchogram to a
     // log axis. The ith cell covers the interval
     //
-    //   min_lag_s * spacing^(i - 0.5) <= lag <= min_lag_s * spacing^(i + 0.5).
+    //   (min_lag_s + log_offset_s) * spacing^i - log_offset_s
+    //   <= lag
+    //   <= (min_lag_s + log_offset_s) * spacing^(i + 1) - log_offset_s
+    //
+    // with spacing = 2^(1/lags_per_octave) such that
+    //
+    //   i / lags_per_octave
+    //   <= log2(lag + log_offset_s) - log2(min_lag_s + log_offset_s)
+    //   <= (i + 1) / lags_per_octave.
     //
     // We iteratively construct cells until we exceed sai_width.
     const double spacing = std::exp2(1.0 / pitchogram_params_.lags_per_octave);
-    double left_edge =
-        sample_rate * pitchogram_params_.min_lag_s / std::sqrt(spacing);
+    const double log_offset = sample_rate * pitchogram_params_.log_offset_s;
+    double left_edge = sample_rate * pitchogram_params_.min_lag_s;
 
     while (true) {
-      const double right_edge = left_edge * spacing;
+      const double right_edge = (left_edge + log_offset) * spacing - log_offset;
       ResamplingCell cell(left_edge, right_edge);
       if (cell.right_index >= sai_params.sai_width) { break; }
       log_lag_cells_.push_back(cell);
@@ -95,12 +103,15 @@ Pitchogram::ResamplingCell::ResamplingCell(float left_edge, float right_edge) {
     float grow = 0.5f * (1.0f - cell_width);
     left_edge -= grow;
     right_edge += grow;
-    cell_width = 1.0f;
   }
 
-  left_index = std::max(0, static_cast<int>(std::round(left_edge)));
-  right_index = std::max(0, static_cast<int>(std::round(right_edge)));
-  if (right_index > left_index) {
+  left_edge = std::max<float>(0.0f, left_edge);
+  right_edge = std::max<float>(0.0f, right_edge);
+  cell_width = right_edge - left_edge;
+
+  left_index = static_cast<int>(std::round(left_edge));
+  right_index = static_cast<int>(std::round(right_edge));
+  if (right_index > left_index && cell_width > 0.999f) {
     left_weight = (0.5f - (left_edge - left_index)) / cell_width;
     interior_weight = 1.0f / cell_width;
     right_weight = (0.5f + (right_edge - right_index)) / cell_width;

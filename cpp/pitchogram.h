@@ -34,11 +34,14 @@ struct PitchogramParams {
   // If log_lag is true, the min lag in seconds to sample. The max lag is
   // determined by the sai_width.
   float min_lag_s;
+  // If log_lag is true, stabilizing offset added to the lag before taking log.
+  float log_offset_s;
 
   PitchogramParams()
     : log_lag(true),
-      lags_per_octave(50.0f),
-      min_lag_s(0.0005f) {}
+      lags_per_octave(36.0f),
+      min_lag_s(0.0005f),
+      log_offset_s(0.0025f) {}
 };
 
 class Pitchogram {

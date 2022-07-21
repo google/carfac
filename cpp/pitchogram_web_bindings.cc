@@ -37,7 +37,7 @@
 // Width of the pitchogram in frames.
 constexpr int kNumFrames = 400;
 // Max lag in the pitchogram in units of seconds.
-constexpr float kMaxLag = 0.03f;
+constexpr float kMaxLag = 0.05f;
 // Highest pole frequency in Hz.
 constexpr float kHighestPoleHz = 7000.0f;
 
@@ -200,6 +200,9 @@ extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad() {
     std::fprintf(stderr, "Failed to create renderer: %s\n", SDL_GetError());
     std::exit(1);
   }
+
+  // Use bilinear sampling in the SDL_RenderCopy operation below.
+  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 }
 
 // Emscripten will call this function once per frame to do event processing
