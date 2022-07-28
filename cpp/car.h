@@ -81,7 +81,17 @@ struct CARState {
 };
 
 // Computes CAR pole frequency in Hz for each channel.
-ArrayX CARPoleFrequencies(FPType sample_rate, const CARParams& car_params);
+ArrayX CARPoleFrequencies(FPType sample_rate_hz, const CARParams& car_params);
+
+// Computes CAR pole frequency in Hz as a continuous function of channel index.
+FPType CARChannelIndexToFrequency(FPType sample_rate_hz,
+                                  const CARParams& car_params,
+                                  FPType channel_index);
+
+// Computes CAR channel index as a continuous function of pole frequency.
+FPType CARFrequencyToChannelIndex(FPType sample_rate_hz,
+                                  const CARParams& car_params,
+                                  FPType pole_freq);
 
 // Computes the nominal Equivalent Rectangular Bandwidth (ERB) of an auditory
 // filter at the given center frequency.

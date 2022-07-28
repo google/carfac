@@ -41,10 +41,6 @@ constexpr float kMaxLag = 0.05f;
 // Highest pole frequency in Hz.
 constexpr float kHighestPoleHz = 7000.0f;
 
-// Dimensions of the SDL surface in pixels used to show the pitchogram.
-constexpr int kCanvasWidth = 1024;
-constexpr int kCanvasHeight = 768;
-
 template <typename T>
 const T& clamp(const T& x, const T& min_value, const T& max_value) {
   return std::min(std::max(x, min_value), max_value);
@@ -55,14 +51,13 @@ class ScrollingPlot {
  public:
   ScrollingPlot() = default;
 
-  ScrollingPlot(int width, int height)
-      : plot_(width, height, 3), plot_view_(plot_) {
-    Reset();
-  }
+  ScrollingPlot(int width, int height) { Redesign(width, height); }
 
   void Redesign(int width, int height) {
     plot_ = Image<uint8_t>(width, height, 3);
     plot_view_ = plot_;
+    rightmost_col_ = Image<uint8_t>(plot_.data() + 3 * (plot_.width() - 1), 1,
+                                    0, plot_.height(), plot_.y_stride(), 3, 1);
     Reset();
   }
 
@@ -71,26 +66,18 @@ class ScrollingPlot {
   }
 
   const Image<const uint8_t>& image() const { return plot_view_; }
+  Image<uint8_t>& rightmost_col() { return rightmost_col_; }
 
-  // Scroll left one frame and append `frame` as the rightmost column.
-  void PushFrame(const ArrayX& frame, float max_value) {
-    CARFAC_ASSERT(plot_.height() == frame.size());
-
-    // Scroll the plot image one frame left.
+  // Scroll the plot image one frame left.
+  void Scroll() {
     std::memmove(plot_.data(), plot_.data() + plot_.channels(),
                  (plot_.num_pixels() - 1) * plot_.channels());
-
-    const Colormap& colormap = kMagmaColormap;
-    const float scale = 1.0f / max_value;
-    for (int y = 0; y < frame.size(); ++y) {
-      Color<uint8_t>::Vector::Map(&plot_(plot_.width() - 1, y)) =
-          colormap(scale * frame[y]);
-    }
   }
 
  private:
   Image<uint8_t> plot_;
   Image<const uint8_t> plot_view_;
+  Image<uint8_t> rightmost_col_;
 };
 
 // Create a pitchogram visualization.
@@ -104,8 +91,7 @@ class PitchogramPlotter {
     carfac_output_buffer_.reset(new CARFACOutput(true, false, false, false));
 
     sai_params_.num_channels = carfac_->num_channels();
-    sai_params_.sai_width =
-          static_cast<int>(std::round(kMaxLag * sample_rate));
+    sai_params_.sai_width = static_cast<int>(std::round(kMaxLag * sample_rate));
     sai_params_.input_segment_width = num_samples_per_segment;
     sai_params_.trigger_window_width = sai_params_.input_segment_width + 1;
     sai_params_.future_lags = sai_params_.sai_width - 1;
@@ -129,8 +115,35 @@ class PitchogramPlotter {
     carfac_->RunSegment(input_map, false /* open_loop */,
                         carfac_output_buffer_.get());
     sai_->RunSegment(carfac_output_buffer_->nap()[0], &sai_output_buffer_);
+
+    // Get the next pitchogram frame.
     const ArrayX& pitchogram_frame = pitchogram_->RunFrame(sai_output_buffer_);
-    plot_.PushFrame(pitchogram_frame, 4.0f);
+    // Get 2D vowel embedding vector for vowel coloring.
+    auto w = pitchogram_->VowelEmbedding(carfac_output_buffer_->nap()[0]);
+
+    // Partially normalize the embedding vector's magnitude to stretch it toward
+    // the unit circle. This encourages the display toward more saturated,
+    // distinguishable tint colors instead of muddy grayish colors.
+    w *= std::pow(0.003f + w.squaredNorm(), -0.25f);
+
+    // Convert the 2D embedding vector to an RGB tint color. The intention is a
+    // cylindrical mapping like:
+    //  * w = (0, 0) maps close to gray.
+    //  * Saturation increases with the norm of w.
+    //  * Hue varies with the angle of w.
+    //  * Brightness is approximately constant.
+    Color<float> tint(-0.6f * w[1] + 0.6f,
+                      -0.6f * w[0] + 0.6f,
+                      0.35f * (w[0] + w[1]) + 0.5f);
+    // Scale so that `tint * pitchogram_frame[y]` below fills the 0-255 range.
+    tint *= 0.45f * 255;
+
+    plot_.Scroll();
+    for (int y = 0; y < pitchogram_frame.size(); ++y) {
+      Color<uint8_t>::Map(&plot_.rightmost_col()(0, y)) =
+          (tint * pitchogram_frame[y])
+          .round().max(0).min(255).cast<uint8_t>();
+    }
   }
 
  private:
@@ -162,7 +175,10 @@ static void MainTick();
 
 // Initializes SDL. This gets called immediately after the emscripten runtime
 // has initialized.
-extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad() {
+extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad(
+    int canvas_width, int canvas_height) {
+  std::fprintf(stderr, "Canvas: %d x %d\n", canvas_width, canvas_height);
+
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     std::fprintf(stderr, "Error: %s\n", SDL_GetError());
     std::exit(1);
@@ -179,9 +195,9 @@ extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad() {
   // otherwise there is an error "Cannot set timing mode for main loop".
   emscripten_set_main_loop(MainTick, 0, false);
 
-  if (!(engine.window = SDL_CreateWindow(
-      "", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-      kCanvasWidth, kCanvasHeight, SDL_WINDOW_SHOWN))) {
+  if (!(engine.window = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED,
+                                         SDL_WINDOWPOS_UNDEFINED, canvas_width,
+                                         canvas_height, SDL_WINDOW_SHOWN))) {
     std::fprintf(stderr, "Failed to create window: %s\n", SDL_GetError());
     std::exit(1);
   }

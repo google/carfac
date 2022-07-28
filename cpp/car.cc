@@ -22,9 +22,9 @@ FPType ERBHz(FPType center_frequency_hz, FPType erb_break_freq, FPType erb_q) {
   return (erb_break_freq + center_frequency_hz) / erb_q;
 }
 
-ArrayX CARPoleFrequencies(FPType sample_rate, const CARParams& car_params) {
+ArrayX CARPoleFrequencies(FPType sample_rate_hz, const CARParams& car_params) {
   int num_channels = 0;
-  FPType pole_hz = car_params.first_pole_theta * sample_rate /
+  FPType pole_hz = car_params.first_pole_theta * sample_rate_hz /
                    static_cast<FPType>(2.0 * M_PI);
   while (pole_hz > car_params.min_pole_hz) {
     ++num_channels;
@@ -33,7 +33,7 @@ ArrayX CARPoleFrequencies(FPType sample_rate, const CARParams& car_params) {
   }
 
   ArrayX pole_freqs(num_channels);
-  pole_hz = car_params.first_pole_theta * sample_rate / (2 * M_PI);
+  pole_hz = car_params.first_pole_theta * sample_rate_hz / (2 * M_PI);
   for (int channel = 0; channel < num_channels; ++channel) {
     pole_freqs[channel] = pole_hz;
     pole_hz -= car_params.erb_per_step *
@@ -41,4 +41,26 @@ ArrayX CARPoleFrequencies(FPType sample_rate, const CARParams& car_params) {
   }
 
   return pole_freqs;
+}
+
+FPType CARChannelIndexToFrequency(FPType sample_rate_hz,
+                                  const CARParams& car_params,
+                                  FPType channel_index) {
+  const FPType pole0_hz = car_params.first_pole_theta * sample_rate_hz /
+                          static_cast<FPType>(2.0 * M_PI);
+  const FPType break_freq = car_params.erb_break_freq;
+  const FPType ratio = 1 - car_params.erb_per_step / car_params.erb_q;
+  return (pole0_hz + break_freq) * std::pow(ratio, channel_index) - break_freq;
+}
+
+FPType CARFrequencyToChannelIndex(FPType sample_rate_hz,
+                                  const CARParams& car_params,
+                                  FPType pole_freq) {
+  const FPType pole0_hz = car_params.first_pole_theta * sample_rate_hz /
+                          static_cast<FPType>(2.0 * M_PI);
+  const FPType break_freq = car_params.erb_break_freq;
+  const FPType ratio = 1 - car_params.erb_per_step / car_params.erb_q;
+  pole_freq = std::min(std::max(pole_freq, car_params.min_pole_hz), pole0_hz);
+  return std::log((pole_freq + break_freq) / (pole0_hz + break_freq)) /
+         std::log(ratio);
 }

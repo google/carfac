@@ -23,11 +23,11 @@ const Eigen::RowVector3f kRgbToGrayFloatCoeffs(0.299f, 0.587f, 0.114f);
 
 uint8_t RgbToGray(const Color<uint8_t>& color) {
   return (kRgbToGrayUint8Coeffs
-          .dot(color.template cast<int_fast16_t>()) + 128) >> 8;
+          .dot(color.template cast<int_fast16_t>().matrix()) + 128) >> 8;
 }
 
 float RgbToGray(const Color<float>& color) {
-  return kRgbToGrayFloatCoeffs.dot(color);
+  return kRgbToGrayFloatCoeffs.dot(color.matrix());
 }
 
 // These values were obtained in Python as follows:

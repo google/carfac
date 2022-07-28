@@ -15,6 +15,8 @@
 
 #include "pitchogram.h"
 
+#include <cmath>
+
 Pitchogram::Pitchogram(FPType sample_rate, const CARParams& car_params,
                        const SAIParams& sai_params,
                        const PitchogramParams& pitchogram_params) {
@@ -26,11 +28,12 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
                           const PitchogramParams& pitchogram_params) {
   pitchogram_params_ = pitchogram_params;
 
-  mask_ = ArrayXX::Ones(sai_params.num_channels, sai_params.sai_width);
   ArrayX pole_frequencies = CARPoleFrequencies(sample_rate, car_params);
-  const int center = sai_params.sai_width - sai_params.future_lags;
+
   // Create a binary mask to suppress the SAI's zero-lag peak. For the cth row,
   // we get the cth pole frequency and mask lags within half a cycle of zero.
+  mask_ = ArrayXX::Ones(sai_params.num_channels, sai_params.sai_width);
+  const int center = sai_params.sai_width - sai_params.future_lags;
   for (int c = 0; c < pole_frequencies.size(); ++c) {
     const float half_cycle_samples = 0.5f * sample_rate / pole_frequencies[c];
     const int i_start = std::min(std::max(static_cast<int>(std::floor(
@@ -39,6 +42,27 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
       center + half_cycle_samples)), 0), sai_params.sai_width - 1);
     mask_.row(c).segment(i_start, i_end - i_start + 1).setZero();
   }
+
+  // Create vowel embedding matrix. The rows of the matrix are simple extractors
+  // for the F1 and F2 formants, each based on a difference of two Gaussians.
+  vowel_matrix_.resize(2, sai_params.num_channels);
+  auto kernel = [](FPType center, int c) {
+    const FPType z = (c - center) / FPType(2.75);
+    return std::exp((z * z) / -2);
+  };
+  FPType f2_hi = CARFrequencyToChannelIndex(sample_rate, car_params, 2365);
+  FPType f2_lo = CARFrequencyToChannelIndex(sample_rate, car_params, 1100);
+  FPType f1_hi = CARFrequencyToChannelIndex(sample_rate, car_params, 700);
+  FPType f1_lo = CARFrequencyToChannelIndex(sample_rate, car_params, 265);
+  for (int c = 0; c < pole_frequencies.size(); ++c) {
+    vowel_matrix_(0, c) = kernel(f2_lo, c) - kernel(f2_hi, c);
+    vowel_matrix_(1, c) = kernel(f1_lo, c) - kernel(f1_hi, c);
+  }
+  vowel_matrix_ *= car_params.erb_per_step;
+  const FPType frame_rate_hz = sample_rate / sai_params.input_segment_width;
+  cgram_smoother_ = 1 - std::exp(
+      -1 / (pitchogram_params_.vowel_time_constant_s * frame_rate_hz));
+  cgram_.resize(pole_frequencies.size());
 
   log_lag_cells_.clear();
   if (!pitchogram_params_.log_lag) {
@@ -79,6 +103,7 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
 
 void Pitchogram::Reset() {
   output_.setZero();
+  cgram_.setZero();
 }
 
 const ArrayX& Pitchogram::RunFrame(const ArrayXX& sai_frame) {
@@ -94,6 +119,11 @@ const ArrayX& Pitchogram::RunFrame(const ArrayXX& sai_frame) {
     }
   }
   return output_;
+}
+
+Pitchogram::VowelCoordinates Pitchogram::VowelEmbedding(const ArrayXX& nap) {
+  cgram_ += cgram_smoother_ * (nap.rowwise().mean() - cgram_);
+  return vowel_matrix_ * cgram_.matrix();
 }
 
 Pitchogram::ResamplingCell::ResamplingCell(float left_edge, float right_edge) {

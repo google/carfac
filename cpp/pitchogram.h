@@ -37,11 +37,15 @@ struct PitchogramParams {
   // If log_lag is true, stabilizing offset added to the lag before taking log.
   float log_offset_s;
 
+  // Time constant for smoothing the cgram used in vowel embedding.
+  float vowel_time_constant_s;
+
   PitchogramParams()
     : log_lag(true),
       lags_per_octave(36.0f),
       min_lag_s(0.0005f),
-      log_offset_s(0.0025f) {}
+      log_offset_s(0.0025f),
+      vowel_time_constant_s(0.025f) {}
 };
 
 class Pitchogram {
@@ -68,11 +72,20 @@ class Pitchogram {
   // plot, the caller should stack the columns from successive RunFrame() calls.
   const ArrayX& RunFrame(const ArrayXX& sai_frame);
 
+  using VowelCoordinates = Eigen::Matrix<FPType, 2, 1>;
+  // Map the nap to a 2D coordinate in an embedding space that tends to
+  // distinguish monophthong vowels.
+  VowelCoordinates VowelEmbedding(const ArrayXX& nap);
+
  private:
   PitchogramParams pitchogram_params_;
   ArrayXX mask_;
   ArrayX workspace_;
   ArrayX output_;
+
+  Eigen::Matrix<FPType, 2, Eigen::Dynamic> vowel_matrix_;
+  ArrayX cgram_;
+  FPType cgram_smoother_;
 
   // Resampling weights, used to resample the pitchogram when log_lag is true.
   // Conceptually, the linear lag pitchogram is considered as a piecewise

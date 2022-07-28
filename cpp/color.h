@@ -25,25 +25,25 @@
 #include "common.h"
 
 // Templated class representing a color. The `Scalar` template arg may be either
-// uint8_t or float. Color<float> inherits from Eigen::Vector3f (and similarly
+// uint8_t or float. Color<float> inherits from Eigen::Array3f (and similarly
 // for Color<uint8_t>) so that the color may be manipulated with Eigen APIs.
 template <typename _Scalar /* uint8_t or float */>
-class Color : public Eigen::Matrix<_Scalar, 3, 1> {
+class Color : public Eigen::Array<_Scalar, 3, 1> {
  public:
   using Scalar = _Scalar;
-  using Vector = Eigen::Matrix<Scalar, 3, 1>;
+  using Array = Eigen::Array<Scalar, 3, 1>;
 
-  Color(): Vector() {}
+  Color(): Array() {}
   template<typename OtherDerived>
-  Color(const Eigen::MatrixBase<OtherDerived>& other): Vector(other) {}
+  Color(const Eigen::ArrayBase<OtherDerived>& other): Array(other) {}
   template<typename OtherDerived>
-  Color& operator=(const Eigen::MatrixBase<OtherDerived>& other) {
+  Color& operator=(const Eigen::ArrayBase<OtherDerived>& other) {
     this->Vector::operator=(other);
     return *this;
   }
 
   // Constructs from 3 Scalars.
-  Color(Scalar r, Scalar g, Scalar b): Vector(r, g, b) {}
+  Color(Scalar r, Scalar g, Scalar b): Array(r, g, b) {}
 
   // Creates a grayscale Color (value, value, value).
   static Color Gray(Scalar value) { return Color(value, value, value); }
@@ -60,7 +60,7 @@ struct Colormap {
   Color<uint8_t> operator()(float x) const {
     const int index = static_cast<int>(std::min<float>(
         std::max<float>(std::round((kLevels - 1) * x), 0.0f), kLevels - 1));
-    return Color<uint8_t>::Vector::Map(lut[index]);
+    return Color<uint8_t>::Map(lut[index]);
   }
 
   enum { kLevels = 256 };  // Number of colors in the colormap.

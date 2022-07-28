@@ -17,6 +17,8 @@
 
 #include "gtest/gtest.h"
 
+using ::testing::PrintToString;
+
 // Definitions so that GUnit can print Colors.
 void PrintTo(const Color<uint8_t>& color, std::ostream* os) {
   *os << '(' << static_cast<int>(color[0]) << ", "
@@ -36,14 +38,24 @@ testing::AssertionResult ColorIsClose(const Color<Scalar>& actual,
   // overflow if the Scalar type is uint8_t.
   const double diff = (actual.template cast<double>() -
                        expected.template cast<double>())
-                          .template lpNorm<Eigen::Infinity>();
+                          .matrix().template lpNorm<Eigen::Infinity>();
   if (diff <= tol) {
     return testing::AssertionSuccess();
   } else {
-    return testing::AssertionFailure()
-           << testing::PrintToString(actual) << " differs from "
-           << testing::PrintToString(expected) << " by more than " << tol;
+    auto failure = testing::AssertionFailure()
+                   << PrintToString(actual)
+                   << (tol == 0.0 ? " is not equal to " : " differs from ")
+                   << PrintToString(expected);
+    if (tol != 0.0) { failure << " by more than " << tol; }
+    return failure;
   }
+}
+
+// Asserts that two Colors are equal.
+template <typename Scalar>
+testing::AssertionResult ColorIsEqual(const Color<Scalar>& actual,
+                                      const Color<Scalar>& expected) {
+  return ColorIsClose(actual, expected, 0.0);
 }
 
 namespace {
@@ -56,34 +68,32 @@ TEST(ColorTest, BasicUint8) {
 
   Color<uint8_t> other;
   other = color;
-  ASSERT_EQ(other, Color<uint8_t>(120, 71, 5));
+  ASSERT_TRUE(ColorIsEqual(other, {120, 71, 5}));
 }
 
 TEST(ColorTest, BasicFloat) {
   Color<float> color(0.1f, 0.2f, 0.3f);
-  ASSERT_EQ(color[0], 0.1f);
-  ASSERT_EQ(color[1], 0.2f);
-  ASSERT_EQ(color[2], 0.3f);
+  ASSERT_TRUE(ColorIsEqual(color, {0.1f, 0.2f, 0.3f}));
 
   Color<float> other;
   other = color;
-  ASSERT_EQ(other, Color<float>(0.1f, 0.2f, 0.3f));
+  ASSERT_TRUE(ColorIsEqual(other, {0.1f, 0.2f, 0.3f}));
 }
 
-TEST(ColorTest, VectorAccessor) {
+TEST(ColorTest, InheritsEigenMethods) {
   Color<uint8_t> color;
   color.setConstant(40);
-  ASSERT_EQ(color, Color<uint8_t>::Gray(40));
+  ASSERT_TRUE(ColorIsEqual(color, Color<uint8_t>::Gray(40)));
 }
 
 TEST(ColorTest, CopyToFrom) {
   Color<uint8_t> color(120, 71, 5);
 
   uint8_t buffer[3];
-  Color<uint8_t>::Vector::Map(buffer) = color;
+  Color<uint8_t>::Map(buffer) = color;
 
-  Color<uint8_t> other = Color<uint8_t>::Vector::Map(buffer);
-  ASSERT_EQ(other, Color<uint8_t>(120, 71, 5));
+  Color<uint8_t> other = Color<uint8_t>::Map(buffer);
+  ASSERT_TRUE(ColorIsEqual(other, {120, 71, 5}));
 }
 
 TEST(ColorTest, ToGrayUint8) {
@@ -114,13 +124,18 @@ TEST(ColorTest, Colormap) {
   }
 
   constexpr int kTol = 2;
-  ASSERT_TRUE(ColorIsClose(colormap(0.1f), Color<uint8_t>(26, 13, 229), kTol));
-  ASSERT_TRUE(ColorIsClose(colormap(0.2f), Color<uint8_t>(51, 25, 204), kTol));
-  ASSERT_TRUE(ColorIsClose(colormap(0.7f), Color<uint8_t>(179, 89, 76), kTol));
-  ASSERT_TRUE(ColorIsClose(colormap(0.9f), Color<uint8_t>(229, 114, 26), kTol));
+  ASSERT_TRUE(ColorIsClose(colormap(0.1f), {26, 13, 229}, kTol));
+  ASSERT_TRUE(ColorIsClose(colormap(0.2f), {51, 25, 204}, kTol));
+  ASSERT_TRUE(ColorIsClose(colormap(0.7f), {179, 89, 76}, kTol));
+  ASSERT_TRUE(ColorIsClose(colormap(0.9f), {229, 114, 26}, kTol));
   // Out of range input is saturated.
-  ASSERT_EQ(colormap(-10.0f), Color<uint8_t>(0, 0, 255));
-  ASSERT_EQ(colormap(10.0f), Color<uint8_t>(255, 127, 0));
+  ASSERT_TRUE(ColorIsEqual(colormap(-10.0f), {0, 0, 255}));
+  ASSERT_TRUE(ColorIsEqual(colormap(10.0f), {255, 127, 0}));
+}
+
+TEST(ColorTest, MagmaColormap) {
+  ASSERT_TRUE(ColorIsEqual(kMagmaColormap(8.0f / 255), {3, 3, 18}));
+  ASSERT_TRUE(ColorIsEqual(kMagmaColormap(1.0f), {252, 253, 191}));
 }
 
 }  // namespace

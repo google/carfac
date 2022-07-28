@@ -21,7 +21,7 @@ html {font-size:100%; font-family:'Roboto'; line-height:1.5;
   background-color:#000; color:#ccc}
 body {font-size:18px; margin:auto; max-width:53em; background-color:#000; padding: 0 3em 1em 3em;}
 a {color:#82b1ff; text-decoration: none}
-h1, h2 {color: #e85362; margin-bottom:0;
+h1, h2 {color: #eee; margin-bottom:0;
   font-weight: normal; font-family: 'Montserrat', sans-serif;}
 h1 {font-size: 2.5em; margin-top:1em; text-align: center}
 h2 {font-size: 1.7em; margin:0}
@@ -36,7 +36,7 @@ p {margin:0 0 1ex 0; padding:0}
 
 <div style="margin: auto">
 <canvas id="canvas" width="1024" height="768"
- style="border:3px solid #a6317d" onclick="SelectInputSource(1)">
+ style="border:3px solid #d91" onclick="SelectInputSource(1)">
   Your browser does not support the canvas element.
 </canvas>
 </div>
@@ -46,7 +46,9 @@ p {margin:0 0 1ex 0; padding:0}
 <script src="./pitchogram_web_bindings.js"></script>
 <script>
 Module.canvas = document.querySelector('#canvas');
-Module.onRuntimeInitialized = async _ => { Module._OnLoad(); }
+Module.onRuntimeInitialized = async _ => {
+  Module._OnLoad(Module.canvas.width, Module.canvas.height);
+}
 
 let testSoundNode = null;
 let microphoneNode = null;

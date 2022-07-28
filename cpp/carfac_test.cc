@@ -44,6 +44,23 @@ void WriteNAPOutput(const CARFACOutput& output, const std::string& filename,
   WriteMatrix(filename, output.nap()[ear].transpose());
 }
 
+TEST(CarTest, PoleFrequencies) {
+  constexpr FPType SampleRateHz = 16000;
+  const CARParams params;
+  ArrayX poles = CARPoleFrequencies(SampleRateHz, params);
+  for (int pole_index = 0; pole_index < poles.size(); ++pole_index) {
+    SCOPED_TRACE(std::string("pole_index: ") +
+                 testing::PrintToString(pole_index));
+    const FPType pole = poles[pole_index];
+    ASSERT_NEAR(pole,
+                CARChannelIndexToFrequency(SampleRateHz, params, pole_index),
+                1e-5f * pole);
+    ASSERT_NEAR(pole_index,
+                CARFrequencyToChannelIndex(SampleRateHz, params, pole),
+                1e-5f * pole_index);
+  }
+}
+
 class CARFACTest : public testing::Test {
  protected:
   CARFACTest() : open_loop_(false) {}
