@@ -177,8 +177,6 @@ static void MainTick();
 // has initialized.
 extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad(
     int canvas_width, int canvas_height) {
-  std::fprintf(stderr, "Canvas: %d x %d\n", canvas_width, canvas_height);
-
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     std::fprintf(stderr, "Error: %s\n", SDL_GetError());
     std::exit(1);
@@ -219,6 +217,15 @@ extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad(
 
   // Use bilinear sampling in the SDL_RenderCopy operation below.
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
+  // Initially fill the canvas with gray #444 color.
+  SDL_SetRenderDrawColor(engine.renderer, 0x44, 0x44, 0x44, 255);
+  SDL_RenderClear(engine.renderer);
+}
+
+// Resize the canvas, called from JavaScript when the browser window resizes.
+extern "C" void EMSCRIPTEN_KEEPALIVE SetSize(int new_width, int new_height) {
+  SDL_SetWindowSize(engine.window, new_width, new_height);
 }
 
 // Emscripten will call this function once per frame to do event processing
@@ -226,6 +233,8 @@ extern "C" void EMSCRIPTEN_KEEPALIVE OnLoad(
 static void MainTick() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {}  // Ignore events.
+
+  if (!engine.plotter) { return; }
 
   if (SDL_MUSTLOCK(engine.surface)) { SDL_LockSurface(engine.surface); }
   uint8_t* pixels = reinterpret_cast<uint8_t*>(engine.surface->pixels);
