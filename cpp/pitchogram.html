@@ -124,42 +124,32 @@ function ConnectMicrophone(context, consumerNode) {
 }
 
 function CreateDemoNode(context) {
-  let chunkSize = 512;
-  let decimatedChunkSize = chunkSize / 2;
+  let chunkSize = 256;
   let demoNode = context.createScriptProcessor(chunkSize, 1, 1);
 
-  Module._DemoInitAudio(context.sampleRate / 2, decimatedChunkSize);
-  let sampleBuffer = Module._malloc(4 * decimatedChunkSize);
+  Module._DemoInitAudio(context.sampleRate, chunkSize);
+  let sampleBuffer = Module._malloc(4 * chunkSize);
 
   demoNode.onaudioprocess = (e) => {
     if (isPause) { return; }
     let buffer = e.inputBuffer.getChannelData(0);
     // Copy audio to output buffer so that it can be played.
     e.outputBuffer.getChannelData(0).set(buffer);
-    // Copy to heap with 2x decimation to make accessible to wasm code.
-    for (var i = 0; i < decimatedChunkSize; i++) {
-      HEAPF32[(sampleBuffer >> 2) + i] = buffer[2 * i];
-    }
+    // Copy to heap to make accessible to wasm code.
+    HEAPF32.set(buffer, sampleBuffer >> 2);
 
-    Module._DemoProcessAudio(sampleBuffer, decimatedChunkSize);
+    Module._DemoProcessAudio(sampleBuffer, chunkSize);
   };
   return demoNode;
 }
 
 function InitWebAudio() {
-  context = new AudioContext();
+  context = new AudioContext({sampleRate: 22050});
   console.log("sampleRate = " + context.sampleRate);
-
-  // Use as a (not very good) anti-aliasing filter.
-  antiAliasFilterNode = context.createBiquadFilter();
-  antiAliasFilterNode.type.value = "lowpass";
-  antiAliasFilterNode.frequency.value = 8000;  // Hertz.
-  antiAliasFilterNode.Q.value = 1;
 
   demoNode = CreateDemoNode(context);
   gainNode = context.createGain();
 
-  antiAliasFilterNode.connect(demoNode);
   demoNode.connect(gainNode);
   gainNode.connect(context.destination);  // Hook up the sound output.
 
@@ -168,12 +158,12 @@ function InitWebAudio() {
     if (currentInputNode != null) { currentInputNode.disconnect(); }
     switch (i) {
       case 0:  // Use test sound as input source.
-        ConnectTestAudio(context, antiAliasFilterNode);
+        ConnectTestAudio(context, demoNode);
         gainNode.gain.value = 1.0;  // Enable output so that test sound can be heard.
         break;
 
       case 1:  // Use microphone as input source.
-        ConnectMicrophone(context, antiAliasFilterNode);
+        ConnectMicrophone(context, demoNode);
         gainNode.gain.value = 0.0;  // Set output to zero, otherwise there is feedback.
         break;
 
