@@ -46,40 +46,6 @@ const T& clamp(const T& x, const T& min_value, const T& max_value) {
   return std::min(std::max(x, min_value), max_value);
 }
 
-// Create a scrolling plot given successive columns.
-class ScrollingPlot {
- public:
-  ScrollingPlot() = default;
-
-  ScrollingPlot(int width, int height) { Redesign(width, height); }
-
-  void Redesign(int width, int height) {
-    plot_ = Image<uint8_t>(width, height, 3);
-    plot_view_ = plot_;
-    rightmost_col_ = Image<uint8_t>(plot_.data() + 3 * (plot_.width() - 1), 1,
-                                    0, plot_.height(), plot_.y_stride(), 3, 1);
-    Reset();
-  }
-
-  void Reset() {
-    std::memset(plot_.data(), 0, plot_.size_in_bytes());
-  }
-
-  const Image<const uint8_t>& image() const { return plot_view_; }
-  Image<uint8_t>& rightmost_col() { return rightmost_col_; }
-
-  // Scroll the plot image one frame left.
-  void Scroll() {
-    std::memmove(plot_.data(), plot_.data() + plot_.channels(),
-                 (plot_.num_pixels() - 1) * plot_.channels());
-  }
-
- private:
-  Image<uint8_t> plot_;
-  Image<const uint8_t> plot_view_;
-  Image<uint8_t> rightmost_col_;
-};
-
 // Create a pitchogram visualization.
 class PitchogramPlotter {
  public:
@@ -101,13 +67,15 @@ class PitchogramPlotter {
 
     pitchogram_.reset(new Pitchogram(sample_rate_, car_params_, sai_params_,
                                      pitchogram_params_));
-    plot_.Redesign(kNumFrames, pitchogram_->num_lags());
+    image_ = Image<uint8_t>(kNumFrames, pitchogram_->num_lags(), 3);
+    std::memset(image_.data(), 0, image_.size_in_bytes());
+    image_rightmost_col_ = image_.col(kNumFrames - 1);
   }
 
   // Returns the current pitchogram plot image.
-  const Image<const uint8_t>& image() const { return plot_.image(); }
-  int width() const { return plot_.image().width(); }
-  int height() const { return plot_.image().height(); }
+  const Image<uint8_t>& image() const { return image_; }
+  int width() const { return image_.width(); }
+  int height() const { return image_.height(); }
 
   // Process audio samples in a streaming manner.
   void ProcessSamples(const float* samples, int num_samples) {
@@ -116,38 +84,22 @@ class PitchogramPlotter {
                         carfac_output_buffer_.get());
     sai_->RunSegment(carfac_output_buffer_->nap()[0], &sai_output_buffer_);
 
-    // Get the next pitchogram frame.
-    const ArrayX& pitchogram_frame = pitchogram_->RunFrame(sai_output_buffer_);
-    // Get 2D vowel embedding vector for vowel coloring.
-    auto w = pitchogram_->VowelEmbedding(carfac_output_buffer_->nap()[0]);
+    // Compute the next pitchogram frame and 2D vowel embedding.
+    pitchogram_->RunFrame(sai_output_buffer_);
+    pitchogram_->VowelEmbedding(carfac_output_buffer_->nap()[0]);
 
-    // Partially normalize the embedding vector's magnitude to stretch it toward
-    // the unit circle. This encourages the display toward more saturated,
-    // distinguishable tint colors instead of muddy grayish colors.
-    w *= std::pow(0.003f + w.squaredNorm(), -0.25f);
-
-    // Convert the 2D embedding vector to an RGB tint color. The intention is a
-    // cylindrical mapping like:
-    //  * w = (0, 0) maps close to gray.
-    //  * Saturation increases with the norm of w.
-    //  * Hue varies with the angle of w.
-    //  * Brightness is approximately constant.
-    Color<float> tint(-0.6f * w[1] + 0.6f,
-                      -0.6f * w[0] + 0.6f,
-                      0.35f * (w[0] + w[1]) + 0.5f);
-    // Scale so that `tint * pitchogram_frame[y]` below fills the 0-255 range.
-    tint *= 0.45f * 255;
-
-    plot_.Scroll();
-    for (int y = 0; y < pitchogram_frame.size(); ++y) {
-      Color<uint8_t>::Map(&plot_.rightmost_col()(0, y)) =
-          (tint * pitchogram_frame[y])
-          .round().max(0).min(255).cast<uint8_t>();
-    }
+    ScrollImage();
+    pitchogram_->DrawColumn(image_rightmost_col_);
   }
 
  private:
   enum { kNumEars = 1 };
+
+  // Scrolls image content one pixel left.
+  void ScrollImage() {
+    std::memmove(image_.data(), image_.data() + 3,
+                 3 * (image_.num_pixels() - 1));
+  }
 
   float sample_rate_;
   CARParams car_params_;
@@ -160,7 +112,8 @@ class PitchogramPlotter {
   std::unique_ptr<SAI> sai_;
   ArrayXX sai_output_buffer_;
   std::unique_ptr<Pitchogram> pitchogram_;
-  ScrollingPlot plot_;
+  Image<uint8_t> image_;
+  Image<uint8_t> image_rightmost_col_;
 };
 
 struct {

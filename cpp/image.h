@@ -106,6 +106,23 @@ class Image {
     return *(data_ + x * x_stride_ + y * y_stride_ + c * c_stride_);
   }
 
+  // Cropping and slicing.
+
+  // Returns a crop with upper left corner (x0, y0) and size width by height.
+  // Args are in units of pixels.
+  Image<const Scalar> crop(int x0, int y0, int width, int height) const {
+    return Image(data_ + x0 * x_stride_ + y0 * y_stride_, width, x_stride_,
+                 height, y_stride_, channels_, c_stride_);
+  }
+  Image<Scalar> crop(int x0, int y0, int width, int height) {
+    return Image(data_ + x0 * x_stride_ + y0 * y_stride_, width, x_stride_,
+                 height, y_stride_, channels_, c_stride_);
+  }
+
+  // Get the xth column as a 1-pixel-wide image.
+  Image<const Scalar> col(int x) const { return crop(x, 0, 1, height_); }
+  Image<Scalar> col(int x) { return crop(x, 0, 1, height_); }
+
  private:
   template <typename Fun>
   struct NumArgs : public NumArgs<decltype(&Fun::operator())> {};

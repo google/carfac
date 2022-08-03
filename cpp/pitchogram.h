@@ -22,6 +22,7 @@
 
 #include "car.h"
 #include "common.h"
+#include "image.h"
 #include "sai.h"
 
 struct PitchogramParams {
@@ -72,10 +73,15 @@ class Pitchogram {
   // plot, the caller should stack the columns from successive RunFrame() calls.
   const ArrayX& RunFrame(const ArrayXX& sai_frame);
 
-  using VowelCoordinates = Eigen::Matrix<FPType, 2, 1>;
+  using VowelCoords = Eigen::Matrix<FPType, 2, 1>;
   // Map the nap to a 2D coordinate in an embedding space that tends to
   // distinguish monophthong vowels.
-  VowelCoordinates VowelEmbedding(const ArrayXX& nap);
+  const VowelCoords& VowelEmbedding(const ArrayXX& nap);
+
+  // Draw one column of a scrolling pitchogram visualization with vowel coloring
+  // into the x=0 column of image `dest`. The image is expected to have height
+  // `num_lags`, 3 channels, and c_stride == 1.
+  void DrawColumn(Image<uint8_t> dest) const;
 
  private:
   PitchogramParams pitchogram_params_;
@@ -84,6 +90,7 @@ class Pitchogram {
   ArrayX output_;
 
   Eigen::Matrix<FPType, 2, Eigen::Dynamic> vowel_matrix_;
+  VowelCoords vowel_coords_;
   ArrayX cgram_;
   FPType cgram_smoother_;
 

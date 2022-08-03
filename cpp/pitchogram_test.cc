@@ -73,10 +73,15 @@ TEST_P(PitchogramTest, OutputSize) {
 
   ArrayXX samples = ArrayXX::Random(kNumEars, kSegmentWidth);
   carfac.RunSegment(samples, false /* open_loop */, &carfac_output_buffer);
-  sai.RunSegment(carfac_output_buffer.nap()[0], &sai_output_buffer);
+  const auto& nap = carfac_output_buffer.nap()[0];
+  sai.RunSegment(nap, &sai_output_buffer);
+  pitchogram.VowelEmbedding(nap);
   const ArrayX& pitchogram_frame = pitchogram.RunFrame(sai_output_buffer);
 
   EXPECT_EQ(pitchogram_frame.size(), pitchogram.num_lags());
+
+  Image<uint8_t> col(1, pitchogram.num_lags(), 3);
+  pitchogram.DrawColumn(col);  // Runs without assertions failing.
 }
 
 INSTANTIATE_TEST_SUITE_P(Params, PitchogramTest,

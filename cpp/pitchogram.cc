@@ -17,6 +17,8 @@
 
 #include <cmath>
 
+#include "color.h"
+
 Pitchogram::Pitchogram(FPType sample_rate, const CARParams& car_params,
                        const SAIParams& sai_params,
                        const PitchogramParams& pitchogram_params) {
@@ -103,6 +105,7 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
 
 void Pitchogram::Reset() {
   output_.setZero();
+  vowel_coords_.setZero();
   cgram_.setZero();
 }
 
@@ -121,9 +124,42 @@ const ArrayX& Pitchogram::RunFrame(const ArrayXX& sai_frame) {
   return output_;
 }
 
-Pitchogram::VowelCoordinates Pitchogram::VowelEmbedding(const ArrayXX& nap) {
+const Pitchogram::VowelCoords& Pitchogram::VowelEmbedding(const ArrayXX& nap) {
   cgram_ += cgram_smoother_ * (nap.rowwise().mean() - cgram_);
-  return vowel_matrix_ * cgram_.matrix();
+  vowel_coords_ = vowel_matrix_ * cgram_.matrix();
+  return vowel_coords_;
+}
+
+void Pitchogram::DrawColumn(Image<uint8_t> dest) const {
+  CARFAC_ASSERT(dest.height() == num_lags() &&
+                "Image height mismatches num_lags.");
+  CARFAC_ASSERT(dest.channels() >= 3 &&
+                "Image must have at least 3 channels.");
+  CARFAC_ASSERT(dest.c_stride() == 1 &&
+                "Image must be interleaved with c_stride == 1.");
+  // Partially normalize the embedding vector's magnitude to stretch it toward
+  // the unit circle. This encourages the display toward more saturated,
+  // distinguishable tint colors instead of muddy grayish colors.
+  const VowelCoords w =
+      vowel_coords_ * std::pow(0.003f + vowel_coords_.squaredNorm(), -0.25f);
+
+  // Convert the 2D embedding vector to an RGB tint color. The intention is a
+  // cylindrical mapping like:
+  //  * w = (0, 0) maps close to gray.
+  //  * Saturation increases with the norm of w.
+  //  * Hue varies with the angle of w.
+  //  * Brightness is approximately constant.
+  Color<float> tint(-0.6f * w[1] + 0.6f,
+                    -0.6f * w[0] + 0.6f,
+                    0.35f * (w[0] + w[1]) + 0.5f);
+  // Scale so that `tint * output_[y]` below fills the 0-255 range.
+  tint *= 0.45f * 255;
+
+  uint8_t* data = dest.data();
+  for (int y = 0; y < output_.size(); ++y, data += dest.y_stride()) {
+    Color<uint8_t>::Map(data) =
+        (tint * output_[y]).max(0).min(255).cast<uint8_t>();
+  }
 }
 
 Pitchogram::ResamplingCell::ResamplingCell(float left_edge, float right_edge) {

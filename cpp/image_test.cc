@@ -15,8 +15,8 @@
 
 #include "image.h"
 
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 
 #include "gtest/gtest.h"
 
@@ -29,6 +29,7 @@ TEST(ImageTest, Basic) {
   ASSERT_EQ(u.width(), 0);
   ASSERT_EQ(u.height(), 0);
   ASSERT_EQ(u.channels(), 0);
+  ASSERT_TRUE(u.empty());
   ASSERT_EQ(u.data(), nullptr);
 
   // Allocate a 30x25 single-channel image.
@@ -118,7 +119,7 @@ TEST(ImageTest, MapExistingMemory) {
 
 // Test behavior of Image<const float> read-only images.
 TEST(ImageTest, ReadOnlyImage) {
-  auto f = Image<float>(7, 12);
+  Image<float> f(7, 12);
   for (int y = 0; y < f.height(); ++y) {
     for (int x = 0; x < f.width(); ++x) {
       f(x, y) = 0.0f;
@@ -133,6 +134,26 @@ TEST(ImageTest, ReadOnlyImage) {
   // Writing to read_only_view or assigning it to Image<float> is not allowed.
   // read_only_view(3, 4) = 100.0f;  // Fails to compile.
   // Image<float> u = read_only_view;  // Fails to compile.
+}
+
+TEST(ImageTest, Cropping) {
+  Image<float> f(7, 12);
+
+  Image<float> crop = f.crop(1, 2, 5, 4);
+  ASSERT_EQ(crop.width(), 5);
+  ASSERT_EQ(crop.height(), 4);
+  ASSERT_EQ(crop.x_stride(), f.x_stride());
+  ASSERT_EQ(crop.y_stride(), f.y_stride());
+
+  Image<float> col = crop.col(4);
+  ASSERT_EQ(col.width(), 1);
+  ASSERT_EQ(col.height(), crop.height());
+  ASSERT_EQ(col.y_stride(), f.y_stride());
+
+  col(0, 2) = 77.5f;
+
+  ASSERT_EQ(crop(4, 2), 77.5f);
+  ASSERT_EQ(f(5, 4), 77.5f);
 }
 
 void CheckFileBytes(const char* file_name, const uint8_t* expected_bytes,
