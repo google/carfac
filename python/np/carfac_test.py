@@ -424,6 +424,8 @@ class CarfacTest(absltest.TestCase):
     def find_closest_channel(cfs: List[float], desired: float) -> np.ndarray:
       return np.argmin((np.asarray(cfs) - desired)**2)
 
+    # TODO(b/240577468): Regenerate `results` after correctly rounded version of
+    # cosf (https://reviews.llvm.org/D130644) rollout completed.
     results = {
         250: [64, 237.48444306826303, 0.2641456758996128],
         500: [58, 479.1199320357932, 1.0027149596014056],
@@ -439,9 +441,11 @@ class CarfacTest(absltest.TestCase):
             f'adaptation change of {initial_resps[c][1]-final_resps[c][1]}dB.')
       expected_c, expected_cf, expected_change = results[cf]
       self.assertEqual(c, expected_c)
-      self.assertAlmostEqual(initial_resps[c][0], expected_cf)
-      self.assertAlmostEqual(initial_resps[c][1] - final_resps[c][1],
-                             expected_change)
+      self.assertAlmostEqual(initial_resps[c][0] / expected_cf, 1.0, delta=1e-4)
+      self.assertAlmostEqual(
+          (initial_resps[c][1] - final_resps[c][1]) / expected_change,
+          1.0,
+          delta=1e-3)
 
 
 if __name__ == '__main__':
