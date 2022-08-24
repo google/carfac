@@ -77,10 +77,12 @@ class Pitchogram {
   // Map the nap to a 2D coordinate in an embedding space that tends to
   // distinguish monophthong vowels.
   const VowelCoords& VowelEmbedding(const ArrayXX& nap);
+  // Access the current vowel embedding coords.
+  const VowelCoords& vowel_coords() const { return vowel_coords_; }
 
   // Draw one column of a scrolling pitchogram visualization with vowel coloring
   // into the x=0 column of image `dest`. The image is expected to have height
-  // `num_lags`, 3 channels, and c_stride == 1.
+  // `num_lags`, at least 3 channels, and c_stride == 1.
   void DrawColumn(Image<uint8_t> dest) const;
 
  private:

@@ -69,15 +69,26 @@ env.MergeFlags(['-std=c++11'])
 carfac_sources = [
     'agc.h',
     'binaural_sai.cc',
+    'binaural_sai.h',
+    'car.cc',
     'car.h',
     'carfac.cc',
+    'carfac.h',
     'carfac_util.h',
     'color.cc',
+    'color.h',
     'common.h',
     'ear.cc',
+    'ear.h',
     'ihc.h',
     'image.cc',
+    'image.h',
+    'pitchogram.cc',
+    'pitchogram.h',
+    'pitchogram_pipeline.cc',
+    'pitchogram_pipeline.h',
     'sai.cc'
+    'sai.h'
     ]
 carfac = env.Library(target = 'carfac', source = carfac_sources)
 Default(carfac)
@@ -87,6 +98,7 @@ test_targets = [
     'carfac_test',
     'color_test',
     'image_test',
+    'pitchogram_test',
     'sai_test',
     ]
 test_programs = [env.Program(target = test_target,
@@ -133,6 +145,7 @@ web_bindings(
     'ear.cc',
     'image.cc',
     'pitchogram.cc',
+    'pitchogram_pipeline.cc',
     'pitchogram_web_bindings.cc',
     'sai.cc',
   ],

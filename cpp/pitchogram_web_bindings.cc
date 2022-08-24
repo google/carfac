@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <vector>
 #if !defined(__EMSCRIPTEN__)
 #error This file must be built with emscripten
 #endif
@@ -24,104 +26,13 @@
 #include <memory>
 
 #include "SDL2/SDL.h"
-#include "agc.h"
-#include "car.h"
-#include "carfac.h"
-#include "color.h"
-#include "common.h"
-#include "ihc.h"
-#include "image.h"
-#include "pitchogram.h"
-#include "sai.h"
-
-// Width of the pitchogram in frames.
-constexpr int kNumFrames = 400;
-// Max lag in the pitchogram in units of seconds.
-constexpr float kMaxLag = 0.05f;
-// Highest pole frequency in Hz.
-constexpr float kHighestPoleHz = 7000.0f;
-
-template <typename T>
-const T& clamp(const T& x, const T& min_value, const T& max_value) {
-  return std::min(std::max(x, min_value), max_value);
-}
-
-// Create a pitchogram visualization.
-class PitchogramPlotter {
- public:
-  explicit PitchogramPlotter(float sample_rate, int num_samples_per_segment) {
-    sample_rate_ = sample_rate;
-    car_params_.first_pole_theta = 2 * M_PI * kHighestPoleHz / sample_rate;
-    carfac_.reset(new CARFAC(kNumEars, sample_rate, car_params_, ihc_params_,
-                             agc_params_));
-    carfac_output_buffer_.reset(new CARFACOutput(true, false, false, false));
-
-    sai_params_.num_channels = carfac_->num_channels();
-    sai_params_.sai_width = static_cast<int>(std::round(kMaxLag * sample_rate));
-    sai_params_.input_segment_width = num_samples_per_segment;
-    sai_params_.trigger_window_width = sai_params_.input_segment_width + 1;
-    sai_params_.future_lags = sai_params_.sai_width - 1;
-    sai_params_.num_triggers_per_frame = 2;
-    sai_.reset(new SAI(sai_params_));
-    sai_output_buffer_.resize(sai_params_.num_channels, sai_params_.sai_width);
-
-    pitchogram_.reset(new Pitchogram(sample_rate_, car_params_, sai_params_,
-                                     pitchogram_params_));
-    image_ = Image<uint8_t>(kNumFrames, pitchogram_->num_lags(), 3);
-    std::memset(image_.data(), 0, image_.size_in_bytes());
-    image_rightmost_col_ = image_.col(kNumFrames - 1);
-  }
-
-  // Returns the current pitchogram plot image.
-  const Image<uint8_t>& image() const { return image_; }
-  int width() const { return image_.width(); }
-  int height() const { return image_.height(); }
-
-  // Process audio samples in a streaming manner.
-  void ProcessSamples(const float* samples, int num_samples) {
-    auto input_map = ArrayXX::Map(samples, kNumEars, num_samples / kNumEars);
-    carfac_->RunSegment(input_map, false /* open_loop */,
-                        carfac_output_buffer_.get());
-    sai_->RunSegment(carfac_output_buffer_->nap()[0], &sai_output_buffer_);
-
-    // Compute the next pitchogram frame and 2D vowel embedding.
-    pitchogram_->RunFrame(sai_output_buffer_);
-    pitchogram_->VowelEmbedding(carfac_output_buffer_->nap()[0]);
-
-    ScrollImage();
-    pitchogram_->DrawColumn(image_rightmost_col_);
-  }
-
- private:
-  enum { kNumEars = 1 };
-
-  // Scrolls image content one pixel left.
-  void ScrollImage() {
-    std::memmove(image_.data(), image_.data() + 3,
-                 3 * (image_.num_pixels() - 1));
-  }
-
-  float sample_rate_;
-  CARParams car_params_;
-  IHCParams ihc_params_;
-  AGCParams agc_params_;
-  SAIParams sai_params_;
-  PitchogramParams pitchogram_params_;
-  std::unique_ptr<CARFAC> carfac_;
-  std::unique_ptr<CARFACOutput> carfac_output_buffer_;
-  std::unique_ptr<SAI> sai_;
-  ArrayXX sai_output_buffer_;
-  std::unique_ptr<Pitchogram> pitchogram_;
-  Image<uint8_t> image_;
-  Image<uint8_t> image_rightmost_col_;
-};
+#include "pitchogram_pipeline.h"
 
 struct {
   SDL_Window* window;
   SDL_Renderer* renderer;
   SDL_Surface* surface;
-  std::unique_ptr<PitchogramPlotter> plotter;
-  int chunk_size;
+  std::unique_ptr<PitchogramPipeline> plotter;
 } engine;  // NOLINT
 
 static void MainTick();
@@ -187,13 +98,7 @@ static void MainTick() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {}  // Ignore events.
 
-  if (!engine.plotter) { return; }
-
-  if (SDL_MUSTLOCK(engine.surface)) { SDL_LockSurface(engine.surface); }
-  uint8_t* pixels = reinterpret_cast<uint8_t*>(engine.surface->pixels);
-  const auto& image = engine.plotter->image();
-  std::memcpy(pixels, image.data(), image.size_in_bytes());
-  if (SDL_MUSTLOCK(engine.surface)) { SDL_UnlockSurface(engine.surface); }
+  if (!engine.surface) { return; }
 
   SDL_Texture* texture =
       SDL_CreateTextureFromSurface(engine.renderer, engine.surface);
@@ -205,11 +110,21 @@ static void MainTick() {
 // Initializes audio processing. This gets called after WebAudio has started.
 extern "C" void EMSCRIPTEN_KEEPALIVE DemoInitAudio(
     int sample_rate_hz, int chunk_size) {
-  engine.chunk_size = chunk_size;
-  engine.plotter.reset(new PitchogramPlotter(sample_rate_hz, chunk_size));
-  engine.surface = SDL_CreateRGBSurface(-1, engine.plotter->width(),
-                                        engine.plotter->height(), 24,
-                                        0xff, 0xff00, 0xff0000, 0);
+  PitchogramPipelineParams params;
+  params.num_samples_per_segment = chunk_size;
+  engine.plotter.reset(new PitchogramPipeline(sample_rate_hz, params));
+
+  const Image<uint8_t>& image = engine.plotter->image();
+  constexpr uint32_t r_mask = 0x000000ff;
+  constexpr uint32_t g_mask = 0x0000ff00;
+  constexpr uint32_t b_mask = 0x00ff0000;
+  engine.surface = SDL_CreateRGBSurfaceFrom(
+      reinterpret_cast<void*>(image.data()), image.width(), image.height(), 32,
+      image.y_stride(), r_mask, g_mask, b_mask, 0);
+  if (!engine.surface) {
+    std::fprintf(stderr, "Failed to create surface: %s\n", SDL_GetError());
+    std::exit(1);
+  }
 }
 
 // Processes one chunk of audio data. Called from onaudioprocess.
