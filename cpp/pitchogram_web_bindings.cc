@@ -109,9 +109,11 @@ static void MainTick() {
 
 // Initializes audio processing. This gets called after WebAudio has started.
 extern "C" void EMSCRIPTEN_KEEPALIVE DemoInitAudio(
-    int sample_rate_hz, int chunk_size) {
+    int sample_rate_hz, int chunk_size, bool log_lag, bool light_color_theme) {
   PitchogramPipelineParams params;
   params.num_samples_per_segment = chunk_size;
+  params.pitchogram_params.log_lag = log_lag;
+  params.pitchogram_params.light_color_theme = light_color_theme;
   engine.plotter.reset(new PitchogramPipeline(sample_rate_hz, params));
 
   const Image<uint8_t>& image = engine.plotter->image();

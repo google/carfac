@@ -40,13 +40,17 @@ struct PitchogramParams {
 
   // Time constant for smoothing the cgram used in vowel embedding.
   float vowel_time_constant_s;
+  // If true, use a light color theme for rendering the pitchogram with white
+  // background. If false, use a dark color theme.
+  bool light_color_theme;
 
   PitchogramParams()
     : log_lag(true),
       lags_per_octave(36.0f),
       min_lag_s(0.0005f),
       log_offset_s(0.0025f),
-      vowel_time_constant_s(0.025f) {}
+      vowel_time_constant_s(0.02f),
+      light_color_theme(false) {}
 };
 
 class Pitchogram {

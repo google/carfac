@@ -34,11 +34,14 @@
 // comparing the ouput of the Matlab implementation with the C++ one.
 static const char* kTestDataDir = "../test_data/";
 
+inline std::string GetTestDataPath(const std::string& filename) {
+  return kTestDataDir + filename;
+}
+
 // Reads a size rows by columns Eigen matrix from a text file written
 // using the Matlab dlmwrite function.
 ArrayXX LoadMatrix(const std::string& filename, int rows, int columns) {
-  std::string fullfile = kTestDataDir + filename;
-
+  const std::string fullfile = GetTestDataPath(filename);
   std::ifstream file(fullfile.c_str());
   ArrayXX output(rows, columns);
   CARFAC_ASSERT(file.is_open());

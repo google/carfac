@@ -38,7 +38,7 @@ class Color : public Eigen::Array<_Scalar, 3, 1> {
   Color(const Eigen::ArrayBase<OtherDerived>& other): Array(other) {}
   template<typename OtherDerived>
   Color& operator=(const Eigen::ArrayBase<OtherDerived>& other) {
-    this->Vector::operator=(other);
+    this->Array::operator=(other);
     return *this;
   }
 

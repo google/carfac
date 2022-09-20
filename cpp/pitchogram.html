@@ -27,6 +27,10 @@ h1, h2 {color: #eee; margin-bottom:0;
 h1 {font-size: 2.5em; margin-top:1em; text-align: center}
 h2 {font-size: 1.7em; margin:0}
 p {margin:0 0 1ex 0; padding:0}
+input[type="radio"] { display: none; }
+label { cursor: pointer; padding: 6pt; border-radius: 3pt; border:1px solid #777 }
+input[type="radio"]:checked + label { background-color:#82b1ff; color:#000; border:1px solid
+  #416ca9 }
 #intro-overlay {max-width:53em; padding: 0 3em 1em 3em;
   position: absolute; left: 50%; transform: translate(-50%, 0);}
 .start-button {
@@ -48,7 +52,7 @@ p {margin:0 0 1ex 0; padding:0}
 <div id="intro-overlay">
 <h1>CAR-FAC Pitchogram Visualization</h1>
 <p style="text-align:center; margin-bottom:3.4em; ">
-Pascal Getreuer, 2022-08-02
+Pascal Getreuer, 2022-08-02 (updated 2022-09-15)
 </p>
 
 <p class="start-button" onclick="SelectInputSource(1)">
@@ -61,6 +65,23 @@ href="https://github.com/google/carfac">CAR-FAC auditory model</a>. The
 scrolling horizontal axis is time and the vertical axis is pitch. The color
 tint roughly corresponds to different pure vowel sounds.
 </p>
+
+<h2>Options</h2>
+<table cellpadding="8pt">
+<tr><td>Lag axis:</td><td>
+<input type="radio" id="lagAxisLinear" name="lagAxis" />
+<label for="lagAxisLinear">Linear</label>
+<input type="radio" id="lagAxisLog" name="lagAxis" checked="true" />
+<label for="lagAxisLog">Log</label>
+</td></tr>
+<tr><td>Color theme:</td><td>
+<input type="radio" id="colorThemeDark" name="colorTheme" checked="true" />
+<label for="colorThemeDark">Dark</label>
+<input type="radio" id="colorThemeLight" name="colorTheme" />
+<label for="colorThemeLight">Light</label>
+ </td></tr>
+</table>
+
 </div>
 
 <h1 id="plot-title">Pitchogram</h1>
@@ -127,7 +148,9 @@ function CreateDemoNode(context) {
   let chunkSize = 256;
   let demoNode = context.createScriptProcessor(chunkSize, 1, 1);
 
-  Module._DemoInitAudio(context.sampleRate, chunkSize);
+  let logLag = document.getElementById('lagAxisLog').checked;
+  let lightColorTheme = document.getElementById('colorThemeLight').checked;
+  Module._DemoInitAudio(context.sampleRate, chunkSize, logLag, lightColorTheme);
   let sampleBuffer = Module._malloc(4 * chunkSize);
 
   demoNode.onaudioprocess = (e) => {
@@ -184,6 +207,10 @@ function SelectInputSource(i) {
   plotTitle.animate([{fontSize: '2.5em'},
                      {fontSize: '2.5em', offset: 0.6, easing: 'ease-in-out'},
                      {fontSize: '1.5em'}], 5000);
+  let lightColorTheme = document.getElementById('colorThemeLight').checked;
+  if (lightColorTheme) {
+    plotTitle.style.color = '#000';
+  }
 
   if (connectInputFun == null) {
     // For security, WebAudio can only be initialized by a user action. We have SelectInputSource as

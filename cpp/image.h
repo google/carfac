@@ -23,6 +23,7 @@
 #ifndef CARFAC_IMAGE_H_
 #define CARFAC_IMAGE_H_
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -123,6 +124,10 @@ class Image {
   Image<const Scalar> col(int x) const { return crop(x, 0, 1, height_); }
   Image<Scalar> col(int x) { return crop(x, 0, 1, height_); }
 
+  // Computes the root mean square difference vs. `reference`, provided
+  // the images have the same shape. Returns infinity if the shapes differ.
+  float RootMeanSquareDiff(const Image<const Scalar>& reference) const;
+
  private:
   template <typename Fun>
   struct NumArgs : public NumArgs<decltype(&Fun::operator())> {};
@@ -153,6 +158,10 @@ class Image {
 //
 // The image must have 1 or 3 channels. Returns true on success.
 bool WritePnm(const std::string& filename, const Image<const uint8_t>& image);
+
+// Reads a Portable Anymap (PNM), Portable PixMap (PPM), or Portable GrayMap
+// (PGM) image file in 8-bit binary format. Returns true on success.
+bool ReadPnm(const std::string& filename, Image<uint8_t>* image);
 
 // Implementation details only below this line. --------------------------------
 
@@ -247,6 +256,32 @@ Image<Scalar>& Image<Scalar>::operator=(const Image<RhsScalar>& rhs) {
   y_stride_ = rhs.y_stride_;
   c_stride_ = rhs.c_stride_;
   return *this;
+}
+
+template <typename Scalar>
+float Image<Scalar>::RootMeanSquareDiff(
+    const Image<const Scalar>& reference) const {
+  if (width_ != reference.width() ||
+      height_ != reference.height() ||
+      channels_ != reference.channels()) {
+    return INFINITY;
+  }
+
+  double sum = 0.0;
+  for (int y = 0; y < height_; ++y) {
+    for (int x = 0; x < width_; ++x) {
+      for (int c = 0; c < channels_; ++c) {
+        const double diff = static_cast<double>((*this)(x, y, c)) -
+                            static_cast<double>(reference(x, y, c));
+        sum += diff * diff;
+      }
+    }
+  }
+
+  if (sum == 0.0) { return 0.0f; }
+
+  sum /= width_ * height_ * channels_;
+  return std::sqrt(static_cast<float>(sum));
 }
 
 #endif  // CARFAC_IMAGE_H_

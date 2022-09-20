@@ -17,6 +17,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <random>
 
 #include "gtest/gtest.h"
 
@@ -156,6 +157,48 @@ TEST(ImageTest, Cropping) {
   ASSERT_EQ(f(5, 4), 77.5f);
 }
 
+TEST(ImageTest, RootMeanSquareDiff) {
+  auto u = Image<uint8_t>(8, 6, 3);
+  auto f = Image<uint8_t>(8, 6, 3);
+
+  for (int y = 0; y < u.height(); ++y) {
+    for (int x = 0; x < u.width(); ++x) {
+      for (int c = 0; c < u.channels(); ++c) {
+        u(x, y, c) = x + 10 * y + c;
+        f(x, y, c) = x + 10 * y + c + 5;
+      }
+    }
+  }
+
+  EXPECT_EQ(u.RootMeanSquareDiff(u), 0.0f);
+  EXPECT_NEAR(u.RootMeanSquareDiff(f), 5.0f, 1e-5f);
+  // Infinite difference when shapes differ.
+  EXPECT_TRUE(std::isinf(u.crop(0, 0, 8, 5).RootMeanSquareDiff(f)));
+}
+
+const uint8_t kTestPgmImage[] = {
+    'P', '5', ' ', '4', ' ', '3', ' ', '2', '5', '5', '\n',
+    0, 10, 20, 30,
+    1, 11, 21, 31,
+    2, 12, 22, 32,
+};
+const uint8_t kTestPgmImageWithComments[] = {
+    '#', ' ', 'T', 'e', 's', 't', '\n',
+    '#', ' ', 'f', 'i', 'l', 'e', '\n',
+    'P', '5', ' ', '#', 'P', 'G', 'M', '\n',
+    '4', '#', 'W', '\n',
+    ' ', '3', ' ', '2', '5', '5', '#', 'M', 'a', 'x', '\n', '\n',
+    0, 10, 20, 30,
+    1, 11, 21, 31,
+    2, 12, 22, 32,
+};
+const uint8_t kTestPpmImage[] = {
+    'P', '6', ' ', '2', ' ', '3', ' ', '2', '5', '5', '\n',
+    0, 1, 2, 100, 101, 102,
+    10, 11, 12, 110, 111, 112,
+    20, 21, 22, 120, 121, 122,
+};
+
 void CheckFileBytes(const char* file_name, const uint8_t* expected_bytes,
                     size_t num_bytes) {
   uint8_t* bytes = reinterpret_cast<uint8_t*>(std::malloc(num_bytes + 1));
@@ -165,6 +208,13 @@ void CheckFileBytes(const char* file_name, const uint8_t* expected_bytes,
   std::fclose(f);
   ASSERT_EQ(std::memcmp(bytes, expected_bytes, num_bytes), 0);
   std::free(bytes);
+}
+
+void WriteBytesAsFile(const char* file_name,
+                      const uint8_t* bytes, size_t num_bytes) {
+  std::FILE* f = std::fopen(file_name, "wb");
+  ASSERT_EQ(std::fwrite(bytes, 1, num_bytes, f), num_bytes);
+  std::fclose(f);
 }
 
 TEST(ImageTest, WritePnmGrayscale) {
@@ -179,14 +229,7 @@ TEST(ImageTest, WritePnmGrayscale) {
 
   ASSERT_TRUE(WritePnm(pnm_file_name, u));
 
-  const uint8_t kExpected[] = {
-    'P', '5', ' ', '4', ' ', '3', ' ', '2', '5', '5', '\n',
-    0, 10, 20, 30,
-    1, 11, 21, 31,
-    2, 12, 22, 32,
-  };
-
-  CheckFileBytes(pnm_file_name, kExpected, sizeof(kExpected));
+  CheckFileBytes(pnm_file_name, kTestPgmImage, sizeof(kTestPgmImage));
   std::remove(pnm_file_name);
 }
 
@@ -204,14 +247,123 @@ TEST(ImageTest, WritePnmRgb) {
 
   ASSERT_TRUE(WritePnm(pnm_file_name, u));
 
-  const uint8_t kExpected[] = {
-    'P', '6', ' ', '2', ' ', '3', ' ', '2', '5', '5', '\n',
-    0, 1, 2, 100, 101, 102,
-    10, 11, 12, 110, 111, 112,
-    20, 21, 22, 120, 121, 122,
-  };
+  CheckFileBytes(pnm_file_name, kTestPpmImage, sizeof(kTestPpmImage));
+  std::remove(pnm_file_name);
+}
 
-  CheckFileBytes(pnm_file_name, kExpected, sizeof(kExpected));
+TEST(ImageTest, ReadPnmGrayscale) {
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+  WriteBytesAsFile(pnm_file_name, kTestPgmImage, sizeof(kTestPgmImage));
+
+  Image<uint8_t> image;
+  ASSERT_TRUE(ReadPnm(pnm_file_name, &image));
+
+  EXPECT_EQ(image.width(), 4);
+  EXPECT_EQ(image.height(), 3);
+  EXPECT_EQ(image.channels(), 1);
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      ASSERT_EQ(image(x, y), 10 * x + y);
+    }
+  }
+  std::remove(pnm_file_name);
+}
+
+TEST(ImageTest, ReadPnmGrayscaleWithComments) {
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+  WriteBytesAsFile(pnm_file_name, kTestPgmImageWithComments,
+                   sizeof(kTestPgmImageWithComments));
+
+  Image<uint8_t> image;
+  ASSERT_TRUE(ReadPnm(pnm_file_name, &image));
+
+  EXPECT_EQ(image.width(), 4);
+  EXPECT_EQ(image.height(), 3);
+  EXPECT_EQ(image.channels(), 1);
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      ASSERT_EQ(image(x, y), 10 * x + y);
+    }
+  }
+  std::remove(pnm_file_name);
+}
+
+TEST(ImageTest, ReadPnmRgb) {
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+  WriteBytesAsFile(pnm_file_name, kTestPpmImage, sizeof(kTestPpmImage));
+
+  Image<uint8_t> image;
+  ASSERT_TRUE(ReadPnm(pnm_file_name, &image));
+
+  EXPECT_EQ(image.width(), 2);
+  EXPECT_EQ(image.height(), 3);
+  EXPECT_EQ(image.channels(), 3);
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      for (int c = 0; c < image.channels(); ++c) {
+        ASSERT_EQ(image(x, y, c), 100 * x + 10 * y + c);
+      }
+    }
+  }
+  std::remove(pnm_file_name);
+}
+
+TEST(ImageTest, WriteReadPnmRoundTrips) {
+  std::mt19937 rng(/*seed*/ 0);
+  std::uniform_int_distribution<int> size_dist(1, 20);
+  std::uniform_int_distribution<uint8_t> value_dist(0, 255);
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+
+  for (int i = 0; i < 5; ++i) {
+    Image<uint8_t> image(size_dist(rng), size_dist(rng), 3);
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        for (int c = 0; c < image.channels(); ++c) {
+          image(x, y, c) = value_dist(rng);
+        }
+      }
+    }
+
+    ASSERT_TRUE(WritePnm(pnm_file_name, image));
+    Image<uint8_t> recovered;
+    ASSERT_TRUE(ReadPnm(pnm_file_name, &recovered));
+
+    EXPECT_EQ(recovered.width(), image.width());
+    EXPECT_EQ(recovered.height(), image.height());
+    EXPECT_EQ(recovered.channels(), 3);
+    EXPECT_EQ(recovered.RootMeanSquareDiff(image), 0.0f);
+  }
+
+  std::remove(pnm_file_name);
+}
+
+TEST(ImageTest, ReadPnmTruncated) {
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+  const uint8_t kTestPnmTruncated[] =
+      {'P', '6', ' ', '1', ' ', '1', ' ', '1', ' ', 0};
+  WriteBytesAsFile(pnm_file_name, kTestPnmTruncated, sizeof(kTestPnmTruncated));
+
+  Image<uint8_t> image;
+  ASSERT_FALSE(ReadPnm(pnm_file_name, &image));
+
+  std::remove(pnm_file_name);
+}
+
+TEST(ImageTest, ReadPnmBadHeaderField) {
+  const char* pnm_file_name = nullptr;
+  pnm_file_name = std::tmpnam(nullptr);
+  const uint8_t kTestPnmBadHeader[] = {'P', '6', ' ', '1', ' ', '1', ' ',
+                                       'j', 'u', 'n', 'k', ' ', 0, 0, 0};
+  WriteBytesAsFile(pnm_file_name, kTestPnmBadHeader, sizeof(kTestPnmBadHeader));
+
+  Image<uint8_t> image;
+  ASSERT_FALSE(ReadPnm(pnm_file_name, &image));
+
   std::remove(pnm_file_name);
 }
 

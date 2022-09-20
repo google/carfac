@@ -49,7 +49,7 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
   // for the F1 and F2 formants, each based on a difference of two Gaussians.
   vowel_matrix_.resize(2, sai_params.num_channels);
   auto kernel = [](FPType center, int c) {
-    const FPType z = (c - center) / FPType(2.75);
+    const FPType z = (c - center) / FPType(3.3);
     return std::exp((z * z) / -2);
   };
   FPType f2_hi = CARFrequencyToChannelIndex(sample_rate, car_params, 2365);
@@ -60,7 +60,7 @@ void Pitchogram::Redesign(FPType sample_rate, const CARParams& car_params,
     vowel_matrix_(0, c) = kernel(f2_lo, c) - kernel(f2_hi, c);
     vowel_matrix_(1, c) = kernel(f1_lo, c) - kernel(f1_hi, c);
   }
-  vowel_matrix_ *= car_params.erb_per_step;
+  vowel_matrix_ *= car_params.erb_per_step / 2;
   const FPType frame_rate_hz = sample_rate / sai_params.input_segment_width;
   cgram_smoother_ = 1 - std::exp(
       -1 / (pitchogram_params_.vowel_time_constant_s * frame_rate_hz));
@@ -137,28 +137,32 @@ void Pitchogram::DrawColumn(Image<uint8_t> dest) const {
                 "Image must have at least 3 channels.");
   CARFAC_ASSERT(dest.c_stride() == 1 &&
                 "Image must be interleaved with c_stride == 1.");
-  // Partially normalize the embedding vector's magnitude to stretch it toward
-  // the unit circle. This encourages the display toward more saturated,
-  // distinguishable tint colors instead of muddy grayish colors.
-  const VowelCoords w =
-      vowel_coords_ * std::pow(0.003f + vowel_coords_.squaredNorm(), -0.25f);
-
   // Convert the 2D embedding vector to an RGB tint color. The intention is a
   // cylindrical mapping like:
-  //  * w = (0, 0) maps close to gray.
-  //  * Saturation increases with the norm of w.
-  //  * Hue varies with the angle of w.
+  //  * vowel_coords_ = (0, 0) maps close to gray.
+  //  * Saturation increases with the norm of vowel_coords_.
+  //  * Hue varies with the angle of vowel_coords_.
   //  * Brightness is approximately constant.
-  Color<float> tint(-0.6f * w[1] + 0.6f,
-                    -0.6f * w[0] + 0.6f,
-                    0.35f * (w[0] + w[1]) + 0.5f);
-  // Scale so that `tint * output_[y]` below fills the 0-255 range.
-  tint *= 0.45f * 255;
+  Color<float> tint(0.5f - 0.6f * vowel_coords_[1],
+                    0.5f - 0.6f * vowel_coords_[0],
+                    0.35f * (vowel_coords_[0] + vowel_coords_[1]) + 0.4f);
 
+  constexpr float kScale = 0.5f * 255;
   uint8_t* data = dest.data();
-  for (int y = 0; y < output_.size(); ++y, data += dest.y_stride()) {
-    Color<uint8_t>::Map(data) =
-        (tint * output_[y]).max(0).min(255).cast<uint8_t>();
+
+  if (pitchogram_params_.light_color_theme) {
+    // TODO(dkanevsky): Fine-tune light theme coloring.
+    tint *= kScale;  // Scale for 0-255 range.
+    for (int y = 0; y < output_.size(); ++y, data += dest.y_stride()) {
+      Color<uint8_t>::Map(data) =
+          (255 - tint * output_[y]).max(0).min(255).cast<uint8_t>();
+    }
+  } else {
+    tint *= kScale;  // Scale for 0-255 range.
+    for (int y = 0; y < output_.size(); ++y, data += dest.y_stride()) {
+      Color<uint8_t>::Map(data) =
+          (tint * output_[y]).max(0).min(255).cast<uint8_t>();
+    }
   }
 }
 

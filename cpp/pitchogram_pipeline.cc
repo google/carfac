@@ -18,12 +18,14 @@
 #include <algorithm>
 #include <cmath>
 
+#include "color.h"
 #include "common.h"
 
 PitchogramPipeline::PitchogramPipeline(float sample_rate_hz,
                                        const PitchogramPipelineParams& params) {
   CARFAC_ASSERT(sample_rate_hz > 0.0f && "sample_rate_hz must be positive.");
   sample_rate_hz_ = sample_rate_hz;
+  pitchogram_params_ = params.pitchogram_params;
 
   // Initialize CARFAC.
   car_params_.first_pole_theta =
@@ -49,8 +51,12 @@ PitchogramPipeline::PitchogramPipeline(float sample_rate_hz,
   image_ = Image<uint8_t>(params.num_frames, pitchogram_->num_lags(), 4);
   image_rightmost_col_ = image_.col(params.num_frames - 1);
 
-  // Initialize image to black background color.
-  const uint8_t background_rgba[4] = {0, 0, 0, 255};
+  // Initialize image background color according to theme.
+  Color<uint8_t> background_rgb = (params.pitchogram_params.light_color_theme)
+                                      ? Color<uint8_t>::Gray(255)
+                                      : Color<uint8_t>::Gray(0);
+  const uint8_t background_rgba[4] = {background_rgb[0], background_rgb[1],
+                                      background_rgb[2], 255};
   uint32_t background;
   std::memcpy(&background, background_rgba, 4);
   uint32_t* data = reinterpret_cast<uint32_t*>(image_.data());
