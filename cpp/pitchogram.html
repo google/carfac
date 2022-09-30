@@ -43,6 +43,10 @@ input[type="radio"]:checked + label { background-color:#82b1ff; color:#000; bord
   position: absolute; left: 0.5em; top: 0.5em; margin: 0; pointer-events: none;
   display: none; font-size: 1.5em;
 }
+#return-button {
+  position: absolute; left: 1.5em; top: 1.5em; margin: 1.5em;
+  display: none; font-size: 1.5em;
+}
 </style>
 <link href="https://fonts.googleapis.com/css?family=Roboto|Montserrat" rel="stylesheet">
 <title>CAR-FAC Pitchogram Visualization</title>
@@ -85,6 +89,7 @@ tint roughly corresponds to different pure vowel sounds.
 </div>
 
 <h1 id="plot-title">Pitchogram</h1>
+<button  id="return-button">Reload</button>
 <canvas id="canvas" width="1024" height="768">
   Your browser does not support the canvas element.
 </canvas>
@@ -211,7 +216,9 @@ function SelectInputSource(i) {
   if (lightColorTheme) {
     plotTitle.style.color = '#000';
   }
-
+  let returnButton = document.getElementById('return-button');
+  returnButton.style.display = 'block';
+  returnButton.onclick = () => {location.reload();}
   if (connectInputFun == null) {
     // For security, WebAudio can only be initialized by a user action. We have SelectInputSource as
     // an onclick handler for clicking an input source, and initialize WebAudio here on first call.
