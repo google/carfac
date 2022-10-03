@@ -90,7 +90,7 @@ tint roughly corresponds to different pure vowel sounds.
 
 <h1 id="plot-title">Pitchogram</h1>
 <button  id="return-button">Reload</button>
-<canvas id="canvas" width="1024" height="768">
+<canvas id="canvas" width="1024" height="768" style="touch-action:none">
   Your browser does not support the canvas element.
 </canvas>
 
@@ -203,7 +203,10 @@ function InitWebAudio() {
 
 function SelectInputSource(i) {
   // onclick either pauses or resumes processing.
-  document.getElementById('canvas').onclick = () => { isPause = !isPause; };
+  let canvas = document.getElementById('canvas');
+  canvas.onclick = () => { isPause = !isPause; };
+  canvas.addEventListener('touchstart', () => { isPause = !isPause; }, false);
+
   document.querySelector(':root').style.backgroundColor = '#000';
   document.getElementById('intro-overlay').style.display = 'none';
 
