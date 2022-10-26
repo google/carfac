@@ -71,6 +71,7 @@ class CarCoeffs:
   n_ch: int
   velocity_scale: float
   v_offset: float
+  use_delay_buffer: bool = False
 
   r1_coeffs: np.ndarray = np.zeros(())
   a0_coeffs: np.ndarray = np.zeros(())
@@ -252,8 +253,7 @@ def car_step(x_in: float,
     nlf = 1  # To allow testing
   else:
     nlf = ohc_nlf(v, car_coeffs)
-  #  zb * nfl is "undamping" delta r:
-  r = car_coeffs.r1_coeffs + zb * nlf
+  r = car_coeffs.r1_coeffs + zb * nlf  #  zb * nfl is "undamping" delta r.
   za = car_state.z2_memory
 
   #  now reduce car_state by r and rotate with the fixed cos/sin coeffs:
@@ -265,17 +265,24 @@ def car_step(x_in: float,
       car_coeffs.c0_coeffs * car_state.z1_memory +
       car_coeffs.a0_coeffs * car_state.z2_memory)
 
-  zy = car_coeffs.h_coeffs * z2  # partial output
-
-  #  Ripple input-output path, instead of parallel, to avoid delay...
-  # this is the only part that doesn't get computed "in parallel":
-  in_out = x_in
-  for ch in range(len(zy)):
-    #  could do this here, or later in parallel:
-    z1[ch] = z1[ch] + in_out
-    # ripple, saving final channel outputs in zy
-    in_out = g[ch] * (in_out + zy[ch])
-    zy[ch] = in_out
+  if car_coeffs.use_delay_buffer:
+    # Optional fully-parallel update uses a delay per stage.
+    zy = car_state.zy_memory
+    zy[1:] = zy[0:-1]  # Propagate delayed last outputs zy
+    zy[0] = x_in  # fill in new input
+    z1 = z1 + zy  # add new stage inputs to z1 states
+    zy = g * (car_coeffs.h_coeffs * z2 + zy)  # Outputs from z2
+  else:
+    # Ripple input-output path to avoid delay...
+    # this is the only part that doesn't get computed "in parallel":
+    zy = car_coeffs.h_coeffs * z2  # partial output
+    in_out = x_in
+    for ch, output_gain in enumerate(g):
+      #  could do this here, or later in parallel:
+      z1[ch] += in_out
+      # ripple, saving final channel outputs in zy
+      in_out = output_gain * (in_out + zy[ch])
+      zy[ch] = in_out
 
   #  put new car_state back in place of old
   #  (z1 is a genuine temp; the others can update by reference in C)
@@ -1195,8 +1202,8 @@ def run_segment(cfp: CarfacParams,
                               cfp.ears[ear].ihc_state)
 
       # run the AGC update step, decimating internally,
-      [_, updated] = agc_step(ihc_out, cfp.ears[ear].agc_coeffs,
-                              cfp.ears[ear].agc_state)
+      [_, agc_updated] = agc_step(ihc_out, cfp.ears[ear].agc_coeffs,
+                                  cfp.ears[ear].agc_state)
 
       # save some output data:
       naps[k, :, ear] = ihc_out  # output to neural activity pattern
@@ -1208,13 +1215,13 @@ def run_segment(cfp: CarfacParams,
 
     #  connect the feedback from agc_state to car_state when it updates;
     #  all ears together here due to mixing across them:
-    if updated:
+    if agc_updated:
       if n_ears > 1:
         #  do multi-aural cross-coupling:
         raise NotImplementedError
         # TODO(malcolmslaney) Translate Cross_Couple()
         # cfp.ears = Cross_Couple(cfp.ears)
+      if not open_loop:
+        close_agc_loop(cfp)
 
-    if not open_loop:
-      close_agc_loop(cfp)
   return naps, cfp, bm, seg_ohc, seg_agc

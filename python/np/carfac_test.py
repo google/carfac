@@ -385,20 +385,21 @@ class CarfacTest(absltest.TestCase):
 
     # Let filter ringing die, linear_car=true overflowed car
     carfac.run_segment(cfp, 0 * impulse, open_loop=1, linear_car=False)
-    _, cfp, bm_final, _, _ = carfac.run_segment(
-        cfp, impulse, open_loop=1, linear_car=False)
 
-    initial_freq_response = np.fft.rfft(bm_initial[:1024, :, 0], axis=0)
+    _, cfp, bm_final, _, _ = carfac.run_segment(
+        cfp, impulse, open_loop=1, linear_car=True)
+
+    fft_len = 2048  # Because 1024 is too sensitive for some reason.
+    num_bins = fft_len // 2 + 1  # Per np.fft.rfft.
+    freqs = fs / fft_len * np.arange(num_bins)
+
+    initial_freq_response = np.fft.rfft(bm_initial[:fft_len, :, 0], axis=0)
     initial_freq_response = 20 * np.log10(np.abs(initial_freq_response))
 
-    final_freq_response = np.fft.rfft(bm_final[:1024, :, 0], axis=0)
+    final_freq_response = np.fft.rfft(bm_final[:fft_len, :, 0], axis=0)
     final_freq_response = 20 * np.log10(np.abs(final_freq_response))
 
     # Match Figure 19.9(right) of Lyon's book
-    freqs = fs / initial_freq_response.shape[0] * np.arange(
-        initial_freq_response.shape[0])
-    num_bins = 512
-
     plt.clf()
     plt.semilogx(freqs[1:num_bins],
                  initial_freq_response[1:num_bins, ::], ':')
@@ -424,28 +425,27 @@ class CarfacTest(absltest.TestCase):
     def find_closest_channel(cfs: List[float], desired: float) -> np.ndarray:
       return np.argmin((np.asarray(cfs) - desired)**2)
 
-    # TODO(b/240577468): Regenerate `results` after correctly rounded version of
-    # cosf (https://reviews.llvm.org/D130644) rollout completed.
-    results = {
-        250: [64, 237.48444306826303, 0.2641456758996128],
-        500: [58, 479.1199320357932, 1.0027149596014056],
-        1000: [49, 1027.6373544145267, 7.340397337585955],
-        2000: [38, 2194.784869601033, 31.65943156233851],
-        4000: [28, 4069.8800109530985, 27.253526059781723],
-        8000: [16, 8101.940012284346, 13.898859812420024],
-        16000: [2, 16547.219145183426, 3.590521826511676],
+    results = {  # The Matlab test prints this data block:
+        125: [64, 118.944255, 0.186261],
+        250: [58, 239.771898, 0.910003],
+        500: [49, 514.606412, 7.243568],
+        1000: [38, 1099.433179, 31.608529],
+        2000: [28, 2038.873929, 27.242882],
+        4000: [16, 4058.881505, 13.865787],
+        8000: [2, 8289.882476, 3.574972],
     }
     for cf in results:
       c = find_closest_channel([f[0] for f in final_resps], cf)
-      print(f'Channel {c} has CF of {initial_resps[c][0]} and an '
-            f'adaptation change of {initial_resps[c][1]-final_resps[c][1]}dB.')
       expected_c, expected_cf, expected_change = results[cf]
+      cf = initial_resps[expected_c][0]
+      diff_db = initial_resps[expected_c][1] - final_resps[expected_c][1]
+      print(f'Channel {expected_c} has CF of {cf} and an '
+            f'adaptation change of {diff_db} dB.')
       self.assertEqual(c, expected_c)
-      self.assertAlmostEqual(initial_resps[c][0] / expected_cf, 1.0, delta=1e-4)
       self.assertAlmostEqual(
-          (initial_resps[c][1] - final_resps[c][1]) / expected_change,
-          1.0,
-          delta=1e-3)
+          cf, expected_cf, delta=expected_cf / 10000.0)
+      self.assertAlmostEqual(
+          diff_db, expected_change, delta=0.01)  # dB change diff.
 
 
 if __name__ == '__main__':
