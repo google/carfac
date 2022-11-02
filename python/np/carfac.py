@@ -31,7 +31,6 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-
 # Note in general, a functional block (i.e. IHC or AGC) has parameters.  After
 # a design phase they become coefficients that describe how to do the
 # calculation quickly on audio.  And each block has some state.  In other words:
@@ -180,7 +179,8 @@ def stage_g(car_coeffs: CarCoeffs, relative_undamping: float) -> np.ndarray:
   Args:
     car_coeffs: The already-designed coefficients for the filterbank.
     relative_undamping:  The r variable, defined in section 17.4 of Lyon's book
-    to be  (1-b) * NLF(v). The first term is undamping (because b is the gain).
+      to be  (1-b) * NLF(v). The first term is undamping (because b is the
+      gain).
 
   Returns:
     A float vector with the gain for each AGC stage.
@@ -314,7 +314,7 @@ class IhcJustHwrParams:
 @dataclasses.dataclass
 class IhcOneCapParams(IhcJustHwrParams):
   just_hwr: bool = False  # not just a simple HWR
-  one_cap: bool = True  # bool; 0 for new two-cap hack
+  one_cap: bool = True  # bool; False for new two-cap hack
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
   tau_in: float = 0.010  # recovery tau is slower
@@ -324,7 +324,7 @@ class IhcOneCapParams(IhcJustHwrParams):
 @dataclasses.dataclass
 class IhcTwoCapParams(IhcJustHwrParams):
   just_hwr: bool = False  # not just a simple HWR
-  one_cap: bool = False  # bool; 0 for new two-cap hack
+  one_cap: bool = False  # bool; False for new two-cap hack
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau1_out: float = 0.010  # depletion tau is pretty fast
   tau1_in: float = 0.020  # recovery tau is slower
@@ -446,7 +446,7 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
         rest_cap1=cap1_voltage)
   else:
     raise NotImplementedError
-  # one more late addition that applies to all cases:
+  # one more, AC coupling coefficient that applies to all cases:
   ihc_coeffs.ac_coeff = 2 * math.pi * ihc_params.ac_corner_hz / fs
   return ihc_coeffs
 
@@ -471,7 +471,7 @@ class IhcState:
     else:
       if coeffs.one_cap:
         self.ihc_accum = np.zeros((n_ch,))
-        self.cap_voltge = coeffs.rest_cap * np.ones((n_ch,))
+        self.cap_voltage = coeffs.rest_cap * np.ones((n_ch,))
         self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
         self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
         self.ac_coupler = np.zeros((n_ch,))
@@ -498,10 +498,10 @@ def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
 
   Args:
     velocities: the BM velocities
-    car_coeffs: an object that describes the CAR filterbank implementation.
-    `
+    car_coeffs: an object that describes the CAR filterbank implementation
+
   Returns:
-    The limited velocities.
+    A nonlinear nonnegative function of velocities.
   """
 
   nlf = 1.0 / (
@@ -548,20 +548,20 @@ def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
       ihc_out = conductance * ihc_state.cap2_voltage
       ihc_state.cap1_voltage = (
           ihc_state.cap1_voltage -
-          (ihc_state.cap1_voltage -
-           ihc_state.cap2_voltage) * ihc_coeffs.out1_rate +
+          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) *
+          ihc_coeffs.out1_rate +
           (1 - ihc_state.cap1_voltage) * ihc_coeffs.in1_rate)
 
       ihc_state.cap2_voltage = (
           ihc_state.cap2_voltage - ihc_out * ihc_coeffs.out2_rate +
-          (ihc_state.cap1_voltage -
-           ihc_state.cap2_voltage) * ihc_coeffs.in2_rate)
+          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) *
+          ihc_coeffs.in2_rate)
 
     #  smooth it twice with LPF:
     ihc_out = ihc_out * ihc_coeffs.output_gain
     ihc_state.lpf1_state = (
-        ihc_state.lpf1_state +
-        ihc_coeffs.lpf_coeff * (ihc_out - ihc_state.lpf1_state))
+        ihc_state.lpf1_state + ihc_coeffs.lpf_coeff *
+        (ihc_out - ihc_state.lpf1_state))
     ihc_state.lpf2_state = (
         ihc_state.lpf2_state + ihc_coeffs.lpf_coeff *
         (ihc_state.lpf1_state - ihc_state.lpf2_state))
@@ -590,8 +590,7 @@ def ihc_model_run(input_data: np.ndarray, fs: float) -> np.ndarray:
   ihc_state = cfp.ears[0].ihc_state
   for i in range(input_data.shape[0]):
     car_out = input_data[i]
-    ihc_out, ihc_state = ihc_step(car_out, cfp.ears[0].ihc_coeffs,
-                                  ihc_state)
+    ihc_out, ihc_state = ihc_step(car_out, cfp.ears[0].ihc_coeffs, ihc_state)
     output[i] = ihc_out[0]
   return output
 
@@ -688,7 +687,6 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
 
   Returns:
     The coefficients for all the stages.
-
   """
   n_agc_stages = agc_params.n_stages
 
@@ -705,8 +703,7 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
   # Convert to vector of AGC coeffs
   agc_coeffs = []
   for stage in range(n_agc_stages):
-    agc_coeffs.append(
-        AgcCoeffs(n_ch, n_agc_stages, agc_params.agc_stage_gain))
+    agc_coeffs.append(AgcCoeffs(n_ch, n_agc_stages, agc_params.agc_stage_gain))
 
     agc_coeffs[stage].decimation = agc_params.decimation[stage]
     tau = agc_params.time_constants[stage]
@@ -808,7 +805,7 @@ def agc_init_state(coeffs: List[AgcCoeffs]) -> List[AgcState]:
 
 
 def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
-                state: List[AgcState]) -> Tuple[List[AgcState], bool]:
+                state: List[AgcState]) -> Tuple[bool, List[AgcState]]:
   """Compute the AGC output for one stage, doing the recursion.
 
   Args:
@@ -855,7 +852,7 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
     state[stage].input_accum[:] = 0  # reset accumulator
 
     if stage < coeffs[0].n_agc_stages - 1:
-      state, updated = agc_recurse(coeffs, agc_in, stage + 1, state)
+      updated, state = agc_recurse(coeffs, agc_in, stage + 1, state)
       # and add its output to this stage input, whether it updated or not:
       agc_in = agc_in + coeffs[stage].agc_stage_gain * state[stage +
                                                              1].agc_memory
@@ -873,11 +870,11 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
   else:
     updated = False
 
-  return state, updated
+  return updated, state
 
 
 def agc_step(detects: np.ndarray, coeffs: List[AgcCoeffs],
-             state: List[AgcState]) -> Tuple[List[AgcState], bool]:
+             state: List[AgcState]) -> Tuple[bool, List[AgcState]]:
   """One time step of the AGC state update; decimates internally.
 
   Args:
@@ -886,8 +883,7 @@ def agc_step(detects: np.ndarray, coeffs: List[AgcCoeffs],
     state: A list of AGC states
 
   Returns:
-    A tuple: the new state and whether the state was updated (based on the
-    decimation factor).
+    A bool to indicate whether the AGC output has updated, and the new state.
   """
 
   stage = 0
@@ -914,7 +910,7 @@ class CarfacCoeffs:
 @dataclasses.dataclass
 class CarfacParams:
   fs: float
-  max_channels_per_octave: int
+  max_channels_per_octave: float
   car_params: CarParams
   agc_params: AgcParams
   ihc_params: Optional[IhcCoeffs]
@@ -924,16 +920,14 @@ class CarfacParams:
   n_ears: int
 
 
-def design_carfac(
-    n_ears: int = 1,
-    fs: float = 22050,
-    car_params: Optional[CarParams] = None,
-    agc_params: Optional[AgcParams] = None,
-    ihc_params: Optional[Union[IhcJustHwrParams,
-                               IhcOneCapParams,
-                               IhcTwoCapParams]] = None,
-    one_cap: bool = True,
-    just_hwr: bool = False) -> CarfacParams:
+def design_carfac(n_ears: int = 1,
+                  fs: float = 22050,
+                  car_params: Optional[CarParams] = None,
+                  agc_params: Optional[AgcParams] = None,
+                  ihc_params: Optional[Union[IhcJustHwrParams, IhcOneCapParams,
+                                             IhcTwoCapParams]] = None,
+                  one_cap: bool = True,
+                  just_hwr: bool = False) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
   CARFAC is a Cascade of Asymmetric Resonators with Fast-Acting Compression);
@@ -962,7 +956,6 @@ def design_carfac(
 
   Returns:
     A Carfac filter structure (for running the calcs.)
-
   """
 
   car_params = car_params or CarParams()
@@ -993,11 +986,9 @@ def design_carfac(
     pole_freqs[ch] = pole_hz
     pole_hz = pole_hz - car_params.erb_per_step * hz_to_erb(
         pole_hz, car_params.erb_break_freq, car_params.erb_q)
-
   # Now we have n_ch, the number of channels, and pole_freqs array.
 
-  max_channels_per_octave = int(
-      math.log(2) / math.log(pole_freqs[1] / pole_freqs[2]))
+  max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 
   # Convert to include an ear_array, each w coeffs and state...
   car_coeffs = design_filters(car_params, fs, pole_freqs)
@@ -1047,8 +1038,7 @@ def shift_right(s: np.ndarray, amount: int) -> np.ndarray:
     return s
 
 
-def spatial_smooth(coeffs: AgcCoeffs,
-                   stage_state: np.ndarray) -> np.ndarray:
+def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
   """Design the AGC spatial smoothing filter.
 
   TODO(dicklyon): Can you say more??
@@ -1101,7 +1091,7 @@ def smooth_double_exponential(signal_vecs, polez1, polez2, fast_matlab_way):
   raise NotImplementedError
 
 
-def close_agc_loop(cfp: CarfacParams) -> None:
+def close_agc_loop(cfp: CarfacParams) -> CarfacParams:
   """Fastest decimated rate determines interp needed."""
   decim1 = cfp.agc_params.decimation[0]
 
@@ -1115,14 +1105,15 @@ def close_agc_loop(cfp: CarfacParams) -> None:
          cfp.ears[ear].car_state.zb_memory) / decim1)
     cfp.ears[ear].car_state.dg_memory = (
         new_g - cfp.ears[ear].car_state.g_memory) / decim1
+  return cfp
 
 
-def run_segment(cfp: CarfacParams,
-                input_waves: np.ndarray,
-                open_loop: bool = False,
-                linear_car: bool = False) -> Tuple[np.ndarray, CarfacParams,
-                                                   np.ndarray, np.ndarray,
-                                                   np.ndarray]:
+def run_segment(
+    cfp: CarfacParams,
+    input_waves: np.ndarray,
+    open_loop: bool = False,
+    linear_car: bool = False
+) -> Tuple[np.ndarray, CarfacParams, np.ndarray, np.ndarray, np.ndarray]:
   """This function runs the entire CARFAC model.
 
   That is, filters a 1 or more channel
@@ -1191,19 +1182,21 @@ def run_segment(cfp: CarfacParams,
 
       # This would be cleaner if we could just get and use a reference to
       # cfp.ears(ear), but Matlab doesn't work that way...
-      [car_out, _] = car_step(
+      [car_out, cfp.ears[ear].car_state] = car_step(
           input_waves[k, ear],
           cfp.ears[ear].car_coeffs,
           cfp.ears[ear].car_state,
           linear=linear_car)
 
       # update IHC state & output on every time step, too
-      [ihc_out, _] = ihc_step(car_out, cfp.ears[ear].ihc_coeffs,
-                              cfp.ears[ear].ihc_state)
+      [ihc_out,
+       cfp.ears[ear].ihc_state] = ihc_step(car_out, cfp.ears[ear].ihc_coeffs,
+                                           cfp.ears[ear].ihc_state)
 
       # run the AGC update step, decimating internally,
-      [_, agc_updated] = agc_step(ihc_out, cfp.ears[ear].agc_coeffs,
-                                  cfp.ears[ear].agc_state)
+      [agc_updated,
+       cfp.ears[ear].agc_state] = agc_step(ihc_out, cfp.ears[ear].agc_coeffs,
+                                           cfp.ears[ear].agc_state)
 
       # save some output data:
       naps[k, :, ear] = ihc_out  # output to neural activity pattern
@@ -1222,6 +1215,6 @@ def run_segment(cfp: CarfacParams,
         # TODO(malcolmslaney) Translate Cross_Couple()
         # cfp.ears = Cross_Couple(cfp.ears)
       if not open_loop:
-        close_agc_loop(cfp)
+        cfp = close_agc_loop(cfp)
 
   return naps, cfp, bm, seg_ohc, seg_agc
