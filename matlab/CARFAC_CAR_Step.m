@@ -21,22 +21,23 @@ function [car_out, state] = CARFAC_CAR_Step(x_in, CAR_coeffs, state)
 %
 % One sample-time update step for the filter part of the CARFAC.
 
-% Most of the update is parallel; finally we ripple inputs at the end.
-
+% Most of the update is parallel; maybe ripple inputs at the end.
 
 % do the DOHC stuff:
-
 g = state.g_memory + state.dg_memory;  % interp g
 zB = state.zB_memory + state.dzB_memory; % AGC interpolation state
 % update the nonlinear function of "velocity", and zA (delay of z2):
 zA = state.zA_memory;
 v = state.z2_memory - zA;
-% nlf = CARFAC_OHC_NLF(v .* widen, CAR_coeffs);  % widen v with feedback
-nlf = CARFAC_OHC_NLF(v, CAR_coeffs);
+if CAR_coeffs.linear
+  nlf = 1;
+else
+  % nlf = CARFAC_OHC_NLF(v .* widen, CAR_coeffs);  % widen v with feedback
+  nlf = CARFAC_OHC_NLF(v, CAR_coeffs);
+end
 % zB * nfl is "undamping" delta r:
-r = CAR_coeffs.r1_coeffs + zB .* nlf; 
+r = CAR_coeffs.r1_coeffs + zB .* nlf;
 zA = state.z2_memory;
-
 
 % now reduce state by r and rotate with the fixed cos/sin coeffs:
 z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
@@ -45,17 +46,26 @@ z1 = r .* (CAR_coeffs.a0_coeffs .* state.z1_memory - ...
 z2 = r .* (CAR_coeffs.c0_coeffs .* state.z1_memory + ...
   CAR_coeffs.a0_coeffs .* state.z2_memory);
 
-zY = CAR_coeffs.h_coeffs .* z2;  % partial output
-
-% Ripple input-output path, instead of parallel, to avoid delay...
-% this is the only part that doesn't get computed "in parallel":
-in_out = x_in;
-for ch = 1:length(zY)
-  % could do this here, or later in parallel:
-  z1(ch) = z1(ch) + in_out;
-  % ripple, saving final channel outputs in zY
-  in_out = g(ch) * (in_out + zY(ch));
-  zY(ch) = in_out;
+if isfield(CAR_coeffs, 'use_delay_buffer') && CAR_coeffs.use_delay_buffer;
+  % To avoid the sequential ripple, use zY as delay per stage.
+  % Optional fully-parallel update uses a delay per stage.
+  zY = state.zY_memory;
+  zY(2:end) = zY(1:(end-1));  % Propagate delayed last outputs zy
+  zY(1) = x_in;  % fill in new input
+  z1 = z1 + zY;  % add new stage inputs to z1 states
+  zY = g .* (CAR_coeffs.h_coeffs .* z2 + zY);  % Outputs from z2
+else
+  zY = CAR_coeffs.h_coeffs .* z2;  % partial output
+  % Ripple input-output path, instead of parallel, to avoid delay...
+  % this is the only part that doesn't get computed "in parallel":
+  in_out = x_in;
+  for ch = 1:length(zY)
+    % could do this here, or later in parallel:
+    z1(ch) = z1(ch) + in_out;
+    % ripple, saving final channel outputs in zY
+    in_out = g(ch) * (in_out + zY(ch));
+    zY(ch) = in_out;
+  end
 end
 
 % put new state back in place of old
@@ -68,5 +78,3 @@ state.zY_memory = zY;
 state.g_memory = g;
 
 car_out = zY;
-
-

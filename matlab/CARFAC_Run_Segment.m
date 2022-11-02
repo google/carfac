@@ -17,10 +17,10 @@
 % limitations under the License.
 
 function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
-  CF, input_waves, open_loop)
+  CF, input_waves)
 % function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
-%   CF, input_waves, open_loop)
-% 
+%   CF, input_waves)
+%
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input segment to make one or more neural activity patterns (naps);
 % it can be called multiple times for successive segments of any length,
@@ -45,10 +45,6 @@ function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
 % seg_ohc seg_agc are optional extra outputs useful for seeing what the
 % ohc nonlinearity and agc are doing; both in terms of extra damping.
 
-if nargin < 3
-  open_loop = 0;
-end
-
 if nargout > 2
   do_BM = 1;
 else
@@ -61,6 +57,18 @@ if n_ears ~= CF.n_ears
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
 
+if ~isfield(CF, 'open_loop')  % Find open_loop in CF or default it.
+  CF.open_loop = 0;
+end
+
+if ~isfield(CF, 'linear_car')  % Find linear in CF or default it.
+  CF.linear_car = 0;
+end
+
+if ~isfield(CF, 'use_delay_buffer')  % To let CAR be fully parallel.
+  CF.use_delay_buffer = 0;
+end
+
 n_ch = CF.n_ch;
 naps = zeros(n_samp, n_ch, n_ears);  % allocate space for result
 if do_BM
@@ -69,45 +77,66 @@ if do_BM
   seg_agc = zeros(n_samp, n_ch, n_ears);
 end
 
+% A 2022 addition to make open-loop running behave.  In open_loop mode, these
+% coefficients are set, per AGC filter outputs, when we CARFAC_Close_AGC_Loop
+% on AGC filter output updates.  They drive the zB and g coefficients to the
+% intended value by the next update, but if open_loop they would just keep
+% going, extrapolating.  The point of open_loop mode is to stop them moving,
+% so we need to make sure these deltas are zeroed in case the mode is switched
+% from closed to open, as in some tests to evaluate the transfer functions
+% before and after adapting to a signal.
+if CF.open_loop
+  % The interpolators may be running if it was previously run closed loop.
+  for ear = 1:CF.n_ears
+    CF.ears(ear).CAR_state.dzB_memory = 0;  % To stop intepolating zB.
+    CF.ears(ear).CAR_state.dg_memory = 0;  % To stop intepolating g.
+  end
+end
+
+% Apply control coeffs to where they are needed.
+for ear = 1:CF.n_ears
+  CF.ears(ear).CAR_coeffs.linear = CF.linear_car;  % Skip OHC nonlinearity.
+  CF.ears(ear).CAR_coeffs.use_delay_buffer = CF.use_delay_buffer;
+end
+
 detects = zeros(n_ch, n_ears);
 for k = 1:n_samp
   % at each time step, possibly handle multiple channels
   for ear = 1:n_ears
-    
+
     % This would be cleaner if we could just get and use a reference to
     % CF.ears(ear), but Matlab doesn't work that way...
-    
+
     [car_out, CF.ears(ear).CAR_state] = CARFAC_CAR_Step( ...
       input_waves(k, ear), CF.ears(ear).CAR_coeffs, CF.ears(ear).CAR_state);
-    
+
     % update IHC state & output on every time step, too
     [ihc_out, CF.ears(ear).IHC_state] = CARFAC_IHC_Step( ...
       car_out, CF.ears(ear).IHC_coeffs, CF.ears(ear).IHC_state);
-    
+
     % run the AGC update step, decimating internally,
-    [CF.ears(ear).AGC_state, updated] = CARFAC_AGC_Step( ...
+    [CF.ears(ear).AGC_state, AGC_updated] = CARFAC_AGC_Step( ...
       ihc_out, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
-    
+
     % save some output data:
     naps(k, :, ear) = ihc_out;  % output to neural activity pattern
     if do_BM
       BM(k, :, ear) = car_out;
       state = CF.ears(ear).CAR_state;
       seg_ohc(k, :, ear) = state.zA_memory;
-      seg_agc(k, :, ear) = state.zB_memory;;
+      seg_agc(k, :, ear) = state.zB_memory;
     end
   end
-  
+
   % connect the feedback from AGC_state to CAR_state when it updates;
   % all ears together here due to mixing across them:
-  if updated 
+  if AGC_updated
     if n_ears > 1
       % do multi-aural cross-coupling:
       CF.ears = CARFAC_Cross_Couple(CF.ears);
     end
-    if ~open_loop
-      CF = CARFAC_Close_AGC_Loop(CF);
+    if ~CF.open_loop
+      CF = CARFAC_Close_AGC_Loop(CF);  % Starts the interpolation of zB and g.
     end
   end
 end
-
