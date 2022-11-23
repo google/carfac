@@ -78,6 +78,7 @@ class CarCoeffs:
   h_coeffs: np.ndarray = np.zeros(())
   g0_coeffs: np.ndarray = np.zeros(())
   zr_coeffs: np.ndarray = np.zeros(())
+  ohc_health: np.ndarray = np.ones(())
 
 
 def hz_to_erb(cf_hz: Union[float, np.ndarray],
@@ -123,6 +124,8 @@ def design_filters(car_params: CarParams, fs: float,
       velocity_scale=car_params.velocity_scale,
       v_offset=car_params.v_offset)
 
+  car_coeffs.ohc_health = np.ones(n_ch, dtype=np.float32)
+
   # zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
   # and that a is here 1 / (1+f) where h = f*c.
   # solve for f:  1/zero_ratio^2 = 1 / (1+f)
@@ -141,7 +144,6 @@ def design_filters(car_params: CarParams, fs: float,
   # Compress theta to give somewhat higher Q at highest thetas:
   ff = car_params.high_f_damping_compression  # 0 to 1; typ. 0.5
   x = theta / math.pi
-
   zr_coeffs = math.pi * (x - ff * x**3)  # when ff is 0, this is just theta,
   #                       and when ff is 1 it goes to zero at theta = pi.
   max_zeta = car_params.max_zeta
@@ -165,7 +167,7 @@ def design_filters(car_params: CarParams, fs: float,
   car_coeffs.h_coeffs = h
 
   # for unity gain at min damping, radius r; only used in Init:
-  relative_undamping = np.ones((n_ch,))  # max undamping to start
+  relative_undamping = car_coeffs.ohc_health  # Just ones for now.
   # this function needs to take car_coeffs even if we haven't finished
   # constucting it by putting in the g0_coeffs:
   car_coeffs.g0_coeffs = stage_g(car_coeffs, relative_undamping)
@@ -1097,6 +1099,7 @@ def close_agc_loop(cfp: CarfacParams) -> CarfacParams:
 
   for ear in range(cfp.n_ears):
     undamping = 1 - cfp.ears[ear].agc_state[0].agc_memory  # stage 1 result
+    undamping = undamping * cfp.ears[ear].car_coeffs.ohc_health
     # Update the target stage gain for the new damping:
     new_g = stage_g(cfp.ears[ear].car_coeffs, undamping)
     # set the deltas needed to get to the new damping:

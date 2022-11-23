@@ -471,8 +471,8 @@ class CarfacTest(absltest.TestCase):
       max_abs_error = np.amax(np.abs(impresp - delayed))
       max_rel = max_abs_error / max_abs
       max_max_rel_error = np.maximum(max_max_rel_error, max_rel)
-      self.assertLess(max_rel, 2e-4)  # Needs more tolerance than Matlab. Why?
     print(max_max_rel_error)
+    self.assertLess(max_max_rel_error, 4e-4)  # More tolerance than Matlab. Why?
 
     # Run the nonlinear case with a small impulse so not too nonlinear.
     cfp = carfac.design_carfac(fs=fs)
@@ -490,8 +490,45 @@ class CarfacTest(absltest.TestCase):
       max_abs_error = np.amax(np.abs(impresp - delayed))
       max_rel = max_abs_error / max_abs
       max_max_rel_error = np.maximum(max_max_rel_error, max_rel)
-      self.assertLess(max_rel, 0.025)
     print(max_max_rel_error)
+    self.assertLess(max_max_rel_error, 0.025)
+
+  def test_ohc_health(self):
+    # Test: Verify reduce gain with reduced OHC health.
+    # Set the random seed.
+    np.random.seed(seed=1)
+
+    fs = 22050.0
+    t = np.arange(0, 1, 1 / fs)  # A second of noise.
+    amplitude = 1e-4  # -80 dBFS, around 20 or 30 dB SPL
+    noise = amplitude * np.random.randn(len(t))
+    cfp = carfac.design_carfac(fs=fs)
+    cfp = carfac.carfac_init(cfp)
+    # Run the healthy case with low-level noise.
+    _, cfp, bm_baseline, _, _ = carfac.run_segment(cfp, noise)
+
+    # Make the OHCs less healthy over the basal half.
+    n_ch = cfp.n_ch
+    half_ch = int(np.floor(n_ch / 2))
+    cfp.ears[0].car_coeffs.ohc_health[range(half_ch)] *= 0.5  # Degrade.
+
+    cfp = carfac.carfac_init(cfp)  # Clear state to zero between runs.
+    _, cfp, bm_degraded, _, _ = carfac.run_segment(cfp, noise)
+
+    # Compare rms outputs per channel.
+    rms_baseline = np.mean(bm_baseline**2, axis=0)**0.5
+    rms_degraded = np.mean(bm_degraded**2, axis=0)**0.5
+    tf_ratio = rms_degraded / rms_baseline
+
+    plt.clf()
+    plt.plot(tf_ratio)
+    plt.title('TF ratio with degraded OHC in basal half')
+
+    # Expect tf_ratio low in early channels, closer to 1 later.
+    for ch in np.arange(9, half_ch):
+      self.assertLess(tf_ratio[ch], 0.11)  # 0.1 usually works, depends on seed.
+    for ch in np.arange(half_ch + 5, n_ch - 2):
+      self.assertGreater(tf_ratio[ch], 0.35)
 
 
 if __name__ == '__main__':
