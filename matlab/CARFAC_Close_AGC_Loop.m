@@ -24,6 +24,8 @@ decim1 = CF.AGC_params.decimation(1);
 
 for ear = 1:CF.n_ears
   undamping = 1 - CF.ears(ear).AGC_state(1).AGC_memory; % stage 1 result
+  % degrade the OHC active undamping if the ear is less than healthy:
+  undamping = undamping .* CF.ears(ear).CAR_coeffs.OHC_health;
   % Update the target stage gain for the new damping:
   new_g = CARFAC_Stage_g(CF.ears(ear).CAR_coeffs, undamping);
   % set the deltas needed to get to the new damping:

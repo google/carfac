@@ -35,11 +35,11 @@ function CF = CARFAC_Design(n_ears, fs, ...
 % transfns = CARFAC_Transfer_Functions(CF, to_channels, from_channels)
 %
 % Defaults to Glasberg & Moore's ERB curve:
-% ERB_break_freq = 1000/4.37;  % 228.833
+% ERB_break_freq = 1000/4.37;  % 165.3 -- No, default is Greenwood 165.3
 % ERB_Q = 1000/(24.7*4.37);    % 9.2645
 %
 % All args are defaultable; for sample/default args see the code; they
-% make 96 channels at default fs = 22050, 114 channels at 44100.
+% make 71 channels at default fs = 22050.
 
 if nargin < 1
   n_ears = 1;  % if more than 1, make them identical channels;
@@ -61,7 +61,7 @@ if nargin < 3
     'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
     'ERB_per_step', 0.5, ... % assume G&M's ERB formula
     'min_pole_Hz', 30, ...
-    'ERB_break_freq', 165.3, ...  % Greenwood map's break freq.
+    'ERB_break_freq', 165.3, ...  % 165.3 is Greenwood map's break freq.
     'ERB_Q', 1000/(24.7*4.37));  % Glasberg and Moore's high-cf ratio
 end
 
@@ -77,7 +77,7 @@ if nargin < 4
 end
 
 if nargin < 5
-  % HACK: these constant control the defaults
+  % HACK: these constants control the defaults
   one_cap = 1;         % bool; 1 for Allen model, as text states we use
   just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
   if just_hwr
@@ -86,11 +86,11 @@ if nargin < 5
   else
     if one_cap
       CF_IHC_params = struct( ...
-        'just_hwr', just_hwr, ...        % not just a simple HWR
+        'just_hwr', just_hwr, ... % not just a simple HWR
         'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
         'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
         'tau_out', 0.0005, ...    % depletion tau is pretty fast
-        'tau_in', 0.010, ...        % recovery tau is slower
+        'tau_in', 0.010, ...      % recovery tau is slower
         'ac_corner_Hz', 20);
     else
       CF_IHC_params = struct( ...
@@ -100,7 +100,7 @@ if nargin < 5
         'tau1_out', 0.010, ...    % depletion tau is pretty fast
         'tau1_in', 0.020, ...     % recovery tau is slower
         'tau2_out', 0.0025, ...   % depletion tau is pretty fast
-        'tau2_in', 0.005, ...        % recovery tau is slower
+        'tau2_in', 0.005, ...     % recovery tau is slower
         'ac_corner_Hz', 20);
     end
   end
@@ -133,7 +133,7 @@ AGC_coeffs = CARFAC_DesignAGC(CF_AGC_params, fs, n_ch);
 IHC_coeffs = CARFAC_DesignIHC(CF_IHC_params, fs, n_ch);
 
 % Copy same designed coeffs into each ear (can do differently in the
-% future).
+% future, e.g. for unmatched OHC_health).
 for ear = 1:n_ears
   ears(ear).CAR_coeffs = CAR_coeffs;
   ears(ear).AGC_coeffs = AGC_coeffs;
@@ -149,8 +149,9 @@ CF = struct( ...
   'n_ch', n_ch, ...
   'pole_freqs', pole_freqs, ...
   'ears', ears, ...
-  'n_ears', n_ears );
-
+  'n_ears', n_ears, ...
+  'open_loop', 0, ...
+  'linear_car', 0);
 
 
 %% Design the filter coeffs:
@@ -167,12 +168,14 @@ CAR_coeffs = struct( ...
   );
 
 % don't really need these zero arrays, but it's a clue to what fields
-% and types are need in ohter language implementations:
+% and types are needed in other language implementations:
 CAR_coeffs.r1_coeffs = zeros(n_ch, 1);
 CAR_coeffs.a0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.c0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.h_coeffs = zeros(n_ch, 1);
 CAR_coeffs.g0_coeffs = zeros(n_ch, 1);
+
+CAR_coeffs.OHC_health = ones(n_ch, 1);  % 0 to 1 to derate OHC activity.
 
 % zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
 % and that a is here 1 / (1+f) where h = f*c.
@@ -192,19 +195,31 @@ a0 = cos(theta);
 % Compress theta to give somewhat higher Q at highest thetas:
 ff = CAR_params.high_f_damping_compression;  % 0 to 1; typ. 0.5
 x = theta/pi;
-
-zr_coeffs = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
+theta = pi * (x - ff * x.^3);  % when ff is 0, this is just theta,
 %                       and when ff is 1 it goes to zero at theta = pi.
 max_zeta = CAR_params.max_zeta;
-CAR_coeffs.r1_coeffs = (1 - zr_coeffs .* max_zeta);  % "r1" for the max-damping condition
+CAR_coeffs.r1_coeffs = (1 - theta .* max_zeta);  % "r1" for the max-damping condition
 
 min_zeta = CAR_params.min_zeta;
-% Increase the min damping where channels are spaced out more, by pulling
-% 25% of the way toward ERB_Hz/pole_freqs (close to 0.1 at high f)
-min_zetas = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
-  CAR_params.ERB_break_freq, CAR_params.ERB_Q) ./ pole_freqs - min_zeta);
-CAR_coeffs.zr_coeffs = zr_coeffs .* ...
-  (max_zeta - min_zetas);  % how r relates to undamping
+if min_zeta <= 0  % Use this to do a new design strategy
+  local_low_level_q = pole_freqs ./ ERB_Hz( ...
+    pole_freqs, CAR_params.ERB_break_freq, CAR_params.ERB_Q);
+  % Number of overlapping channels is about ERB_per_step^-1, so this:
+  min_zetas = CAR_params.ERB_per_step^-0.5 ./ (2*local_low_level_q);
+  min_zetas = min(min_zetas, 0.75*max_zeta);  % Keep some low CF action.
+  % "r1" for the max-damping condition
+  CAR_coeffs.r1_coeffs = exp(-theta .* max_zeta);
+  r0_coeffs = exp(-theta .* min_zetas);  % min_damping condition.
+  CAR_coeffs.zr_coeffs = r0_coeffs - CAR_coeffs.r1_coeffs;
+else
+  % Increase the min damping where channels are spaced out more, by pulling
+  % toward ERB_Hz/pole_freqs (close to 0.1 at high f)
+  min_zetas = min_zeta + 0.25*(ERB_Hz(pole_freqs, ...
+    CAR_params.ERB_break_freq, CAR_params.ERB_Q) ./ pole_freqs - min_zeta);
+  CAR_coeffs.r1_coeffs = (1 - theta .* max_zeta);  % "r1" for the max-damping condition
+  CAR_coeffs.zr_coeffs = theta .* ...
+    (max_zeta - min_zetas);  % how r relates to undamping
+end
 
 % undamped coupled-form coefficients:
 CAR_coeffs.a0_coeffs = a0;
@@ -214,8 +229,7 @@ CAR_coeffs.c0_coeffs = c0;
 h = c0 .* f;
 CAR_coeffs.h_coeffs = h;
 
-% for unity gain at min damping, radius r; only used in CARFAC_Init:
-relative_undamping = ones(n_ch, 1);  % max undamping to start
+relative_undamping = CAR_coeffs.OHC_health;  % Typically just ones.
 % this function needs to take CAR_coeffs even if we haven't finished
 % constucting it by putting in the g0_coeffs:
 CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, relative_undamping);
@@ -270,14 +284,9 @@ for stage = 1:n_AGC_stages
 
   % try a 3- or 5-tap FIR as an alternative to the double exponential:
   n_taps = 0;
-  done = 0;
+  FIR_OK = 0;
   n_iterations = 1;
-  if spread_sq == 0
-    n_iterations = 0;
-    n_taps = 3;
-    done = 1;
-  end
-  while ~done
+  while ~FIR_OK
     switch n_taps
       case 0
         % first attempt a 3-point FIR to apply once:
@@ -288,17 +297,18 @@ for stage = 1:n_AGC_stages
       case 5
         % apply FIR multiple times instead of going wider:
         n_iterations = n_iterations + 1;
-        if n_iterations > 4
-          n_iteration = -1;  % Signal to use IIR instead.
+        if n_iterations > 16
+          error('Too many n_iterations in CARFAC_DesignAGC');
         end
       otherwise
         % to do other n_taps would need changes in CARFAC_Spatial_Smooth
         % and in Design_FIR_coeffs
         error('Bad n_taps in CARFAC_DesignAGC');
     end
-    [AGC_spatial_FIR, done] = Design_FIR_coeffs(n_taps, spread_sq, delay, n_iterations);
+    [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
+      n_taps, spread_sq, delay, n_iterations);
   end
-  % When done, store the resulting FIR design in coeffs:
+  % when FIR_OK, store the resulting FIR design in coeffs:
   AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
   AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
   AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
@@ -570,4 +580,3 @@ IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 %     rest_output: 1.0426
 %        rest_cap: 0.5360
 %        ac_coeff: 0.0057
-

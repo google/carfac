@@ -31,6 +31,7 @@ status = status | test_IHC(do_plots);
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_whole_carfac(do_plots);
 status = status | test_delay_buffer(do_plots);
+status = status | test_OHC_health(do_plots);
 report_status(status, 'CARFAC_Test', 1)
 return
 
@@ -522,6 +523,52 @@ end
 fprintf(1, 'Delay nonlinear max_max_rel_error = %f\n', max_max_rel_error);
 
 report_status(status, 'test_delay_buffer')
+return
+
+
+function status = test_OHC_health(do_plots)
+% Test: Verify frequency dependent reduced gain with reduced health.
+
+status = 0;
+
+fs = 22050;
+
+t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
+amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
+noise = amplitude * randn(size(t));
+
+CF = CARFAC_Design(1, fs);
+CF = CARFAC_Init(CF);
+[~, CF, bm_baseline] = CARFAC_Run_Segment(CF, noise);
+
+half_ch = floor(CF.n_ch/2)
+ch = 1:half_ch;
+CF.ears(1).CAR_coeffs.OHC_health(ch) = ...
+  CF.ears(1).CAR_coeffs.OHC_health(ch) * 0.5;
+CF = CARFAC_Init(CF);
+[~, CF, bm_less_healthy] = CARFAC_Run_Segment(CF, noise);
+
+rms_baseline = rms(bm_baseline);
+rms_less_healthy = rms(bm_less_healthy);
+tf_ratio = rms_less_healthy ./ rms_baseline;
+
+if do_plots
+  figure
+  plot(tf_ratio)
+  xlabel('channel number')
+  ylabel('tf_ratio')
+  title('unhealthy hf OHC noise transfer function ratio')
+end
+
+% Expect tf_ratio low in early channels, close to 1 later.
+if any(tf_ratio(10:half_ch) > 0.11)  % 0.1 works, but seed dependent.
+  status = 1;
+  fprintf(1, 'tf_ratio too high in early channels in test_OHC_health\n')
+end
+if any(tf_ratio(half_ch+6:end-2) < 0.35)
+  status = 1;
+  fprintf(1, 'tf_ratio too low in later channels in test_OHC_health\n')
+end
 return
 
 
