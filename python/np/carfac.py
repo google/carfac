@@ -736,13 +736,9 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
 
     # try a 3- or 5-tap FIR as an alternative to the double exponential:
     n_taps = 0
-    done = 0
+    done = False
     n_iterations = 1
-    if spread_sq == 0:
-      n_iterations = 0
-      n_taps = 3
-      done = 1
-    while ~done:
+    while not done:
       if n_taps == 0:
         # first attempt a 3-point FIR to apply once:
         n_taps = 3
@@ -752,8 +748,8 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
       elif n_taps == 5:
         # apply FIR multiple times instead of going wider:
         n_iterations = n_iterations + 1
-        if n_iterations > 4:
-          n_iterations = -1  # Signal to use IIR instead.
+        if n_iterations > 16:
+          raise ValueError('Too many n_iterations in CARFAC AGC design')
       else:
         # to do other n_taps would need changes in spatial_smooth
         # and in Design_fir_coeffs
