@@ -26,12 +26,14 @@ all the way back to design parameters, to enable tuning them for specific tasks.
 See "Human and Machine Hearing at http://dicklyon.com/hmh/ for more details.
 """
 
+from collections.abc import Callable
 import dataclasses
 import enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import Any, Mapping, Optional, Sequence, TypeVar
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+
 from . import pz
 
 
@@ -155,140 +157,7 @@ class AGCParams:
             tf.zeros((num - 1,), dtype=v.dtype))], axis=0)
 
 
-# Disclaimer[0]: Creating new classes dynamically like this is not good
-# practice.
-# We do it here to let us have two different classes with the same annotations,
-# by copying them from source_class to a generated class that acts as base class
-# for the second class. See e.g. CARCoeffs and CARCoeffsET as an example.
-# The reason we do this is that this code has a lot of cases where we need to
-# return a lot of values in a way that works with tf.function and graph mode.
-# tf.function typically doesn't allow returning values that aren't tensors or
-# tuples of tensors, which makes it hard to return named and readable
-# structures. This makes tf.experimental.ExtensionType very convenient since it
-# lets us return these values in a named and structured way.
-# Unfortunately tf.experimental.ExtensionType is immutable, so we can't just
-# modify the values and return the same ExtensionType.
-# The ugly hack here is that we convert between the ExtensionType and a mutable
-# type that lets us update the values, and then convert back to an ExtensionType
-# that we return.
-# This function makes it possible to do this without repeating every list of
-# annotations twice, once for the ExtensionType and once for the
-# non-ExtensionType.
-def _extension_type_with_annotations_from(source_class):
-  """Creates a new extension type base class with annotations.
-
-  Args:
-    source_class: The source class to copy the annotations from.
-  Returns:
-    A new base class with the annotations of source_class, using
-      tf.experimental.ExtensionType as its own base class.
-  """
-  res = type(source_class.__name__ + 'Annotations',
-             (tf.experimental.ExtensionType,),
-             {})
-  setattr(res, '__annotations__', getattr(source_class, '__annotations__'))
-  for k in getattr(source_class, '__annotations__'):
-    setattr(res, k, getattr(source_class, k))
-  return res
-
-
 T = TypeVar('T')
-
-
-# Disclaimer[1]: This kind of meta programming is not good practice.
-# This function is used by the classes mentioned in Disclaimer[0]
-# to convert between the ExtensionType-inheritor and the non-ExtensionType
-# class.
-# Since the conversion only happens to annotated classes, and only copies the
-# annotated fields of the classes, this is a convenient way to repeat the code
-# 6 times.
-def _convert(obj: object,
-             target_class: Type[T]) -> T:
-  """Instantiates `target_class` with arguments taken from `obj` attributes.
-
-  Creates a set of constructor arguments using the annotated fields of
-  target_class (or closest superclass with annotations) and the current values
-  of the provided object to create a new object of a provided class.
-
-  Args:
-    obj: The object to pick the current values from.
-    target_class: The class to create a new instance of.
-  Returns:
-    A new instance of the actual_class argument.
-  """
-  annotations = vars(next(
-      filter(lambda cls: '__annotations__' in vars(cls),
-             target_class.__mro__)))['__annotations__']
-  params = {}
-  for name in annotations:
-    params[name] = getattr(obj, name)
-  return target_class(**params)
-
-
-# Disclaimer[2]: This kind of meta programming is not good practice.
-# This function is used to convert the [...]Coeffs and [...]State classes that
-# are propagated from step to step by the CARFACCell class.
-# Since tf.keras.layer.RNN layers can't propagate the state as anything other
-# than tensors and tuples of tensors, it is necessary to convert all of the
-# state classes to tuples of tensors, and this is a way to avoid repeating the
-# code 6 times.
-def _to_tensors(obj: object) -> List[tf.Tensor]:
-  """Converts an annotated object to a list of tensors for state propagation.
-
-  Since TF RNNs propagate state from step to step in the shape of tuples of
-  tensors, we need a way to convert from the previous state to something with
-  names we can refer to, such as `car_state.zr_memory`, and after creating the
-  correct values for next step state we then need to convert everything back to
-  tuples of tensors again.
-
-  This function converts any object with fields defined by annotations on the
-  object class (or closest superclass with annotations) into a list of tensors
-  for this purpose.
-
-  Arguments:
-    obj: The object to convert.
-  Returns:
-    A new list of tensors containing the annotated fields.
-  """
-  annotations = vars(next(
-      filter(lambda cls: '__annotations__' in vars(cls),
-             type(obj).__mro__)))['__annotations__']
-  return [getattr(obj, field_name) for field_name in annotations]
-
-
-# Disclaimer[3]: This kind of meta programming is not good practice.
-# See Disclaimer[2] for the background to this function.
-# This function is used to convert the state tensors back to annotated classes
-# again.
-def _from_tensors(target_class: Type[T],
-                  tensors: Tuple[tf.Tensor]) -> T:
-  """Converts a tensor to an annotated class for state propagation.
-
-  Since TF RNNs propagate state from step to step in the shape of tuples of
-  tensors, we need a way to convert from the previous state to something with
-  names we can refer to, such as `car_state.zr_memory`, and after creating the
-  correct values for next step state we then need to convert everything back to
-  tuples of tensors again.
-
-  This function converts a list of tensors into any object with fields defined
-  by annotations of the target_class class (or closest superclass with
-  annotations) assuming the number of annotated fields in the class match the
-  first index of the tensor.
-
-  Arguments:
-    target_class: The type to instantiate.
-    tensors: The tensor to use when creating the constructor arguments for the
-      return value.
-  Returns:
-    An instance of actual_class.
-  """
-  annotations = vars(next(
-      filter(lambda cls: '__annotations__' in vars(cls),
-             target_class.__mro__)))['__annotations__']
-  args = {}
-  for idx, field_name in enumerate(annotations):
-    args[field_name] = tensors[idx]
-  return target_class(**args)
 
 
 @dataclasses.dataclass
@@ -297,6 +166,9 @@ class _CARCoeffs:
 
   All fields are initialized as zero value tensors to simplify instantiation and
   gradual setup one field at a time.
+
+  Field order and type must match _CARCoeffsET for conversion between them to
+  work.
   """
   velocity_scale: tf.Tensor = tf.constant(0.0)
   v_offset: tf.Tensor = tf.constant(0.0)
@@ -310,33 +182,39 @@ class _CARCoeffs:
   min_zeta: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> '_CARCoeffsET':
-    return _convert(self, _CARCoeffsET)
-
-  @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_CARCoeffs)['__annotations__'])
+    return _CARCoeffsET(**vars(self))
 
   @classmethod
   def tensor_shapes_except_batch(cls,
-                                 num_channels: int) -> List[tf.TensorShape]:
-    return [
+                                 num_channels: int) -> Sequence[tf.TensorShape]:
+    return tuple(
         tf.TensorShape([num_channels])
-        for _ in range(cls.num_annotations())
-    ]
+        for _ in dataclasses.fields(cls)
+    )
 
 
-class _CARCoeffsET(_extension_type_with_annotations_from(_CARCoeffs)):
+class _CARCoeffsET(tf.experimental.ExtensionType):
   """Immutable extension type based on _CARCoeffs."""
+  velocity_scale: tf.Tensor = tf.constant(0.0)
+  v_offset: tf.Tensor = tf.constant(0.0)
+  r1_coeffs: tf.Tensor = tf.constant(0.0)
+  a0_coeffs: tf.Tensor = tf.constant(0.0)
+  c0_coeffs: tf.Tensor = tf.constant(0.0)
+  h_coeffs: tf.Tensor = tf.constant(0.0)
+  g0_coeffs: tf.Tensor = tf.constant(0.0)
+  zr_coeffs: tf.Tensor = tf.constant(0.0)
+  max_zeta: tf.Tensor = tf.constant(0.0)
+  min_zeta: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> _CARCoeffs:
-    return _convert(self, _CARCoeffs)
+    return _CARCoeffs(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_CARCoeffsET':
-    return _from_tensors(_CARCoeffsET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_CARCoeffsET':
+    return cls(*tensors)
 
 
 @dataclasses.dataclass
@@ -345,6 +223,9 @@ class _IHCCoeffs:
 
   All fields are initialized as zero value tensors to simplify instantiation and
   gradual setup one field at a time.
+
+  Field order and type must match _IHCCoeffsET for conversion between them to
+  work.
   """
   lpf_coeff: tf.Tensor = tf.constant(0.0)
   out1_rate: tf.Tensor = tf.constant(0.0)
@@ -359,39 +240,56 @@ class _IHCCoeffs:
   cap1_voltage: tf.Tensor = tf.constant(0.0)
   cap2_voltage: tf.Tensor = tf.constant(0.0)
 
-  # Disclaimer[3]: This type of metaprogramming is not good practice.
+  # Disclaimer: This type of metaprogramming is not good practice.
   # This function is used to simplify casting all fields of the instance to the
   # provided dtype.
   def cast(self, dtype: tf.DType) -> '_IHCCoeffs':
     params = {}
-    for name in vars(type(self))['__annotations__']:
-      params[name] = tf.cast(getattr(self, name), dtype)
+    for name, value in vars(self).items():
+      params[name] = tf.cast(value, dtype)
     return _IHCCoeffs(**params)
 
   def convert(self) -> '_IHCCoeffsET':
-    return _convert(self, _IHCCoeffsET)
+    return _IHCCoeffsET(**vars(self))
 
   @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_IHCCoeffs)['__annotations__'])
-
-  @classmethod
-  def tensor_shapes_except_batch(cls) -> List[tf.TensorShape]:
-    return [tf.TensorShape(()) for _ in range(cls.num_annotations())]
+  def tensor_shapes_except_batch(cls) -> Sequence[tf.TensorShape]:
+    return tuple(tf.TensorShape(()) for _ in dataclasses.fields(cls))
 
 
-class _IHCCoeffsET(_extension_type_with_annotations_from(_IHCCoeffs)):
+class _IHCCoeffsET(tf.experimental.ExtensionType):
   """Immutable extension type based on _IHCCoeffs."""
+  lpf_coeff: tf.Tensor = tf.constant(0.0)
+  out1_rate: tf.Tensor = tf.constant(0.0)
+  in1_rate: tf.Tensor = tf.constant(0.0)
+  out2_rate: tf.Tensor = tf.constant(0.0)
+  in2_rate: tf.Tensor = tf.constant(0.0)
+  output_gain: tf.Tensor = tf.constant(0.0)
+  rest_output: tf.Tensor = tf.constant(0.0)
+  rest_cap1: tf.Tensor = tf.constant(0.0)
+  rest_cap2: tf.Tensor = tf.constant(0.0)
+  ac_coeff: tf.Tensor = tf.constant(0.0)
+  cap1_voltage: tf.Tensor = tf.constant(0.0)
+  cap2_voltage: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> _IHCCoeffs:
-    return _convert(self, _IHCCoeffs)
+    return _IHCCoeffs(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    # Returns a sequence of tensors in the same order as the field declarations
+    # in this class, which also matches the argument order in the class
+    # constructor.
+    # Note that this - and all `to_tensors` - depends on some subtleties:
+    # - The dictionary returned by as_dict iterates in insertion order, which is
+    #   true for Python 3.7+.
+    # - The dictionary returned by as_dict is populated in the order of the
+    #   internal field list, which is expected to be true, and also defines the
+    #   order of the constructor arguments.
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_IHCCoeffsET':
-    return _from_tensors(_IHCCoeffsET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_IHCCoeffsET':
+    return cls(*tensors)
 
 
 @dataclasses.dataclass
@@ -400,6 +298,9 @@ class _AGCCoeffs:
 
   All fields are initialized as zero value tensors to simplify instantiation and
   gradual setup one field at a time.
+
+  Field order and type must match _AGCCoeffsET for conversion between them to
+  work.
   """
   agc_stage_gain: tf.Tensor = tf.constant(0.0)
   agc_epsilon: tf.Tensor = tf.constant(0.0)
@@ -417,7 +318,7 @@ class _AGCCoeffs:
   decim: tf.Tensor = tf.constant(0.0)
 
   @classmethod
-  def concat(cls, coeffs: List['_AGCCoeffs']) -> '_AGCCoeffs':
+  def concat(cls, coeffs: Sequence['_AGCCoeffs']) -> '_AGCCoeffs':
     """Returns concatenated _AGCCoeffs.
 
     Args:
@@ -427,46 +328,57 @@ class _AGCCoeffs:
         attributes in the argument list of _AGCCoeffs.
     """
     params = {}
-    for name in vars(cls)['__annotations__']:
+    for field in dataclasses.fields(cls):
       parts = []
       for coeff in coeffs:
-        parts.append(getattr(coeff, name))
-      params[name] = tf.stack(parts, axis=0)
+        parts.append(getattr(coeff, field.name))
+      params[field.name] = tf.stack(parts, axis=0)
     return cls(**params)
 
   def convert(self) -> '_AGCCoeffsET':
-    return _convert(self, _AGCCoeffsET)
+    return _AGCCoeffsET(**vars(self))
 
   @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_AGCCoeffs)['__annotations__'])
-
-  @classmethod
-  def tensor_shapes_except_batch(cls, stages: int) -> List[tf.TensorShape]:
-    return [
-        tf.TensorShape([stages]) for _ in range(cls.num_annotations())
-    ]
+  def tensor_shapes_except_batch(cls, stages: int) -> Sequence[tf.TensorShape]:
+    return tuple(
+        tf.TensorShape([stages]) for _ in dataclasses.fields(cls)
+    )
 
 
-class _AGCCoeffsET(_extension_type_with_annotations_from(_AGCCoeffs)):
+class _AGCCoeffsET(tf.experimental.ExtensionType):
   """Immutable extension type based on _AGCCoeffs."""
+  agc_stage_gain: tf.Tensor = tf.constant(0.0)
+  agc_epsilon: tf.Tensor = tf.constant(0.0)
+  decimation: tf.Tensor = tf.constant(0.0)
+  agc_pole_z1: tf.Tensor = tf.constant(0.0)
+  agc_pole_z2: tf.Tensor = tf.constant(0.0)
+  agc_spatial_iterations: tf.Tensor = tf.constant(0.0)
+  agc_spatial_fir_left: tf.Tensor = tf.constant(0.0)
+  agc_spatial_fir_mid: tf.Tensor = tf.constant(0.0)
+  agc_spatial_fir_right: tf.Tensor = tf.constant(0.0)
+  agc_spatial_n_taps: tf.Tensor = tf.constant(0.0)
+  agc_mix_coeffs: tf.Tensor = tf.constant(0.0)
+  agc_gain: tf.Tensor = tf.constant(0.0)
+  detect_scale: tf.Tensor = tf.constant(0.0)
+  decim: tf.Tensor = tf.constant(0.0)
 
   def __getitem__(self, stage: tf.Tensor) -> '_AGCCoeffsET':
     """Returns _AGCCoeffsET for only the given stage."""
-    params = {}
-    for name in vars(_AGCCoeffs)['__annotations__']:
-      params[name] = getattr(self, name)[stage]
-    return _AGCCoeffsET(**params)
+    values = tf.experimental.extension_type.as_dict(self)
+    sliced_values = {
+        name: tensor[stage] for name, tensor in values.items()
+    }
+    return _AGCCoeffsET(**sliced_values)
 
   def convert(self) -> _AGCCoeffs:
-    return _convert(self, _AGCCoeffs)
+    return _AGCCoeffs(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_AGCCoeffsET':
-    return _from_tensors(_AGCCoeffsET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_AGCCoeffsET':
+    return cls(*tensors)
 
 
 @dataclasses.dataclass
@@ -486,34 +398,38 @@ class _CARState:
   dg_memory: tf.Tensor = tf.constant(0.0)
 
   @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_CARState)['__annotations__'])
-
-  @classmethod
   def tensor_shapes_except_batch(cls,
                                  num_ears: int,
-                                 num_channels: int) -> List[tf.TensorShape]:
-    return [
+                                 num_channels: int) -> Sequence[tf.TensorShape]:
+    return tuple(
         tf.TensorShape([num_ears, num_channels])
-        for _ in range(cls.num_annotations())
-    ]
+        for _ in dataclasses.fields(cls)
+    )
 
   def convert(self) -> '_CARStateET':
-    return _convert(self, _CARStateET)
+    return _CARStateET(**vars(self))
 
 
-class _CARStateET(_extension_type_with_annotations_from(_CARState)):
+class _CARStateET(tf.experimental.ExtensionType):
   """Immutable extension type based on _CARState."""
+  z1_memory: tf.Tensor = tf.constant(0.0)
+  z2_memory: tf.Tensor = tf.constant(0.0)
+  za_memory: tf.Tensor = tf.constant(0.0)
+  zb_memory: tf.Tensor = tf.constant(0.0)
+  dzb_memory: tf.Tensor = tf.constant(0.0)
+  zy_memory: tf.Tensor = tf.constant(0.0)
+  g_memory: tf.Tensor = tf.constant(0.0)
+  dg_memory: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> _CARState:
-    return _convert(self, _CARState)
+    return _CARState(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_CARStateET':
-    return _from_tensors(_CARStateET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_CARStateET':
+    return cls(*tensors)
 
 
 @dataclasses.dataclass
@@ -531,34 +447,36 @@ class _IHCState:
   ac_coupler: tf.Tensor = tf.constant(0.0)
 
   @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_IHCState)['__annotations__'])
-
-  @classmethod
   def tensor_shapes_except_batch(cls,
                                  num_ears: int,
-                                 num_channels: int) -> List[tf.TensorShape]:
-    return [
+                                 num_channels: int) -> Sequence[tf.TensorShape]:
+    return tuple(
         tf.TensorShape([num_ears, num_channels])
-        for _ in range(cls.num_annotations())
-    ]
+        for _ in dataclasses.fields(cls)
+    )
 
   def convert(self) -> '_IHCStateET':
-    return _convert(self, _IHCStateET)
+    return _IHCStateET(**vars(self))
 
 
-class _IHCStateET(_extension_type_with_annotations_from(_IHCState)):
+class _IHCStateET(tf.experimental.ExtensionType):
   """Immutable extension type based on _CARState."""
+  ihc_out: tf.Tensor = tf.constant(0.0)
+  cap1_voltage: tf.Tensor = tf.constant(0.0)
+  cap2_voltage: tf.Tensor = tf.constant(0.0)
+  lpf1_state: tf.Tensor = tf.constant(0.0)
+  lpf2_state: tf.Tensor = tf.constant(0.0)
+  ac_coupler: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> _IHCState:
-    return _convert(self, _IHCState)
+    return _IHCState(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_IHCStateET':
-    return _from_tensors(_IHCStateET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_IHCStateET':
+    return cls(*tensors)
 
 
 @dataclasses.dataclass
@@ -573,17 +491,17 @@ class _AGCState:
   decim_phase: tf.Tensor = tf.constant(0.0)
 
   def convert(self) -> '_AGCStateET':
-    return _convert(self, _AGCStateET)
+    return _AGCStateET(**vars(self))
 
   def __getitem__(self, stage: tf.Tensor) -> '_AGCState':
     """Returns _AGCState for only the given stage."""
-    params = {}
-    for name in vars(_AGCState)['__annotations__']:
-      params[name] = getattr(self, name)[:, :, :, stage]
-    return _AGCState(**params)
+    sliced_values = {
+        name: tensor[:, :, :, stage] for name, tensor in vars(self).items()
+    }
+    return _AGCState(**sliced_values)
 
   @classmethod
-  def concat(cls, states: List['_AGCState']) -> '_AGCState':
+  def concat(cls, states: Sequence['_AGCState']) -> '_AGCState':
     """Returns concatenated _AGCStates.
 
     Args:
@@ -593,12 +511,11 @@ class _AGCState:
         attributes in the argument list of _AGCStates.
     """
     params = {}
-    for name in vars(cls)['__annotations__']:
+    for field in dataclasses.fields(cls):
       parts = []
       for state in states:
-        value = getattr(state, name)
-        parts.append(value)
-      params[name] = tf.stack(parts, axis=3)
+        parts.append(getattr(state, field.name))
+      params[field.name] = tf.stack(parts, axis=3)
     return cls(**params)
 
   def update(self, stage: tf.Tensor, state: '_AGCState'):
@@ -608,7 +525,7 @@ class _AGCState:
       stage: The stage to update.
       state: An _AGCState for a single stage to update with.
     """
-    for name in vars(_AGCState)['__annotations__']:
+    for name in [field.name for field in dataclasses.fields(self)]:
       old_value = getattr(self, name)
       new_value = tf.reshape(
           tf.concat([old_value[:, :, :, :stage],
@@ -621,40 +538,40 @@ class _AGCState:
       setattr(self, name, new_value)
 
   @classmethod
-  def num_annotations(cls) -> int:
-    return len(vars(_AGCState)['__annotations__'])
-
-  @classmethod
   def tensor_shapes_except_batch(
       cls,
       num_ears: int,
       num_channels: int,
-      num_stages: int) -> List[tf.TensorShape]:
-    return [
+      num_stages: int) -> Sequence[tf.TensorShape]:
+    return tuple(
         tf.TensorShape([num_ears, num_channels, num_stages])
-        for _ in range(cls.num_annotations())
-    ]
+        for _ in dataclasses.fields(cls)
+    )
 
 
-class _AGCStateET(_extension_type_with_annotations_from(_AGCState)):
+class _AGCStateET(tf.experimental.ExtensionType):
   """Immutable extension type based on _AGCState."""
+  agc_memory: tf.Tensor = tf.constant(0.0)
+  input_accum: tf.Tensor = tf.constant(0.0)
+  decim_phase: tf.Tensor = tf.constant(0.0)
 
   def __getitem__(self, stage: tf.Tensor) -> '_AGCStateET':
     """Returns _AGCStateET for only the given stage."""
-    params = {}
-    for name in vars(_AGCState)['__annotations__']:
-      params[name] = getattr(self, name)[:, :, :, stage]
-    return _AGCStateET(**params)
+    values = tf.experimental.extension_type.as_dict(self)
+    sliced_values = {
+        name: tensor[:, :, :, stage] for name, tensor in values.items()
+    }
+    return _AGCStateET(**sliced_values)
 
   def convert(self) -> _AGCState:
-    return _convert(self, _AGCState)
+    return _AGCState(**tf.experimental.extension_type.as_dict(self))
 
-  def to_tensors(self) -> List[tf.Tensor]:
-    return _to_tensors(self)
+  def to_tensors(self) -> Sequence[tf.Tensor]:
+    return tuple(tf.experimental.extension_type.as_dict(self).values())
 
   @classmethod
-  def from_tensors(cls, tensors: Tuple[tf.Tensor]) -> '_AGCStateET':
-    return _from_tensors(_AGCStateET, tensors)
+  def from_tensors(cls, tensors: Sequence[tf.Tensor]) -> '_AGCStateET':
+    return cls(*tensors)
 
   def spec_with_unknown_batch(self) -> '_AGCStateET.Spec':
     """Returns a Spec for the object with unknown batch dimension.
@@ -663,8 +580,8 @@ class _AGCStateET(_extension_type_with_annotations_from(_AGCState)):
       dimension unknown.
     """
     params = {}
-    for name in vars(_AGCState)['__annotations__']:
-      current_spec = tf.TensorSpec.from_tensor(getattr(self, name))
+    for name, value in tf.experimental.extension_type.as_dict(self).items():
+      current_spec = tf.TensorSpec.from_tensor(value)
       shape_as_list = current_spec.shape.as_list()
       shape_as_list[0] = None
       params[name] = tf.TensorSpec(shape_as_list, current_spec.dtype)
@@ -758,7 +675,7 @@ def concat_add_convolver(steps: tf.Tensor,
   return tf.reshape(output, tf.shape(data))
 
 
-convolution_methods: Dict[str, ConvolverCallable] = {
+convolution_methods: dict[str, ConvolverCallable] = {
     'conv1d': conv1d_convolver,
     'concat_add': concat_add_convolver,
 }
@@ -786,7 +703,7 @@ def tensor_array_recurrence_expansion(a_0: tf.Tensor,
       f: tf.Tensor,
       g: tf.Tensor,
       res_ta: tf.TensorArray,
-      idx: tf.Tensor) -> Tuple[tf.Tensor,
+      idx: tf.Tensor) -> tuple[tf.Tensor,
                                tf.Tensor,
                                tf.Tensor,
                                tf.TensorArray,
@@ -877,7 +794,7 @@ def mat_mul_recurrence_expansion(a_0: tf.Tensor,
 # observed to produce ~%25 faster runs than TensorArray on CPU, but may provide
 # more benefit on GPU or TPU. It also logarithms to avoid the numerical that
 # RecurrenceRelations suffers from.
-recurrence_expansion_methods: Dict[str, RecurrenceExpansionCallable] = {
+recurrence_expansion_methods: dict[str, RecurrenceExpansionCallable] = {
     'TensorArray': tensor_array_recurrence_expansion,
     'RecurrenceRelation': recurrence_relation_recurrence_expansion,
     'MatMul': mat_mul_recurrence_expansion,
@@ -938,19 +855,19 @@ class CARFACCell(tf.keras.layers.Layer):
   """
 
   output_size: tf.TensorShape
-  state_size: Tuple[tf.TensorShape, ...]
+  state_size: tuple[tf.TensorShape, ...]
 
   _recurrence_expander: RecurrenceExpansionCallable
   _linear: bool
   _open_loop: bool
-  _outputs: Tuple[CARFACOutput]
+  _outputs: tuple[CARFACOutput, ...]
 
   car_params: Optional[CARParams]
   ihc_params: Optional[IHCParams]
   agc_params: Optional[AGCParams]
 
   @classmethod
-  def from_config(cls, config: Dict[str, Any]) -> 'CARFACCell':
+  def from_config(cls, config: Mapping[str, Any]) -> 'CARFACCell':
     """Required by superclass for serialization.
 
     See https://www.tensorflow.org/api_docs/python/tf/keras/layers/Layer
@@ -974,7 +891,7 @@ class CARFACCell(tf.keras.layers.Layer):
   def __init__(self, car_params: CARParams = CARParams(),
                ihc_params: IHCParams = IHCParams(),
                agc_params: AGCParams = AGCParams(), num_ears: int = 1,
-               outputs: Tuple[CARFACOutput] = (CARFACOutput.NAP,),
+               outputs: Sequence[CARFACOutput] = (CARFACOutput.NAP,),
                linear: bool = False, open_loop: bool = False,
                recurrence_expander: RecurrenceExpansionCallable =
                mat_mul_recurrence_expansion,
@@ -1004,7 +921,7 @@ class CARFACCell(tf.keras.layers.Layer):
     self._convolver = convolver
     self._linear = linear
     self._open_loop = open_loop
-    self._outputs = outputs
+    self._outputs = tuple(outputs)
 
     curr_freq = car_params.max_pole_ratio * car_params.sample_rate_hz
     num_channels = 0
@@ -1020,42 +937,42 @@ class CARFACCell(tf.keras.layers.Layer):
                                        num_channels,
                                        len(outputs)))
 
-    state_size = (_CARCoeffs.tensor_shapes_except_batch(num_channels) +
-                  _CARState.tensor_shapes_except_batch(self.output_size[0],
-                                                       self.output_size[1]) +
-                  _IHCCoeffs.tensor_shapes_except_batch() +
-                  _IHCState.tensor_shapes_except_batch(self.output_size[0],
-                                                       self.output_size[1]))
+    state_size = [
+        *_CARCoeffs.tensor_shapes_except_batch(num_channels),
+        *_CARState.tensor_shapes_except_batch(self.output_size[0],
+                                              self.output_size[1]),
+        *_IHCCoeffs.tensor_shapes_except_batch(),
+        *_IHCState.tensor_shapes_except_batch(self.output_size[0],
+                                              self.output_size[1])
+    ]
     if self.agc_params.decimation.shape.as_list():
       state_size.extend(
           _AGCCoeffs.tensor_shapes_except_batch(
-              self.agc_params.decimation.shape[0]) +
+              self.agc_params.decimation.shape[0]))
+      state_size.extend(
           _AGCState.tensor_shapes_except_batch(
               self.output_size[0], self.output_size[1],
               self.agc_params.decimation.shape[0]))
 
     self.state_size = tuple(state_size)
 
-  def _copy_params_from(self, values):
+  def _copy_params_from(self, values: tf.experimental.ExtensionType):
     params = {}
-    for item in vars(values).items():
-      if item[0] in ['erb_per_step',
-                     'min_pole_hz',
-                     'sample_rate_hz',
-                     'max_pole_hz',
-                     'just_half_wave_rectify',
-                     'one_capacitor']:
-        params[item[0]] = tf.cast(item[1], name=item[0], dtype=self.dtype)
+    for k, v in vars(values).items():
+      if k in [
+          'erb_per_step', 'min_pole_hz', 'sample_rate_hz', 'max_pole_hz',
+          'just_half_wave_rectify', 'one_capacitor'
+      ]:
+        params[k] = tf.cast(v, name=k, dtype=self.dtype)
       else:
-        params[item[0]] = self._add_weight(item[0], item[1])
+        params[k] = self._add_weight(k, v)
     return type(values)(**params)
 
-  def get_initial_state(self,
-                        inputs: Any = None,
-                        batch_size: Any = None,
-                        dtype: Optional[tf.DType] = None) -> Tuple[tf.Tensor,
-                                                                   tf.Tensor,
-                                                                   tf.Tensor]:
+  def get_initial_state(
+      self,
+      inputs: Any = None,
+      batch_size: Any = None,
+      dtype: Optional[tf.DType] = None) -> Sequence[tf.Tensor]:
     """Required by tf.keras.layers.RNN to initialize sequential processing.
 
     See https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN
@@ -1107,11 +1024,10 @@ class CARFACCell(tf.keras.layers.Layer):
     ihc_state.cap1_voltage = ones * ihc_coeffs.rest_cap1
     ihc_state.cap2_voltage = ones * ihc_coeffs.rest_cap2
 
-    initial_state = (
-        car_coeffs.to_tensors() +
-        car_state.convert().to_tensors() +
-        ihc_coeffs.to_tensors() +
-        ihc_state.convert().to_tensors())
+    initial_state = [
+        *car_coeffs.to_tensors(), *car_state.convert().to_tensors(),
+        *ihc_coeffs.to_tensors(), *ihc_state.convert().to_tensors()
+    ]
 
     if self.agc_params.decimation.shape.as_list():
       agc_coeffs = self._design_agc_coeffs()
@@ -1123,9 +1039,8 @@ class CARFACCell(tf.keras.layers.Layer):
       agc_state = _AGCState.concat(
           [agc_state for _ in range(self.agc_params.decimation.shape[0])])
 
-      initial_state.extend(
-          agc_coeffs.to_tensors() +
-          agc_state.convert().to_tensors())
+      initial_state.extend(agc_coeffs.to_tensors())
+      initial_state.extend(agc_state.convert().to_tensors())
 
     return tuple(initial_state)
 
@@ -1136,7 +1051,7 @@ class CARFACCell(tf.keras.layers.Layer):
         shape=tf.convert_to_tensor(value).shape,
         initializer=tf.keras.initializers.Constant(tf.cast(value, self.dtype)))
 
-  def get_config(self) -> Dict[str, Any]:
+  def get_config(self) -> dict[str, Any]:
     """Required by superclass for serialization.
 
     See https://www.tensorflow.org/api_docs/python/tf/keras/layers/Layer
@@ -1145,12 +1060,18 @@ class CARFACCell(tf.keras.layers.Layer):
       A dictionary with parameters for creating an identical instance.
     """
     return {
-        'car_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self.car_params).items()},
-        'ihc_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self.ihc_params).items()},
-        'agc_params_init_args': {k: v.numpy()
-                                 for k, v in vars(self.agc_params).items()},
+        'car_params_init_args': {
+            k: v.numpy()
+            for k, v in vars(self.car_params).items()
+        },
+        'ihc_params_init_args': {
+            k: v.numpy()
+            for k, v in vars(self.ihc_params).items()
+        },
+        'agc_params_init_args': {
+            k: v.numpy()
+            for k, v in vars(self.agc_params).items()
+        },
         'outputs': self._outputs,
         'linear': self._linear,
         'open_loop': self._open_loop,
@@ -1225,13 +1146,13 @@ class CARFACCell(tf.keras.layers.Layer):
                          done: tf.Tensor,
                          fir_left: tf.Tensor,
                          fir_mid: tf.Tensor,
-                         fir_right: tf.Tensor) -> Tuple[tf.Tensor,
+                         fir_right: tf.Tensor) -> tuple[tf.Tensor,
                                                         tf.Tensor,
                                                         tf.Tensor,
                                                         tf.Tensor,
                                                         tf.Tensor,
                                                         tf.Tensor]:
-        def taps_5() -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+        def taps_5() -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
           return tf.cond(
               n_iterations > 3,
               lambda: (n_taps, tf.constant(-1, self.dtype), tf.constant(True)),
@@ -1252,7 +1173,7 @@ class CARFACCell(tf.keras.layers.Layer):
                      n_taps: tf.Tensor,
                      fir_left: tf.Tensor,
                      fir_mid: tf.Tensor,
-                     fir_right: tf.Tensor) -> Tuple[tf.Tensor,
+                     fir_right: tf.Tensor) -> tuple[tf.Tensor,
                                                     tf.Tensor,
                                                     tf.Tensor,
                                                     tf.Tensor,
@@ -1275,7 +1196,7 @@ class CARFACCell(tf.keras.layers.Layer):
           mean_delay = delay / n_iterations_float
           sq_mean_delay = tf.square(mean_delay)
           def taps_3(delay_variance: tf.Tensor,
-                     mean_delay: tf.Tensor) -> Tuple[tf.Tensor,
+                     mean_delay: tf.Tensor) -> tuple[tf.Tensor,
                                                      tf.Tensor,
                                                      tf.Tensor,
                                                      tf.Tensor]:
@@ -1287,7 +1208,7 @@ class CARFACCell(tf.keras.layers.Layer):
             done = fir_mid >= 0.25
             return (fir_left, fir_mid, fir_right, done)
           def taps_5(delay_variance: tf.Tensor,
-                     mean_delay: tf.Tensor) -> Tuple[tf.Tensor,
+                     mean_delay: tf.Tensor) -> tuple[tf.Tensor,
                                                      tf.Tensor,
                                                      tf.Tensor,
                                                      tf.Tensor]:
@@ -1564,7 +1485,7 @@ class CARFACCell(tf.keras.layers.Layer):
   def _agc_step(self,
                 agc_coeffs: _AGCCoeffsET,
                 agc_state_et: _AGCStateET,
-                ihc_state_et: _IHCStateET) -> Tuple[_AGCStateET, tf.Tensor]:
+                ihc_state_et: _IHCStateET) -> tuple[_AGCStateET, tf.Tensor]:
     if self.agc_params.decimation.shape[0] == 0:
       return (agc_state_et, tf.constant(False))
     # First copy the ihc_out to the input accumulator of the first stage,
@@ -1574,7 +1495,7 @@ class CARFACCell(tf.keras.layers.Layer):
                            stage: tf.Tensor,
                            last_decimated_stage: tf.Tensor,
                            done: tf.Tensor,
-                           agc_in_out: tf.Tensor) -> Tuple[_AGCStateET,
+                           agc_in_out: tf.Tensor) -> tuple[_AGCStateET,
                                                            tf.Tensor,
                                                            tf.Tensor,
                                                            tf.Tensor,
@@ -1586,7 +1507,7 @@ class CARFACCell(tf.keras.layers.Layer):
       agc_states.update(stage, agc_state)
       def decimate(
           agc_state_et: _AGCStateET,
-          stage: tf.Tensor) -> Tuple[_AGCStateET,
+          stage: tf.Tensor) -> tuple[_AGCStateET,
                                      tf.Tensor,
                                      tf.Tensor,
                                      tf.Tensor]:
@@ -1643,7 +1564,7 @@ class CARFACCell(tf.keras.layers.Layer):
     # to the agc memory of this stage, and then smooth it.
     def feed_stage_backward(agc_state_et: _AGCStateET,
                             stage: tf.Tensor,
-                            _: tf.Tensor) -> Tuple[_AGCStateET,
+                            _: tf.Tensor) -> tuple[_AGCStateET,
                                                    tf.Tensor,
                                                    tf.Tensor]:
       agc_states = agc_state_et.convert()
@@ -1740,7 +1661,7 @@ class CARFACCell(tf.keras.layers.Layer):
                     agc_state_et: _AGCStateET) -> _AGCStateET:
     def next_stage(agc_state_et: _AGCStateET,
                    stage: tf.Tensor,
-                   done: tf.Tensor) -> Tuple[_AGCStateET, tf.Tensor, tf.Tensor]:
+                   done: tf.Tensor) -> tuple[_AGCStateET, tf.Tensor, tf.Tensor]:
       def mix_channels(agc_state_et: _AGCStateET,
                        stage: tf.Tensor) -> _AGCStateET:
         agc_states = agc_state_et.convert()
@@ -1809,9 +1730,9 @@ class CARFACCell(tf.keras.layers.Layer):
 
   def call(self,
            input_at_t: tf.Tensor,
-           states_at_t: Tuple[tf.Tensor, tf.Tensor, tf.Tensor]) -> Tuple[
+           states_at_t: tuple[tf.Tensor, tf.Tensor, tf.Tensor]) -> tuple[
                tf.Tensor,
-               Tuple[tf.Tensor, tf.Tensor, tf.Tensor]]:
+               tuple[tf.Tensor, tf.Tensor, tf.Tensor]]:
     """Computes output_at_t given input_at_t and states_at_t.
 
     Args:
@@ -1826,23 +1747,23 @@ class CARFACCell(tf.keras.layers.Layer):
     """
 
     car_coeffs = _CARCoeffsET.from_tensors(
-        states_at_t[:_CARCoeffs.num_annotations()])
-    states_at_t = states_at_t[_CARCoeffs.num_annotations():]
+        states_at_t[:len(dataclasses.fields(_CARCoeffs))])
+    states_at_t = states_at_t[len(dataclasses.fields(_CARCoeffs)):]
     car_state = _CARStateET.from_tensors(
-        states_at_t[:_CARState.num_annotations()])
-    states_at_t = states_at_t[_CARState.num_annotations():]
+        states_at_t[:len(dataclasses.fields(_CARState))])
+    states_at_t = states_at_t[len(dataclasses.fields(_CARState)):]
     ihc_coeffs = _IHCCoeffsET.from_tensors(
-        states_at_t[:_IHCCoeffs.num_annotations()])
-    states_at_t = states_at_t[_IHCCoeffs.num_annotations():]
+        states_at_t[:len(dataclasses.fields(_IHCCoeffs))])
+    states_at_t = states_at_t[len(dataclasses.fields(_IHCCoeffs)):]
     ihc_state = _IHCStateET.from_tensors(
-        states_at_t[:_IHCState.num_annotations()])
-    states_at_t = states_at_t[_IHCState.num_annotations():]
+        states_at_t[:len(dataclasses.fields(_IHCState))])
+    states_at_t = states_at_t[len(dataclasses.fields(_IHCState)):]
     if self.agc_params.decimation.shape.as_list():
       agc_coeffs = _AGCCoeffsET.from_tensors(
-          states_at_t[:_AGCCoeffs.num_annotations()])
-      states_at_t = states_at_t[_AGCCoeffs.num_annotations():]
+          states_at_t[:len(dataclasses.fields(_AGCCoeffs))])
+      states_at_t = states_at_t[len(dataclasses.fields(_AGCCoeffs)):]
       agc_state = _AGCStateET.from_tensors(
-          states_at_t[:_AGCState.num_annotations()])
+          states_at_t[:len(dataclasses.fields(_AGCState))])
 
     car_state = self._car_step(car_coeffs, input_at_t, car_state)
     if not self._linear:
@@ -1855,7 +1776,7 @@ class CARFACCell(tf.keras.layers.Layer):
                                                      agc_state,
                                                      ihc_state)
       def agc_was_updated(car_state: _CARStateET,
-                          agc_state: _AGCStateET) -> Tuple[_CARStateET,
+                          agc_state: _AGCStateET) -> tuple[_CARStateET,
                                                            _AGCStateET]:
         if self.output_size[1] > 1:
           agc_state = self._cross_couple(agc_coeffs, agc_state)
@@ -1869,17 +1790,17 @@ class CARFACCell(tf.keras.layers.Layer):
           lambda: agc_was_updated(car_state, agc_state),
           lambda: (car_state, agc_state))
 
-    next_state = (
-        car_coeffs.to_tensors() +
-        car_state.to_tensors() +
-        ihc_coeffs.to_tensors() +
-        ihc_state.to_tensors())
+    next_state = [
+        *car_coeffs.to_tensors(),
+        *car_state.to_tensors(),
+        *ihc_coeffs.to_tensors(),
+        *ihc_state.to_tensors()]
     if self.agc_params.decimation.shape.as_list():
       next_state.extend(
           agc_coeffs.to_tensors() +
           agc_state.to_tensors())
 
-    outputs: List[tf.Tensor] = []
+    outputs: list[tf.Tensor] = []
     for output in self._outputs:
       if output == CARFACOutput.BM:
         outputs.append(car_state.zy_memory)
@@ -1951,7 +1872,7 @@ class CARFACCell(tf.keras.layers.Layer):
 
 def plot_car_channels(cell: CARFACCell,
                       window_size: int = 8192,
-                      figsize: Tuple[float, float] = (10, 5),
+                      figsize: tuple[float, float] = (10, 5),
                       frequency_log_scale: bool = True) -> plt.Figure:
   """Plots the frequency response of the CAR layer of a CARFACCell.
 

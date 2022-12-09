@@ -26,10 +26,6 @@ import numpy as np
 from parameterized import parameterized
 import tensorflow as tf
 
-import google3.third_party.carfac.python.testing as carfac_testing
-from google3.third_party.carfac.python.tf import carfac
-
-
 from .. import testing as carfac_testing
 from . import carfac
 
