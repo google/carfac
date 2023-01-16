@@ -525,9 +525,8 @@ def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
     ihc_state: The run-time state
 
   Returns:
-    The firing probability  the hair cells in each channel
+    The firing probability of the hair cells in each channel
     and the new state.
-    TODO(dicklyon): Is this correct?
   """
 
   # AC couple the filters_out, with 20 Hz corner
@@ -644,16 +643,20 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
   blob not too far from Gaussian if we run several FIR iterations.
 
   Args:
-    n_taps: Width of the spatial filter kernel.
-    delay_variance: ???
-    mean_delay: ???
-    n_iter: ???
+    n_taps: Width of the spatial filter kernel (either 3 or 5).
+    delay_variance: Value, in channels-squared, of how much spread (second
+      moment) the filter has about its spatial mean output (delay being a
+      time-domain concept apply here to spatial channels domain).
+    mean_delay: Value, in channels, of how much of the mean of filter output is
+      offset toward basal channels (that is, positive delay means put more
+      weight on more apical inputs).
+    n_iter: Number of times to apply the 3-point or 5-point FIR filter to
+      achieve the desired delay and spread.
 
   Returns:
-    List of FIR coefficients, and a boolen saying the design was done
-    correctly.
+    List of 3 FIR coefficients, and a Boolean saying the design was done
+    successfully.
   """
-  # TODO(dicklyon): Can you correct the arg explanations?
 
   # reduce mean and variance of smoothing distribution by n_iterations:
   mean_delay = mean_delay / n_iter

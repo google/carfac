@@ -242,6 +242,7 @@ class CarfacTest(absltest.TestCase):
                                                 cfp.ears[0].ihc_state)
       neuro_output[i] = ihc_out[0]
 
+    plt.figure()
     plt.clf()
     plt.plot(t, neuro_output)
     plt.xlabel('Seconds')
@@ -270,8 +271,7 @@ class CarfacTest(absltest.TestCase):
         [10.580713, 1248.820852],
     ]
     blip_maxes, blip_ac = self.run_ihc(300)
-    for i in range(len(test_results)):
-      max_val, ac = test_results[i]
+    for i, (max_val, ac) in enumerate(test_results):
       self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
       self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
 
@@ -284,8 +284,7 @@ class CarfacTest(absltest.TestCase):
         [10.426862, 422.570402],
     ]
     blip_maxes, blip_ac = self.run_ihc(3000)
-    for i in range(len(test_results)):
-      max_val, ac = test_results[i]
+    for i, (max_val, ac) in enumerate(test_results):
       self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
       self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
 
@@ -394,6 +393,24 @@ class CarfacTest(absltest.TestCase):
     num_bins = fft_len // 2 + 1  # Per np.fft.rfft.
     freqs = fs / fft_len * np.arange(num_bins)
 
+    plt.figure()
+    plot_channel = 64
+    plt.plot(bm_initial[:1500, plot_channel, 0])
+    plt.title(f'NP: Channel {plot_channel} output bm_initial')
+    plt.savefig('/tmp/whole_carfac_bm_initial.png')
+    plt.savefig(f'/tmp/whole_channel_{plot_channel}_response.png')
+    print(f'Max value of bm_inital channel {plot_channel} is '
+          f'{np.max(bm_initial[:1500, plot_channel, 0])} ')
+
+    plt.figure()
+    plt.semilogy(np.max(bm_initial[:, :, 0], axis=0))
+    plt.semilogy(np.max(bm_final[:, :, 0], axis=0))
+    plt.ylim(1e-6, 1e-2)
+    plt.title('NP: Peak impulse response value')
+    plt.xlabel('Channel Number')
+    plt.legend(('Initial', 'Final'))
+    plt.savefig('/tmp/whole_carfac_peak_response.png')
+
     initial_freq_response = np.fft.rfft(bm_initial[:fft_len, :, 0], axis=0)
     initial_freq_response = 20 * np.log10(np.abs(initial_freq_response) + 1e-50)
 
@@ -401,14 +418,16 @@ class CarfacTest(absltest.TestCase):
     final_freq_response = 20 * np.log10(np.abs(final_freq_response) + 1e-50)
 
     # Match Figure 19.9(right) of Lyon's book
+    plt.figure(figsize=(10, 6))
     plt.clf()
-    plt.semilogx(freqs[1:num_bins], initial_freq_response[1:num_bins, ::], ':')
+    plt.semilogx(freqs[1:num_bins],
+                 initial_freq_response[1:num_bins, ::10], ':')
     # https://stackoverflow.com/questions/24193174/reset-color-cycle-in-matplotlib
     plt.gca().set_prop_cycle(None)
-    plt.semilogx(freqs[1:num_bins], final_freq_response[1:num_bins, ::])
+    plt.semilogx(freqs[1:num_bins], final_freq_response[1:num_bins, ::10])
     plt.ylabel('dB')
     plt.xlabel('FFT Bin')
-    plt.title('Initial (dotted) vs. Adapted at 1kHz (solid) '
+    plt.title('NP: Initial (dotted) vs. Adapted at 1kHz (solid) '
               'Frequency Response')
     plt.ylim(-100, -15)
     plt.savefig('/tmp/whole_carfac_response.png')
@@ -420,6 +439,22 @@ class CarfacTest(absltest.TestCase):
     final_resps = [
         find_peak_response(freqs, final_freq_response[:, i]) for i in range(71)
     ]
+    initial_resps = np.asarray(initial_resps)
+    final_resps = np.asarray(final_resps)
+
+    plt.figure()
+    plt.plot(initial_resps[:, 0], ':')
+    plt.plot(final_resps[:, 0])
+    plt.xlabel('Ear Channel #')
+    plt.title('NP: Initial (dotted) vs. Adapted (solid) Center Frequencies')
+    plt.savefig('/tmp/whole_carfac_CF.png')
+
+    plt.figure()
+    plt.plot(initial_resps[:, 1], ':')
+    plt.plot(final_resps[:, 1])
+    plt.xlabel('Ear Channel #')
+    plt.title('NP: Initial (dotted) vs. Adapted (solid) Peak Gain')
+    plt.savefig('/tmp/whole_carfac_peak_gain.png')
 
     # Test for change in peak gain after adaptation.
     def find_closest_channel(cfs: List[float], desired: float) -> np.ndarray:
@@ -434,13 +469,23 @@ class CarfacTest(absltest.TestCase):
         4000: [16, 4058.881505, 13.865787],
         8000: [2, 8289.882476, 3.574972],
     }
+    # Print out these results first, before possible test failure.
+    for desired_cf in results:
+      c = find_closest_channel([f[0] for f in final_resps], desired_cf)
+      expected_c, expected_cf, expected_change = results[desired_cf]
+      cf = initial_resps[expected_c][0]
+      diff_db = initial_resps[expected_c][1] - final_resps[expected_c][1]
+      print(f'Desired CF={desired_cf}Hz: Expected to find channel {expected_c}'
+            f' with a CF of {expected_cf}Hz and gain change of '
+            f'{expected_change}dB.')
+      print(f'                        Instead found channel {int(c)} with a CF '
+            f'of {cf}Hz and gain change of {diff_db}dB.')
+
     for cf in results:
       c = find_closest_channel([f[0] for f in final_resps], cf)
       expected_c, expected_cf, expected_change = results[cf]
       cf = initial_resps[expected_c][0]
       diff_db = initial_resps[expected_c][1] - final_resps[expected_c][1]
-      print(f'Channel {expected_c} has CF of {cf} and an '
-            f'adaptation change of {diff_db} dB.')
       self.assertEqual(c, expected_c)
       self.assertAlmostEqual(cf, expected_cf, delta=expected_cf / 10000.0)
       self.assertAlmostEqual(
@@ -459,10 +504,17 @@ class CarfacTest(absltest.TestCase):
     # Run the linear case with small impulse.
     _, cfp, bm_initial, _, _ = carfac.run_segment(
         cfp, impulse, open_loop=True, linear_car=True)
+    plt.imshow(bm_initial[:80, :])
+    plt.title('Impulse response with direct connections between stages')
+
     cfp = carfac.carfac_init(cfp)  # Clear state to zero between runs.
     cfp.ears[0].car_coeffs.use_delay_buffer = True
     _, cfp, bm_delayed, _, _ = carfac.run_segment(
         cfp, impulse, open_loop=True, linear_car=True)
+    plt.figure()
+    plt.imshow(bm_delayed[:80, :])
+    plt.title('Impulse response with delay buffer (one extra delay per stage)')
+
     max_max_rel_error = 0
     for ch in np.arange(cfp.n_ch):
       impresp = bm_initial[:-ch - 1, ch]
