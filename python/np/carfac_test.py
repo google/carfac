@@ -190,6 +190,7 @@ class CarfacTest(absltest.TestCase):
     # Match Figure 16.6 of Lyon's book
     spectrum_freqs = np.arange(n_points + 1) / fft_len * cfp.fs
 
+    # Channel, CF, Peak gain, bandwidth, Q
     expected = [
         [10, 5604, 39.3, 705.6, 7.9],
         [20, 3245, 55.6, 429.8, 7.6],
@@ -410,6 +411,46 @@ class CarfacTest(absltest.TestCase):
     plt.xlabel('Channel Number')
     plt.legend(('Initial', 'Final'))
     plt.savefig('/tmp/whole_carfac_peak_response.png')
+
+    print('Maximum output from each channel - Numpy')
+    print('Channel: Before / After adaptation')
+    for c in range(0, bm_initial.shape[1], 5):
+      print(f'{c}: ({np.max(bm_initial[:, c, 0])}, '
+            f'{np.max(bm_final[:, c, 0])}),')
+
+    # The following data comes from the Numpy implementation
+    max_expected_responses = {  # By channel, pre and post adaptation
+        0: (9.487948409514502e-05, 9.491564594591566e-05),
+        5: (0.00017297988233622164, 0.00010116657004062838),
+        10: (0.0008493493078276515, 0.0003484623289188047),
+        15: (0.002143998397514224, 0.0005312805183434622),
+        20: (0.003477955237030983, 0.0005789749499061063),
+        25: (0.0038766416255384684, 0.00037649944483609816),
+        30: (0.003501462982967496, 0.0001800232160036603),
+        35: (0.0025851549580693245, 0.00010041609897076647),
+        40: (0.001656502252444625, 7.950170171612489e-05),
+        45: (0.0009385987068526447, 0.000148501034441964),
+        50: (0.0004409996035974473, 0.00022083591815609183),
+        55: (0.00016036791203077883, 0.0001290689180574866),
+        60: (4.511831502895802e-05, 4.227018611352033e-05),
+        65: (7.950785402499605e-06, 7.825520867310773e-06),
+        70: (9.104484206545749e-07, 9.082570178663831e-07),
+    }
+    def err(a, b):
+      return (a-b)/b
+
+    for c in max_expected_responses:
+      e = err(max_expected_responses[c][0], np.max(bm_initial[:, c, 0]))
+      print(f'Pre {c}: {e*100}% error.')
+      e = err(max_expected_responses[c][1], np.max(bm_final[:, c, 0]))
+      print(f'Post {c}: {e*100}% error.')
+
+    for c in max_expected_responses:  # First check pre adaptation results
+      self.assertAlmostEqual(max_expected_responses[c][0],
+                             np.max(bm_initial[:, c, 0]))
+    for c in max_expected_responses:  # Then check post adaptation results
+      self.assertAlmostEqual(max_expected_responses[c][1],
+                             np.max(bm_final[:, c, 0]))
 
     initial_freq_response = np.fft.rfft(bm_initial[:fft_len, :, 0], axis=0)
     initial_freq_response = 20 * np.log10(np.abs(initial_freq_response) + 1e-50)
