@@ -79,31 +79,18 @@ end
 if nargin < 5
   % HACK: these constants control the defaults
   one_cap = 1;         % bool; 1 for Allen model, as text states we use
-  just_hwr = 0;        % book; 0 for normal/fancy IHC; 1 for HWR
-  if just_hwr
-    CF_IHC_params = struct('just_hwr', 1, ...  % just a simple HWR
-        'ac_corner_Hz', 20);
-  else
-    if one_cap
-      CF_IHC_params = struct( ...
-        'just_hwr', just_hwr, ... % not just a simple HWR
-        'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
-        'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
-        'tau_out', 0.0005, ...    % depletion tau is pretty fast
-        'tau_in', 0.010, ...      % recovery tau is slower
-        'ac_corner_Hz', 20);
-    else
-      CF_IHC_params = struct( ...
-        'just_hwr', just_hwr, ...        % not just a simple HWR
-        'one_cap', one_cap, ...   % bool; 0 for new two-cap hack
-        'tau_lpf', 0.000080, ...  % 80 microseconds smoothing twice
-        'tau1_out', 0.010, ...    % depletion tau is pretty fast
-        'tau1_in', 0.020, ...     % recovery tau is slower
-        'tau2_out', 0.0025, ...   % depletion tau is pretty fast
-        'tau2_in', 0.005, ...     % recovery tau is slower
-        'ac_corner_Hz', 20);
-    end
-  end
+  just_hwr = 0;        % bool; 0 for normal/fancy IHC; 1 for HWR
+  CF_IHC_params = struct( ...
+    'just_hwr', just_hwr, ...  % not just a simple HWR
+    'one_cap', one_cap, ...    % bool; 0 for new two-cap hack
+    'ac_corner_Hz', 20, ...    % AC couple at 20 Hz corner
+    'tau_lpf', 0.000080, ...   % 80 microseconds smoothing twice
+    'tau_out', 0.0005, ...     % depletion tau is pretty fast
+    'tau_in', 0.010, ...       % recovery tau is slower
+    'tau1_out', 0.000500, ...  % depletion tau is fast 500 us
+    'tau1_in', 0.000200, ...   % recovery tau is very fast 200 us
+    'tau2_out', 0.001, ...     % depletion tau is pretty fast 1 ms
+    'tau2_in', 0.010)          % recovery tau is slower 10 ms
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
@@ -256,63 +243,100 @@ for stage = 1:n_AGC_stages
   AGC_coeffs(stage).n_ch = n_ch;
   AGC_coeffs(stage).n_AGC_stages = n_AGC_stages;
   AGC_coeffs(stage).AGC_stage_gain = AGC_params.AGC_stage_gain;
-
-  AGC_coeffs(stage).decimation = AGC_params.decimation(stage);
   tau = AGC_params.time_constants(stage);  % time constant in seconds
-  decim = decim * AGC_params.decimation(stage);  % net decim to this stage
-  % epsilon is how much new input to take at each update step:
-  AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
 
-  % effective number of smoothings in a time constant:
-  ntimes = tau * (fs / decim);  % typically 5 to 50
+  new_way = 1;  % To try it out...
+  if new_way
+    % Instead of starting with decimation ratios, start with 3-tap FIR
+    % and 1 iteration, and find decimation ratios that work.
+    % decide on target spread (variance) and delay (mean) of impulse
+    % response as a distribution to be convolved ntimes:
+    % TODO (dicklyon): specify spread and delay instead of scales???
+    n_taps = 3;
+    n_iterations = 1;
+    stage_decim = AGC_params.decimation(stage);
+    FIR_OK = 0;
+    while ~FIR_OK
+      try_decim = decim * stage_decim;  % net decim through this stage.
+      ntimes = tau * (fs / try_decim);
+      delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
+      spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
 
-  % decide on target spread (variance) and delay (mean) of impulse
-  % response as a distribution to be convolved ntimes:
-  % TODO (dicklyon): specify spread and delay instead of scales???
-  delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
-  spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
-
-  % get pole positions to better match intended spread and delay of
-  % [[geometric distribution]] in each direction (see wikipedia)
-  u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
-  p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
-  dp = delay * (1 - 2*p +p^2)/2;
-  polez1 = p - dp;
-  polez2 = p + dp;
-  AGC_coeffs(stage).AGC_polez1 = polez1;
-  AGC_coeffs(stage).AGC_polez2 = polez2;
-
-  % try a 3- or 5-tap FIR as an alternative to the double exponential:
-  n_taps = 0;
-  FIR_OK = 0;
-  n_iterations = 1;
-  while ~FIR_OK
-    switch n_taps
-      case 0
-        % first attempt a 3-point FIR to apply once:
-        n_taps = 3;
-      case 3
-        % second time through, go wider but stick to 1 iteration
-        n_taps = 5;
-      case 5
-        % apply FIR multiple times instead of going wider:
-        n_iterations = n_iterations + 1;
-        if n_iterations > 16
-          error('Too many n_iterations in CARFAC_DesignAGC');
+      [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
+        n_taps, spread_sq, delay, n_iterations);
+      if ~FIR_OK
+        stage_decim = stage_decim - 1;
+        if stage_decim < 1
+          error('AGC design failed.')
         end
-      otherwise
-        % to do other n_taps would need changes in CARFAC_Spatial_Smooth
-        % and in Design_FIR_coeffs
-        error('Bad n_taps in CARFAC_DesignAGC');
+      end
     end
-    [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
-      n_taps, spread_sq, delay, n_iterations);
-  end
-  % when FIR_OK, store the resulting FIR design in coeffs:
-  AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
-  AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
-  AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
+    if stage_decim < 2
+      disp('Warning:  No decimation, inefficient AGC design.')
+    end
+    decim = decim * stage_decim;  % Overall decimation through this stage.
+    % Here we should have valid FIR filter and decim for the stage.
+    AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
+    AGC_coeffs(stage).decimation = stage_decim;
+    AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
+    AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
+    AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
+  else
+    AGC_coeffs(stage).decimation = AGC_params.decimation(stage);
+    decim = decim * AGC_params.decimation(stage);  % net decim to this stage
+    % epsilon is how much new input to take at each update step:
+    AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
 
+    % effective number of smoothings in a time constant:
+    ntimes = tau * (fs / decim);  % typically 5 to 50
+
+    % decide on target spread (variance) and delay (mean) of impulse
+    % response as a distribution to be convolved ntimes:
+    % TODO (dicklyon): specify spread and delay instead of scales???
+    delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
+    spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
+
+    % get pole positions to better match intended spread and delay of
+    % [[geometric distribution]] in each direction (see wikipedia)
+    u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
+    p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
+    dp = delay * (1 - 2*p +p^2)/2;
+    polez1 = p - dp;
+    polez2 = p + dp;
+    AGC_coeffs(stage).AGC_polez1 = polez1;
+    AGC_coeffs(stage).AGC_polez2 = polez2;
+
+    % try a 3- or 5-tap FIR as an alternative to the double exponential:
+    n_taps = 0;
+    FIR_OK = 0;
+    n_iterations = 1;
+    while ~FIR_OK
+      switch n_taps
+        case 0
+          % first attempt a 3-point FIR to apply once:
+          n_taps = 3;
+        case 3
+          % second time through, go wider but stick to 1 iteration
+          n_taps = 5;
+        case 5
+          % apply FIR multiple times instead of going wider:
+          n_iterations = n_iterations + 1;
+          if n_iterations > 16
+            error('Too many n_iterations in CARFAC_DesignAGC');
+          end
+        otherwise
+          % to do other n_taps would need changes in CARFAC_Spatial_Smooth
+          % and in Design_FIR_coeffs
+          error('Bad n_taps in CARFAC_DesignAGC');
+      end
+      [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
+        n_taps, spread_sq, delay, n_iterations);
+    end
+    % when FIR_OK, store the resulting FIR design in coeffs:
+    AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
+    AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
+    AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
+  end
   % accumulate DC gains from all the stages, accounting for stage_gain:
   total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
 
@@ -376,24 +400,27 @@ if IHC_params.just_hwr
     'just_hwr', 1);
 else
   if IHC_params.one_cap
-    ro = 1 / CARFAC_Detect(10);  % output resistance at a very high level
-    c = IHC_params.tau_out / ro;
+    gmax = CARFAC_Detect(10);  % output conductance at a high level
+    rmin = 1 / gmax;
+    c = IHC_params.tau_out * gmax;
     ri = IHC_params.tau_in / c;
-    % to get steady-state average, double ro for 50% duty cycle
-    saturation_output = 1 / (2*ro + ri);
+    % to get approx steady-state average, double rmin for 50% duty cycle
+    saturation_current = 1 / (2/gmax + ri);
     % also consider the zero-signal equilibrium:
-    r0 = 1 / CARFAC_Detect(0);
-    current = 1 / (ri + r0);
-    cap_voltage = 1 - current * ri;
+    g0 = CARFAC_Detect(0);
+    r0 = 1 / g0;
+    rest_current = 1 / (ri + r0);
+    cap_voltage = 1 - rest_current * ri;
     IHC_coeffs = struct( ...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
+      'ac_coeff', 2 * pi * IHC_params.ac_corner_Hz / fs, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
-      'out_rate', ro / (IHC_params.tau_out * fs), ...
+      'out_rate', rmin / (IHC_params.tau_out * fs), ...
       'in_rate', 1 / (IHC_params.tau_in * fs), ...
       'one_cap', IHC_params.one_cap, ...
-      'output_gain', 1/ (saturation_output - current), ...
-      'rest_output', current / (saturation_output - current), ...
+      'output_gain', 1 / (saturation_current - rest_current), ...
+      'rest_output', rest_current / (saturation_current - rest_current), ...
       'rest_cap', cap_voltage);
     % one-channel state for testing/verification:
     IHC_state = struct( ...
@@ -402,29 +429,46 @@ else
       'lpf2_state', 0, ...
       'ihc_accum', 0);
   else
-    ro = 1 / CARFAC_Detect(10);  % output resistance at a very high level
-    c2 = IHC_params.tau2_out / ro;
-    r2 = IHC_params.tau2_in / c2;
-    c1 = IHC_params.tau1_out / r2;
-    r1 = IHC_params.tau1_in / c1;
-    % to get steady-state average, double ro for 50% duty cycle
-    saturation_output = 1 / (2*ro + r2 + r1);
+    g1max = CARFAC_Detect(10);  % receptor conductance at high level
+    r1min = 1 / g1max;
+    c1 = IHC_params.tau1_out * g1max;  % capacitor for min depletion tau
+    r1 = IHC_params.tau1_in / c1;  % resistance for recharge tau
+    % to get approx steady-state average, double r1min for 50% duty cycle
+    saturation_current1 = 1 / (2*r1min + r1);  % Approximately.
     % also consider the zero-signal equilibrium:
-    r0 = 1 / CARFAC_Detect(0);
-    current = 1 / (r1 + r2 + r0);
-    cap1_voltage = 1 - current * r1;
-    cap2_voltage = cap1_voltage - current * r2;
+    g10 = CARFAC_Detect(0);
+    r10 = 1/g10;
+    rest_current1 = 1 / (r1 + r10);
+    cap1_voltage = 1 - rest_current1 * r1;  % quiescent/initial state
+
+    % Second cap similar, but using receptor voltage as detected signal.
+    max_vrecep = r1 / (r1min + r1);  % Voltage divider from 1.
+    % Identity from receptor potential to neurotransmitter conductance:
+    g2max = max_vrecep;  % receptor resistance at very high level
+    r2min = 1 / g2max;
+    c2 = IHC_params.tau2_out * g2max;  % capacitor for min depletion tau
+    r2 = IHC_params.tau2_in / c2;  % resistance for recharge tau
+    % to get approx steady-state average, double r2min for 50% duty cycle
+    saturation_current2 = 1 / (2 * r2min + r2);
+    % also consider the zero-signal equilibrium:
+    rest_vrecep = r1 * rest_current1;
+    g20 = rest_vrecep;
+    r20 = 1 / g20;
+    rest_current2 = 1 / (r2 + r20);
+    cap2_voltage = 1 - rest_current2 * r2;  % quiescent/initial state
+
     IHC_coeffs = struct(...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
+      'ac_coeff', 2 * pi * IHC_params.ac_corner_Hz / fs, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
-      'out1_rate', 1 / (IHC_params.tau1_out * fs), ...
+      'out1_rate', r1min / (IHC_params.tau1_out * fs), ...
       'in1_rate', 1 / (IHC_params.tau1_in * fs), ...
-      'out2_rate', ro / (IHC_params.tau2_out * fs), ...
+      'out2_rate', r2min / (IHC_params.tau2_out * fs), ...
       'in2_rate', 1 / (IHC_params.tau2_in * fs), ...
       'one_cap', IHC_params.one_cap, ...
-      'output_gain', 1/ (saturation_output - current), ...
-      'rest_output', current / (saturation_output - current), ...
+      'output_gain', 1 / (saturation_current2 - rest_current2), ...
+      'rest_output', rest_current2 / (saturation_current2 - rest_current2), ...
       'rest_cap2', cap2_voltage, ...
       'rest_cap1', cap1_voltage);
     % one-channel state for testing/verification:
@@ -436,8 +480,6 @@ else
       'ihc_accum', 0);
   end
 end
-% one more late addition that applies to all cases:
-IHC_coeffs.ac_coeff = 2 * pi * IHC_params.ac_corner_Hz / fs;
 
 %%
 % default design result, running this function with no args, should look

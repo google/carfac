@@ -32,29 +32,42 @@ else
   conductance = CARFAC_Detect(ac_diff);  % rectifying nonlinearity
 
   if coeffs.one_cap;
+    % Output comes from receptor current like in Hall and Allen's models.
     ihc_out = conductance .* state.cap_voltage;
-    state.cap_voltage = state.cap_voltage - ihc_out .* coeffs.out_rate + ...
+    state.cap_voltage = state.cap_voltage - ...
+      ihc_out .* coeffs.out_rate + ...
       (1 - state.cap_voltage) .* coeffs.in_rate;
+    ihc_out = ihc_out * coeffs.output_gain;
+    % Smooth it twice with LPF:
+    state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
+      (ihc_out - state.lpf1_state);
+    state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
+      (state.lpf1_state - state.lpf2_state);
+    ihc_out = state.lpf2_state - coeffs.rest_output;
   else
-    % change to 2-cap version more like Meddis's:
-    ihc_out = conductance .* state.cap2_voltage;
+    % Change to 2-cap version mediated by receptor potential at cap1:
+    % Geisler book fig 8.4 suggests 40 to 800 Hz corner.
+    receptor_current = conductance .* state.cap1_voltage;
+    % "out" means charge depletion; "in" means restoration toward 1.
     state.cap1_voltage = state.cap1_voltage - ...
-      (state.cap1_voltage - state.cap2_voltage) .* coeffs.out1_rate + ...
+      receptor_current .* coeffs.out1_rate + ...
       (1 - state.cap1_voltage) .* coeffs.in1_rate;
-
-    state.cap2_voltage = state.cap2_voltage - ihc_out .* coeffs.out2_rate + ...
-      (state.cap1_voltage - state.cap2_voltage) .* coeffs.in2_rate;
+    % Amount of depletion below 1 is receptor potential.
+    receptor_potential = 1 - state.cap1_voltage;  % Already smooth.
+    % Identity map from receptor potential to neurotransmitter conductance.
+    ihc_out = receptor_potential .* state.cap2_voltage;  % Now a current.
+    % cap2 represents transmitter store; another adaptive gain.
+    % Deplete the transmitter store like in Meddis models:
+    state.cap2_voltage = state.cap2_voltage - ...
+      ihc_out .* coeffs.out2_rate + ...
+      (1 - state.cap2_voltage) .* coeffs.in2_rate;
+    % Awkwardly, gain needs to be here for the init states to be right.
+    ihc_out = ihc_out * coeffs.output_gain;
+    % smooth once more with LPF (receptor potential was already smooth):
+    state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
+      (ihc_out - state.lpf1_state);
+    ihc_out = state.lpf1_state - coeffs.rest_output;
   end
-
-  % smooth it twice with LPF:
-
-  ihc_out = ihc_out * coeffs.output_gain;
-  state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
-    (ihc_out - state.lpf1_state);
-  state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
-    (state.lpf1_state - state.lpf2_state);
-  ihc_out = state.lpf2_state - coeffs.rest_output;
 end
 
 state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful
-

@@ -28,6 +28,7 @@ if nargin < 1, do_plots = 1; end  % Produce plots by default.
 status = 0;  % 0 for OK so far; 1 for test fail; 2 for error.
 status = status | test_CAR_freq_response(do_plots);
 status = status | test_IHC(do_plots);
+status = status | test_IHC2(do_plots);
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_whole_carfac(do_plots);
 status = status | test_delay_buffer(do_plots);
@@ -67,6 +68,7 @@ if do_plots
   colorbar()
   xlabel('Channel Number')
   ylabel('Frequency bin')
+  drawnow
 end
 
 expected = [ ...
@@ -120,7 +122,7 @@ report_status(status, 'test_CAR_freq_response')
 return
 
 
-function [blip_maxes, blip_ac] = run_IHC(test_freq, do_plots)
+function [blip_maxes, blip_ac] = run_IHC(test_freq, one_cap, do_plots)
 fs = 40000;
 sampling_interval = 1 / fs;
 tmax = 0.28;
@@ -137,6 +139,8 @@ quad_cos = present .* cos(omega * t);
 x_in = quad_sin .* amplitude;
 
 CF = CARFAC_Design(1, fs);
+CF.IHC_params.one_cap = one_cap;  % Potentially override default; re-Design:
+CF = CARFAC_Design(1, fs, CF.CAR_params, CF.AGC_params, CF.IHC_params);
 CF = CARFAC_Init(CF);
 
 neuro_output = zeros(size(x_in));
@@ -152,6 +156,7 @@ if do_plots
   plot(t, neuro_output)
   xlabel('Seconds')
   title(sprintf('IHC Response for tone blips at %d Hz', test_freq))
+  drawnow
 end
 blip_maxes = [];
 blip_ac = [];
@@ -198,7 +203,8 @@ for k = 1:length(test_freqs)
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
         test_freqs(k));
   end
-  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), do_plots);
+  one_cap = 1;
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
   num_blips = length(blip_maxes);
   if num_blips ~= size(expected_results, 1)
     fprintf(1, ...
@@ -231,6 +237,74 @@ for k = 1:length(test_freqs)
   end
 end
 report_status(status, 'test_IHC')
+return
+
+
+function status = test_IHC2(do_plots)
+% Test: Make sure that IHC (inner hair cell) runs as expected.
+% Two-cap version with receptor potential; slightly different blips.
+
+status = 0;
+
+test_freqs = [300, 3000];
+for k = 1:length(test_freqs)
+  switch test_freqs(k)
+    case 300
+      expected_results = [ ...
+        [1.902415, 538.527222];
+        [3.359364, 749.276463];
+        [4.896701, 917.197384];
+        [6.108056, 1010.808002];
+        [6.871368, 1045.890574];
+        [7.109630, 1042.256991];
+        ];
+    case 3000
+      expected_results = [ ...
+        [0.689603, 93.379491];
+        [1.504816, 131.798075];
+        [2.637552, 163.245075];
+        [3.837625, 181.940881];
+        [4.851186, 191.007773];
+        [5.560017, 194.355334];
+        ];
+    otherwise
+      fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
+        test_freqs(k));
+  end
+  one_cap = 0;
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
+  num_blips = length(blip_maxes);
+  if num_blips ~= size(expected_results, 1)
+    fprintf(1, ...
+      'Unmatched num_blips %d and expected_results rows %d in test_IHC.\n',...
+      num_blips, size(expected_results, 1));
+    status = 2;
+  else
+    expected_maxes = expected_results(:, 1)';
+    expected_acs = expected_results(:, 2)';
+
+    fprintf(1, 'Golden data for Matlab test_IHC2:\n');
+    fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
+    fprintf(1, 'Golden data for Python test_ihc2:\n');
+    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
+
+    for i = 1:num_blips
+      if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC2 fails with i = %d, expected_max = %f, blip_max = %f\n', ...
+          i, expected_maxes(i), blip_maxes(i))
+      end
+      if abs(expected_acs(i) - blip_ac(i)) > expected_acs(i)/1e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC2 fails with i = %d, expected_ac = %f, blip_ac = %f\n', ...
+          i, expected_acs(i), blip_ac(i))
+      end
+    end
+  end
+end
+report_status(status, 'test_IHC2')
 return
 
 
@@ -267,6 +341,7 @@ if do_plots
   figure
   plot(squeeze(agc_response(:, end, :))')
   title('Steady state spatial responses of the stages')
+  drawnow
 end
 expected_ch_amp_bws = [ ...
   [39.033166, 8.359763, 9.598703];
@@ -351,12 +426,12 @@ CF.linear_car = 1;  % For measuring impulse response.
 
 CF.open_loop = 0;  % To let CF adapt to signal.
 CF.linear_car = 0;  % Normal mode.
-[~, CF, ~] = CARFAC_Run_Segment(CF, sinusoid);
+[~, CF, bm_sine] = CARFAC_Run_Segment(CF, sinusoid);
 
 CF.open_loop = 1;  % For measuring impulse response.
 CF.linear_car = 1;  % For measuring impulse response.
 [~, CF] = CARFAC_Run_Segment(CF, 0*impulse);  % To let ringing die out.
-[~, ~, bm_final] = CARFAC_Run_Segment(CF, impulse);
+[~, CF, bm_final] = CARFAC_Run_Segment(CF, impulse);
 
 % Now compare impulse responses bm_initial and bm_final.
 
@@ -379,6 +454,7 @@ if do_plots
   title('Initial (dotted) vs. Adapted at 1kHz (solid) Frequency Response')
   axis([0, max(freqs), -100, -15])
   %   savefig('/tmp/whole_carfac_response.png')
+  drawnow
 end
 
 initial_resps = [];  % To collect peak [cf, amplitude, bw] per channel.
@@ -541,7 +617,7 @@ CF = CARFAC_Design(1, fs);
 CF = CARFAC_Init(CF);
 [~, CF, bm_baseline] = CARFAC_Run_Segment(CF, noise);
 
-half_ch = floor(CF.n_ch/2)
+half_ch = floor(CF.n_ch/2);
 ch = 1:half_ch;
 CF.ears(1).CAR_coeffs.OHC_health(ch) = ...
   CF.ears(1).CAR_coeffs.OHC_health(ch) * 0.5;
@@ -558,6 +634,7 @@ if do_plots
   xlabel('channel number')
   ylabel('tf_ratio')
   title('unhealthy hf OHC noise transfer function ratio')
+  drawnow
 end
 
 % Expect tf_ratio low in early channels, close to 1 later.
@@ -569,6 +646,7 @@ if any(tf_ratio(half_ch+6:end-2) < 0.35)
   status = 1;
   fprintf(1, 'tf_ratio too low in later channels in test_OHC_health\n')
 end
+report_status(status, 'test_OHC_health')
 return
 
 
