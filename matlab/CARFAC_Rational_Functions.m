@@ -41,6 +41,7 @@ if isfield(CF.ears(ear), 'CAR_state')
   r = r1 + zB;
 else
   zB = 0;  % HIGH-level linear condition by default
+  r = r1;
 end
 
 relative_undamping = zB ./ zr;
