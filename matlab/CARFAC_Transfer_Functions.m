@@ -95,43 +95,6 @@ gains = (numerators * zz) ./ (denominators * zz);
 
 
 
-function [stage_numerators, stage_denominators] = ...
-  CARFAC_Rational_Functions(CF, ear)
-% function [stage_z_numerators, stage_z_denominators] = ...
-%   CARFAC_Rational_Functions(CF, ear)
-% Return transfer functions of all stages as rational functions.
-
-if nargin < 2
-  ear = 1;
-end
-
-n_ch = CF.n_ch;
-coeffs = CF.ears(ear).CAR_coeffs;
-
-a0 = coeffs.a0_coeffs;
-c0 = coeffs.c0_coeffs;
-zr = coeffs.zr_coeffs;
-
-% get r, adapted if we have state:
-r1 =  coeffs.r1_coeffs;  % max-damping condition
-if isfield(CF.ears(ear), 'CAR_state')
-  state = CF.ears(ear).CAR_state;
-  zB = state.zB_memory; % current delta-r from undamping
-  r = r1 + zB;
-else
-  zB = 0;  % HIGH-level linear condition by default
-end
-
-relative_undamping = zB ./ zr;
-g = CARFAC_Stage_g(coeffs, relative_undamping);
-a = a0 .* r;
-c = c0 .* r;
-r2 = r .* r;
-h = coeffs.h_coeffs;
-
-stage_denominators = [ones(n_ch, 1), -2 * a, r2];
-stage_numerators = [g .* ones(n_ch, 1), g .* (-2 * a + h .* c), g .* r2];
-
 
 %% example
 % CF = CARFAC_Design
