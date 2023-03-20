@@ -57,19 +57,26 @@ end
 
 CF = CARFAC_Design(n_ears, fs, CF_CAR_params);
 
-% reconstruct poles and zeros from section 16.2 in the book
 for ear=1:CF.n_ears
-	[r, a0, hc0, g]=deal(CF.ears(ear).CAR_coeffs.r1_coeffs, CF.ears(ear).CAR_coeffs.a0_coeffs, CF.ears(ear).CAR_coeffs.h_coeffs, CF.ears(ear).CAR_coeffs.g0_coeffs);
-	for m=1:CF.n_ch
-		p=r(m)*(a0(m) + j*sin(acos(a0(m))));
-		o=a0(m)-hc0(m)/2;
-		o=r(m)*(o+j*sin(acos(o)));
-		
-		p=[p conj(p)]; % complex conjugate poles and zeros
-		o=[o conj(o)];
-		
-		a(m,:)=poly(p); % get the a and b polynomials
-		b(m,:)=g(m)*poly(o); % apply the gain to the numerator
+	if 1 % use CARFAC_Rational_Functions to generate the IIR filter coefficients
+		[b(:,:,ear), a(:,:,ear)] = CARFAC_Rational_Functions(CF, ear);
+	else % reconstruct poles and zeros from section 16.2 in the book
+		% this approach requires more work w.r.t. gain
+		[r, a0, hc0, g]=deal(CF.ears(ear).CAR_coeffs.r1_coeffs, CF.ears(ear).CAR_coeffs.a0_coeffs, CF.ears(ear).CAR_coeffs.h_coeffs, CF.ears(ear).CAR_coeffs.g0_coeffs);
+		% 	relative_undamping = 0;
+		% 	g = CARFAC_Stage_g(CF.ears(ear).CAR_coeffs, relative_undamping);
+
+		for m=1:CF.n_ch
+			p=r(m)*(a0(m) + j*sin(acos(a0(m))));
+			o=a0(m)-hc0(m)/2;
+			o=r(m)*(o+j*sin(acos(o)));
+
+			p=[p conj(p)]; % complex conjugate poles and zeros
+			o=[o conj(o)];
+
+			a(m,:)=poly(p); % get the a and b polynomials
+			b(m,:)=g(m)*poly(o); % apply the gain to the numerator
+		end
 	end
 end
 end
@@ -78,6 +85,8 @@ function CAR_Design_Test
 n_ears=1;
 fs=22050;
 [~, b, a]=CAR_Design(n_ears, fs);
+b=b(:,:,1); % only look at the first ear for now
+a=a(:,:,1);
 M=size(b,1);
 N=fs;
 % find the impulse response
