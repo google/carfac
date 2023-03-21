@@ -116,4 +116,15 @@ figure(2); clf
 semilogx(f,20*log10(abs(Yref))); grid on;
 xlabel('f (Hz)'); ylabel('dB')
 title('CARFAC reference')
+
+figure(3); clf
+semilogx(y); grid on;
+xlabel('sample (n)'); ylabel('amp.')
+title('CAR filters')
+
+figure(4); clf
+semilogx(bm_initial); grid on;
+xlabel('sample (n)'); ylabel('amp.')
+title('CARFAC filters')
+
 end
