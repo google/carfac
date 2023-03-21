@@ -56,6 +56,7 @@ if nargin < 3
 end
 
 CF = CARFAC_Design(n_ears, fs, CF_CAR_params);
+CF = CARFAC_Init(CF);
 
 for ear=1:CF.n_ears
 	if 1 % use CARFAC_Rational_Functions to generate the IIR filter coefficients
