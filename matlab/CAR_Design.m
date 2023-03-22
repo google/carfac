@@ -67,10 +67,8 @@ for ear=1:CF.n_ears
 	c=CF.ears(ear).CAR_coeffs.c0_coeffs;
 	zB = CF.ears(ear).CAR_state.zB_memory; % current delta-r from undamping
 	r = r1 + zB;
-	for m=1:CF.n_ch
-		b(m,:, ear)=g(m)*[1 (h(m)*r(m)*c(m)-2*r(m)*a0(m)) (r(m).^2*(c(m).^2+a0(m).^2))];
-		a(m,:, ear)=[1 -2*r(m)*a0(m) r(m).^2*(c(m).^2+a0(m).^2)];
-	end
+	b(:,:, ear)=g.*[ones(CF.n_ch,1) (h.*r.*c-2*r.*a0) (r.^2.*(c.^2+a0.^2))];
+	a(:,:, ear)=[ones(CF.n_ch,1) -2*r.*a0 r.^2.*(c.^2+a0.^2)];
 	
 	% This method uses CARFAC_Rational_Functions to generate the IIR filter coefficients
  	% [b(:,:,ear), a(:,:,ear), g(:,ear)] = CARFAC_Rational_Functions(CF, ear);
