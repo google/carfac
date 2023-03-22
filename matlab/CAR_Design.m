@@ -1,4 +1,4 @@
-% Copyright 2012 The CARFAC Authors. All Rights Reserved.
+% Copyright 2023 The CARFAC Authors. All Rights Reserved.
 % Author: Matt R. Flax, setup taken from Richard F. Lyon's CARFAC_Design.m
 %
 % This file is part of an implementation of Lyon's cochlear model:
@@ -19,8 +19,9 @@
 function [CF, b, a] = CAR_Design(n_ears, fs, CF_CAR_params)
 % function CF = CAR_Design(n_ears, fs, CF_CAR_params)
 %
-% This function designs the CAR (Cascade of Asymmetric Resonators);
-% that is, it take bundles of parameters and
+% This function designs the linear open loop CAR (Cascade of Asymmetric 
+% Resonators) as biquadratic filters.
+% That is, it take bundles of parameters and
 % computes all the filter coefficients needed to run it.
 %
 % fs is sample rate (per second)
@@ -32,8 +33,7 @@ if nargin == 0
 end
 
 if nargin < 1
-	n_ears = 1;  % if more than 1, make them identical channels;
-	% then modify the design if necessary for different reasons
+	n_ears = 1;
 end
 
 if nargin < 2
@@ -59,26 +59,21 @@ CF = CARFAC_Design(n_ears, fs, CF_CAR_params);
 CF = CARFAC_Init(CF);
 
 for ear=1:CF.n_ears
-	if 1 % use CARFAC_Rational_Functions to generate the IIR filter coefficients
-		[b(:,:,ear), a(:,:,ear)] = CARFAC_Rational_Functions(CF, ear);
-	else % reconstruct poles and zeros from section 16.2 in the book
-		% this approach requires more work w.r.t. gain
-		[r, a0, hc0, g]=deal(CF.ears(ear).CAR_coeffs.r1_coeffs, CF.ears(ear).CAR_coeffs.a0_coeffs, CF.ears(ear).CAR_coeffs.h_coeffs, CF.ears(ear).CAR_coeffs.g0_coeffs);
-		% 	relative_undamping = 0;
-		% 	g = CARFAC_Stage_g(CF.ears(ear).CAR_coeffs, relative_undamping);
-
-		for m=1:CF.n_ch
-			p=r(m)*(a0(m) + j*sin(acos(a0(m))));
-			o=a0(m)-hc0(m)/2;
-			o=r(m)*(o+j*sin(acos(o)));
-
-			p=[p conj(p)]; % complex conjugate poles and zeros
-			o=[o conj(o)];
-
-			a(m,:)=poly(p); % get the a and b polynomials
-			b(m,:)=g(m)*poly(o); % apply the gain to the numerator
-		end
+	% This method 
+	r1=CF.ears(ear).CAR_coeffs.r1_coeffs
+	a0=CF.ears(ear).CAR_coeffs.a0_coeffs;
+	h=CF.ears(ear).CAR_coeffs.h_coeffs;
+	g=CF.ears(ear).CAR_coeffs.g0_coeffs;
+	c=CF.ears(ear).CAR_coeffs.c0_coeffs;
+	zB = CF.ears(ear).CAR_state.zB_memory; % current delta-r from undamping
+	r = r1 + zB;
+	for m=1:CF.n_ch
+		b(m,:, ear)=g(m)*[1 (h(m)*r(m)*c(m)-2*r(m)*a0(m)) (r(m).^2*(c(m).^2+a0(m).^2))];
+		a(m,:, ear)=[1 -2*r(m)*a0(m) r(m).^2*(c(m).^2+a0(m).^2)];
 	end
+	
+	% This method uses CARFAC_Rational_Functions to generate the IIR filter coefficients
+ 	% [b(:,:,ear), a(:,:,ear), g(:,ear)] = CARFAC_Rational_Functions(CF, ear);
 end
 end
 
@@ -89,20 +84,23 @@ fs=22050;
 b=b(:,:,1); % only look at the first ear for now
 a=a(:,:,1);
 M=size(b,1);
-N=fs;
+N=fs; % take a one second response
 % find the impulse response
 x=zeros(N,1);
 x(1)=1;
-for m=1:M
-	y(:,m)=filter(b(m,:),a(m,:),x);
+y(:,1)=filter(b(1,:),a(1,:),x);
+for m=2:M % ripple through the cascade
+	y(:,m)=filter(b(m,:),a(m,:),y(:,m-1));
 end
 Y=fft(y);
+
 f=linspace(0,fs,N+1); f(end)=[];
 
 figure(1); clf
 semilogx(f,20*log10(abs(Y))); grid on;
 xlabel('f (Hz)'); ylabel('dB')
 title('CAR filters')
+% print -depsc /tmp/CAR.DFT.eps
 
 CF=CARFAC_Design(n_ears, fs);
 CF.open_loop = 1;  % For measuring impulse response.
@@ -116,15 +114,24 @@ figure(2); clf
 semilogx(f,20*log10(abs(Yref))); grid on;
 xlabel('f (Hz)'); ylabel('dB')
 title('CARFAC reference')
+% print -depsc /tmp/CARFAC.DFT.eps
 
 figure(3); clf
 semilogx(y); grid on;
 xlabel('sample (n)'); ylabel('amp.')
 title('CAR filters')
+% print -depsc /tmp/CAR.t.eps
 
 figure(4); clf
 semilogx(bm_initial); grid on;
 xlabel('sample (n)'); ylabel('amp.')
 title('CARFAC filters')
+% print -depsc /tmp/CARFAC.t.eps
+
+figure(5); clf
+semilogx(bm_initial-y); grid on;
+xlabel('sample (n)'); ylabel('error')
+title('Error between the CARFAC and biquad filters')
+% print -depsc /tmp/CARFAC.CAR.error.t.eps
 
 end
