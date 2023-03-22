@@ -60,7 +60,7 @@ CF = CARFAC_Init(CF);
 
 for ear=1:CF.n_ears
 	% This method 
-	r1=CF.ears(ear).CAR_coeffs.r1_coeffs
+	r1=CF.ears(ear).CAR_coeffs.r1_coeffs;
 	a0=CF.ears(ear).CAR_coeffs.a0_coeffs;
 	h=CF.ears(ear).CAR_coeffs.h_coeffs;
 	g=CF.ears(ear).CAR_coeffs.g0_coeffs;
