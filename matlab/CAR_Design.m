@@ -60,15 +60,16 @@ CF = CARFAC_Init(CF);
 
 for ear=1:CF.n_ears
 	% This method 
-	r1=CF.ears(ear).CAR_coeffs.r1_coeffs;
-	a0=CF.ears(ear).CAR_coeffs.a0_coeffs;
-	h=CF.ears(ear).CAR_coeffs.h_coeffs;
-	g=CF.ears(ear).CAR_coeffs.g0_coeffs;
-	c=CF.ears(ear).CAR_coeffs.c0_coeffs;
+	CAR_coeffs = CF.ears(ear).CAR_coeffs;
+	r1=CAR_coeffs.r1_coeffs;
+	a0=CAR_coeffs.a0_coeffs;
+	h=CAR_coeffs.h_coeffs;
+	g=CAR_coeffs.g0_coeffs;
+	c=CAR_coeffs.c0_coeffs;
 	zB = CF.ears(ear).CAR_state.zB_memory; % current delta-r from undamping
 	r = r1 + zB;
-	b(:,:, ear)=g.*[ones(CF.n_ch,1) (h.*r.*c-2*r.*a0) (r.^2.*(c.^2+a0.^2))];
-	a(:,:, ear)=[ones(CF.n_ch,1) -2*r.*a0 r.^2.*(c.^2+a0.^2)];
+	b(:, :, ear)=g.*[ones(CF.n_ch, 1) (h.*r.*c - 2*r.*a0) (r.^2.*(c.^2 + a0.^2))];
+	a(:, :, ear)=[ones(CF.n_ch, 1) -2*r.*a0 r.^2.*(c.^2 + a0.^2)];
 	
 	% This method uses CARFAC_Rational_Functions to generate the IIR filter coefficients
  	% [b(:,:,ear), a(:,:,ear), g(:,ear)] = CARFAC_Rational_Functions(CF, ear);
@@ -79,23 +80,23 @@ function CAR_Design_Test
 n_ears=1;
 fs=22050;
 [~, b, a]=CAR_Design(n_ears, fs);
-b=b(:,:,1); % only look at the first ear for now
-a=a(:,:,1);
-M=size(b,1);
+b=b(:, :, 1); % only look at the first ear for now
+a=a(:, :, 1);
+M=size(b, 1);
 N=fs; % take a one second response
 % find the impulse response
-x=zeros(N,1);
+x=zeros(N, 1);
 x(1)=1;
-y(:,1)=filter(b(1,:),a(1,:),x);
+y(:, 1)=filter(b(1, :), a(1, :), x);
 for m=2:M % ripple through the cascade
-	y(:,m)=filter(b(m,:),a(m,:),y(:,m-1));
+	y(:, m)=filter(b(m, :), a(m, :), y(:, m-1));
 end
 Y=fft(y);
 
-f=linspace(0,fs,N+1); f(end)=[];
+f=linspace(0, fs, N+1); f(end)=[];
 
 figure(1); clf
-semilogx(f,20*log10(abs(Y))); grid on;
+semilogx(f, 20*log10(abs(Y))); grid on;
 xlabel('f (Hz)'); ylabel('dB')
 title('CAR filters')
 % print -depsc /tmp/CAR.DFT.eps
