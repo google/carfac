@@ -27,11 +27,6 @@ function [CF, b, a] = CAR_Design(n_ears, fs, CF_CAR_params)
 % fs is sample rate (per second)
 % CF_CAR_params bundles all the pole-zero filter cascade parameters
 
-if nargin == 0
-	CAR_Design_Test;
-	return
-end
-
 if nargin < 1
 	n_ears = 1;
 end
@@ -73,64 +68,4 @@ for ear=1:CF.n_ears
 	
 	% This method uses CARFAC_Rational_Functions to generate the IIR filter coefficients
  	% [b(:,:,ear), a(:,:,ear), g(:,ear)] = CARFAC_Rational_Functions(CF, ear);
-end
-end
-
-function CAR_Design_Test
-n_ears=1;
-fs=22050;
-[~, b, a]=CAR_Design(n_ears, fs);
-b=b(:, :, 1); % only look at the first ear for now
-a=a(:, :, 1);
-M=size(b, 1);
-N=fs; % take a one second response
-% find the impulse response
-x=zeros(N, 1);
-x(1)=1;
-y(:, 1)=filter(b(1, :), a(1, :), x);
-for m=2:M % ripple through the cascade
-	y(:, m)=filter(b(m, :), a(m, :), y(:, m-1));
-end
-Y=fft(y);
-
-f=linspace(0, fs, N+1); f(end)=[];
-
-figure(1); clf
-semilogx(f, 20*log10(abs(Y))); grid on;
-xlabel('f (Hz)'); ylabel('dB')
-title('CAR filters')
-% print -depsc /tmp/CAR.DFT.eps
-
-CF=CARFAC_Design(n_ears, fs);
-CF.open_loop = 1;  % For measuring impulse response.
-CF.linear_car = 1;  % For measuring impulse response.
-CF = CARFAC_Init(CF);
-[~, CF, bm_initial] = CARFAC_Run_Segment(CF, x);
-
-Yref=fft(bm_initial);
-
-figure(2); clf
-semilogx(f,20*log10(abs(Yref))); grid on;
-xlabel('f (Hz)'); ylabel('dB')
-title('CARFAC reference')
-% print -depsc /tmp/CARFAC.DFT.eps
-
-figure(3); clf
-semilogx(y); grid on;
-xlabel('sample (n)'); ylabel('amp.')
-title('CAR filters')
-% print -depsc /tmp/CAR.t.eps
-
-figure(4); clf
-semilogx(bm_initial); grid on;
-xlabel('sample (n)'); ylabel('amp.')
-title('CARFAC filters')
-% print -depsc /tmp/CARFAC.t.eps
-
-figure(5); clf
-semilogx(bm_initial-y); grid on;
-xlabel('sample (n)'); ylabel('error')
-title('Error between the CARFAC and biquad filters')
-% print -depsc /tmp/CARFAC.CAR.error.t.eps
-
 end

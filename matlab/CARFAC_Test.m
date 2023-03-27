@@ -33,6 +33,7 @@ status = status | test_AGC_steady_state(do_plots);
 status = status | test_whole_carfac(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
+status = status | test_CAR_biquad(do_plots);
 report_status(status, 'CARFAC_Test', 1)
 return
 
@@ -649,6 +650,76 @@ end
 report_status(status, 'test_OHC_health')
 return
 
+function status = test_CAR_biquad(do_plots)
+% Test the linear open loop biquadratic implementation of the CAR filters
+status = 0; % start in the passing state
+n_ears=1;
+fs=22050;
+[~, b, a]=CAR_Design(n_ears, fs);
+b=b(:, :, 1); % only look at the first ear for now
+a=a(:, :, 1);
+M=size(b, 1);
+N=fs; % take a one second response
+% find the impulse response
+x=zeros(N, 1);
+x(1)=1;
+y(:, 1)=filter(b(1, :), a(1, :), x);
+for m=2:M % ripple through the cascade
+	y(:, m)=filter(b(m, :), a(m, :), y(:, m-1));
+end
+
+CF=CARFAC_Design(n_ears, fs);
+CF.open_loop = 1;  % For measuring impulse response.
+CF.linear_car = 1;  % For measuring impulse response.
+CF = CARFAC_Init(CF);
+[~, CF, bm_initial] = CARFAC_Run_Segment(CF, x);
+
+if do_plots
+	Y=fft(y);
+	
+	f=linspace(0, fs, N+1); f(end)=[];
+	
+	figure(1); clf
+	semilogx(f, 20*log10(abs(Y))); grid on;
+	xlabel('f (Hz)'); ylabel('dB')
+	title('CAR filters')
+	% print -depsc /tmp/CAR.DFT.eps
+	
+	Yref=fft(bm_initial);
+	
+	figure(2); clf
+	semilogx(f,20*log10(abs(Yref))); grid on;
+	xlabel('f (Hz)'); ylabel('dB')
+	title('CARFAC reference')
+	% print -depsc /tmp/CARFAC.DFT.eps
+	
+	figure(3); clf
+	semilogx(y); grid on;
+	xlabel('sample (n)'); ylabel('amp.')
+	title('CAR filters')
+	% print -depsc /tmp/CAR.t.eps
+	
+	figure(4); clf
+	semilogx(bm_initial); grid on;
+	xlabel('sample (n)'); ylabel('amp.')
+	title('CARFAC filters')
+	% print -depsc /tmp/CARFAC.t.eps
+	
+	figure(5); clf
+	semilogx(bm_initial-y); grid on;
+	xlabel('sample (n)'); ylabel('error')
+	title('Error between the CARFAC and biquad filters')
+	% print -depsc /tmp/CARFAC.CAR.error.t.eps
+end
+
+tol=1e-10;
+if (rms(bm_initial - y) > tol)
+	status = 1; % indicate a test fail
+	fprintf(1, 'CAR biquad implementation is greater then %e from the cross coupled CAR implementation.\n', tol)
+end
+
+report_status(status, 'test_car')
+return
 
 function cf_amp_bw = find_peak_response(freqs, db_gains, bw_level)
 %Returns center frequency, amplitude at this point, and the 3dB width."""
