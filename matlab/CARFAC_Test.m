@@ -30,6 +30,7 @@ status = status | test_CAR_freq_response(do_plots);
 status = status | test_IHC(do_plots);
 status = status | test_IHC2(do_plots);
 status = status | test_AGC_steady_state(do_plots);
+status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
@@ -320,8 +321,8 @@ agc_input = zeros(CF.n_ch, 1);
 test_channel = 40;
 n_points = 16384;
 num_stages = CF.AGC_params.n_stages;  % 4
-decim = CF.AGC_params.decimation(1);  % 8
-agc_response = zeros(num_stages, n_points / decim, CF.n_ch);
+decim = CF.ears.AGC_coeffs(1).decimation(1);  % 8
+agc_response = zeros(num_stages, floor(n_points / decim), CF.n_ch);
 num_outputs = 0;
 for i = 1:n_points
   agc_input(test_channel) = 100;  % Leave other channels at 0 input.
@@ -375,20 +376,20 @@ else
     expected_ch = expected_ch_amp_bws(i, 1);
     if abs(ch_amp_bw(1) - expected_ch) > expected_ch / 1e5
       status = 1;
-      fprintf(1, 'Peak channel location %f does not match expected %f.', ...
+      fprintf(1, 'Peak channel location %f does not match expected %f.\n', ...
         ch_amp_bw(1), expected_ch);
     end
     expected_amp = expected_ch_amp_bws(i, 2);
     if abs(ch_amp_bw(2) - expected_amp) > expected_amp / 1e5
       status = 1;
-      fprintf(1, 'Peak channel location %f does not match expected %f.', ...
-        ch_amp_bw(1), expected_amp);
+      fprintf(1, 'Peak amplitude %f does not match expected %f.\n', ...
+        ch_amp_bw(2), expected_amp);
     end
     expected_bw = expected_ch_amp_bws(i, 3);
     if abs(ch_amp_bw(3) - expected_bw) > expected_bw / 1e5
       status = 1;
-      fprintf(1, 'Peak channel location %f does not match expected %f.', ...
-        ch_amp_bw(1), expected_bw);
+      fprintf(1, 'Peak bandwidth %f does not match expected %f.\n', ...
+        ch_amp_bw(3), expected_bw);
     end
   end
   fprintf(1, 'Golden data for Matlab test_AGC_steady_state:\n');
@@ -397,6 +398,41 @@ else
   fprintf(1, '        %d: [%f, %f, %f],\n', ...
     [(0:(num_stages-1))', ch_amp_bws]')
  end
+report_status(status, 'test_AGC_steady_state')
+return
+
+
+function status = test_stage_g_calculation(do_plots)
+% Make sure the quadratic stage_g calculation agrees with the ratio of
+% polynomias from the book
+status = 0;
+
+fs = 22050;
+CF = CARFAC_Design(1, fs);
+% CF = CARFAC_Init(CF);
+
+if do_plots
+  figure; clf
+end
+for undamping = 0:0.1:1  % including the "training" points 0, 0.5, 1.
+  ideal_g = CARFAC_Design_Stage_g(CF.ears(1).CAR_coeffs, undamping);
+  stage_g = CARFAC_Stage_g(CF.ears(1).CAR_coeffs, undamping);
+  if do_plots
+    plot(ideal_g, 'g-')
+    hold on
+    plot(stage_g, 'r.')
+    plot(1000*abs(ideal_g - stage_g), 'm+')
+    drawnow
+    title('test stage g calculation')
+    xlabel('channel')
+    ylabel('Stage gains and 1000*abs(error)')
+  end
+  % One part per thousand gain error is less than 0.01 dB.
+  if any(abs(ideal_g - stage_g)/ideal_g > 1e-3)
+    status = 1;
+  end
+end
+
 report_status(status, 'test_AGC_steady_state')
 return
 

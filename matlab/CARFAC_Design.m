@@ -90,7 +90,7 @@ if nargin < 5
     'tau1_out', 0.000500, ...  % depletion tau is fast 500 us
     'tau1_in', 0.000200, ...   % recovery tau is very fast 200 us
     'tau2_out', 0.001, ...     % depletion tau is pretty fast 1 ms
-    'tau2_in', 0.010)          % recovery tau is slower 10 ms
+    'tau2_in', 0.010);         % recovery tau is slower 10 ms
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
@@ -161,6 +161,9 @@ CAR_coeffs.a0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.c0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.h_coeffs = zeros(n_ch, 1);
 CAR_coeffs.g0_coeffs = zeros(n_ch, 1);
+CAR_coeffs.ga_coeffs = zeros(n_ch, 1);
+CAR_coeffs.gb_coeffs = zeros(n_ch, 1);
+CAR_coeffs.gc_coeffs = zeros(n_ch, 1);
 
 CAR_coeffs.OHC_health = ones(n_ch, 1);  % 0 to 1 to derate OHC activity.
 
@@ -216,10 +219,25 @@ CAR_coeffs.c0_coeffs = c0;
 h = c0 .* f;
 CAR_coeffs.h_coeffs = h;
 
-relative_undamping = CAR_coeffs.OHC_health;  % Typically just ones.
-% this function needs to take CAR_coeffs even if we haven't finished
-% constucting it by putting in the g0_coeffs:
-CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, relative_undamping);
+% Efficient approximation with g as quadratic function of undamping.
+% First get g at both ends and the half-way point.
+undamping = 0.0;
+g0 = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
+undamping = 1.0;
+g1 = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
+undamping = 0.5;
+ghalf = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
+% Store fixed coefficients for A*undamping.^2 + B^undamping + C
+CAR_coeffs.ga_coeffs = 2*(g0 + g1 - 2*ghalf);
+CAR_coeffs.gb_coeffs = 4*ghalf - 3*g0 - g1;
+CAR_coeffs.gc_coeffs = g0;
+
+% Set up initial stage gains.
+% Maybe re-do this at Init time?
+undamping = CAR_coeffs.OHC_health;  % Typically just ones.
+% Avoid running this model function at Design time; see tests.
+% CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, undamping);
+CAR_coeffs.g0_coeffs = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
 
 
 %% the AGC design coeffs:
