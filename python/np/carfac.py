@@ -327,11 +327,13 @@ class IhcOneCapParams(IhcJustHwrParams):
 class IhcTwoCapParams(IhcJustHwrParams):
   just_hwr: bool = False  # not just a simple HWR
   one_cap: bool = False  # bool; False for new two-cap hack
+  tau_out: float = 0.0005  # depletion tau is pretty fast
+  tau_in: float = 0.010  # recovery tau is slower
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
-  tau1_out: float = 0.010  # depletion tau is pretty fast
-  tau1_in: float = 0.020  # recovery tau is slower
-  tau2_out: float = 0.0025  # depletion tau is pretty fast
-  tau2_in: float = 0.005  # recovery tau is slower
+  tau1_out: float = 0.000500  # depletion tau is pretty fast
+  tau1_in: float = 0.000200  # recovery tau is very fast 200 us
+  tau2_out: float = 0.001  # depletion tau is pretty fast 1 ms
+  tau2_in: float = 0.010  # recovery tau is slower 10 ms
   ac_corner_hz: float = 20
 
 
@@ -421,31 +423,47 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
         rest_output=current / (saturation_output - current),
         rest_cap=cap_voltage)
   elif isinstance(ihc_params, IhcTwoCapParams):
-    ro = 1 / ihc_detect(10)  # output resistance at a very high level
-    c2 = ihc_params.tau2_out / ro
-    r2 = ihc_params.tau2_in / c2
-    c1 = ihc_params.tau1_out / r2
-    r1 = ihc_params.tau1_in / c1
-    # to get steady-state average, double ro for 50% duty cycle
-    saturation_output = 1 / (2 * ro + r2 + r1)
+    g1_max = ihc_detect(10)  # receptor conductance at high level
+
+    r1min = 1 / g1_max
+    c1 = ihc_params.tau1_out * g1_max  # capacitor for min depletion tau
+    r1 = ihc_params.tau1_in / c1  # resistance for recharge tau
+    # to get approx steady-state average, double r1min for 50% duty cycle
     # also consider the zero-signal equilibrium:
-    r0 = 1 / ihc_detect(0)
-    current = 1 / (r1 + r2 + r0)
-    cap1_voltage = 1 - current * r1
-    cap2_voltage = cap1_voltage - current * r2
+    g10 = ihc_detect(0)
+    r10 = 1 / g10
+    rest_current1 = 1 / (r1 + r10)
+    cap1_voltage = 1 - rest_current1 * r1  # quiescent/initial state
+
+    # Second cap similar, but using receptor voltage as detected signal.
+    max_vrecep = r1 / (r1min + r1)  # Voltage divider from 1.
+    # Identity from receptor potential to neurotransmitter conductance:
+    g2max = max_vrecep  # receptor resistance at very high level.
+    r2min = 1 / g2max
+    c2 = ihc_params.tau2_out * g2max
+    r2 = ihc_params.tau2_in / c2
+    saturation_current2 = 1 / (2 * r2min + r2)
+    # Also consider the zero-signal equlibrium
+    rest_vrecep = r1 * rest_current1
+    g20 = rest_vrecep
+    r20 = 1 / g20
+    rest_current2 = 1 / (r2 + r20)
+    cap2_voltage = 1 - rest_current2 * r2  # quiescent/initial state
+
     ihc_coeffs = IhcCoeffs(
         n_ch=n_ch,
         just_hwr=False,
         lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
-        out1_rate=1 / (ihc_params.tau1_out * fs),
+        out1_rate=r1min / (ihc_params.tau1_out * fs),
         in1_rate=1 / (ihc_params.tau1_in * fs),
-        out2_rate=ro / (ihc_params.tau2_out * fs),
+        out2_rate=r2min / (ihc_params.tau2_out * fs),
         in2_rate=1 / (ihc_params.tau2_in * fs),
         one_cap=ihc_params.one_cap,
-        output_gain=1 / (saturation_output - current),
-        rest_output=current / (saturation_output - current),
+        output_gain=1 / (saturation_current2 - rest_current2),
+        rest_output=rest_current2 / (saturation_current2 - rest_current2),
         rest_cap2=cap2_voltage,
-        rest_cap1=cap1_voltage)
+        rest_cap1=cap1_voltage,
+    )
   else:
     raise NotImplementedError
   # one more, AC coupling coefficient that applies to all cases:
@@ -482,7 +500,6 @@ class IhcState:
         self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,))
         self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,))
         self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
-        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
         self.ac_coupler = np.zeros((n_ch,))
 
 
@@ -544,29 +561,37 @@ def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
       ihc_state.cap_voltage = (
           ihc_state.cap_voltage - ihc_out * ihc_coeffs.out_rate +
           (1 - ihc_state.cap_voltage) * ihc_coeffs.in_rate)
+      #  smooth it twice with LPF:
+      ihc_out = ihc_out * ihc_coeffs.output_gain
+      ihc_state.lpf1_state = (
+          ihc_state.lpf1_state + ihc_coeffs.lpf_coeff *
+          (ihc_out - ihc_state.lpf1_state))
+      ihc_state.lpf2_state = (
+          ihc_state.lpf2_state + ihc_coeffs.lpf_coeff *
+          (ihc_state.lpf1_state - ihc_state.lpf2_state))
+      ihc_out = ihc_state.lpf2_state - ihc_coeffs.rest_output
     else:
-      # change to 2-cap version more like Meddis's:
-      ihc_out = conductance * ihc_state.cap2_voltage
+      # Change to 2-cap version mediated by receptor potential at cap1:
+      # Geisler book fig 8.4 suggests 40 to 800 Hz corner.
+      receptor_current = conductance * ihc_state.cap1_voltage
+      # "out" means charge depletion; "in" means restoration toward 1.
       ihc_state.cap1_voltage = (
-          ihc_state.cap1_voltage -
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) *
-          ihc_coeffs.out1_rate +
-          (1 - ihc_state.cap1_voltage) * ihc_coeffs.in1_rate)
-
+          ihc_state.cap1_voltage
+          - receptor_current * ihc_coeffs.out1_rate
+          + (1 - ihc_state.cap1_voltage) * ihc_coeffs.in1_rate
+      )
+      receptor_potential = 1 - ihc_state.cap1_voltage
+      ihc_out = receptor_potential * ihc_state.cap2_voltage
       ihc_state.cap2_voltage = (
-          ihc_state.cap2_voltage - ihc_out * ihc_coeffs.out2_rate +
-          (ihc_state.cap1_voltage - ihc_state.cap2_voltage) *
-          ihc_coeffs.in2_rate)
-
-    #  smooth it twice with LPF:
-    ihc_out = ihc_out * ihc_coeffs.output_gain
-    ihc_state.lpf1_state = (
-        ihc_state.lpf1_state + ihc_coeffs.lpf_coeff *
-        (ihc_out - ihc_state.lpf1_state))
-    ihc_state.lpf2_state = (
-        ihc_state.lpf2_state + ihc_coeffs.lpf_coeff *
-        (ihc_state.lpf1_state - ihc_state.lpf2_state))
-    ihc_out = ihc_state.lpf2_state - ihc_coeffs.rest_output
+          ihc_state.cap2_voltage
+          - ihc_out * ihc_coeffs.out2_rate
+          + (1 - ihc_state.cap2_voltage) * ihc_coeffs.in2_rate
+      )
+      ihc_out = ihc_out * ihc_coeffs.output_gain
+      ihc_state.lpf1_state = ihc_state.lpf1_state + ihc_coeffs.lpf_coeff * (
+          ihc_out - ihc_state.lpf1_state
+      )
+      ihc_out = ihc_state.lpf1_state - ihc_coeffs.rest_output
 
   # for where decimated output is useful
   ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out

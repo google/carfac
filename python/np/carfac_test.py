@@ -4,6 +4,7 @@ import math
 from typing import List, Tuple
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -133,7 +134,7 @@ class CarfacUtilityTest(absltest.TestCase):
     plt.savefig('/tmp/peak_response.png')
 
 
-class CarfacTest(absltest.TestCase):
+class CarfacTest(parameterized.TestCase):
 
   def test_hz_to_erb(self):
     # Test: Simple, should asymptote to 9.2645
@@ -215,7 +216,7 @@ class CarfacTest(absltest.TestCase):
       self.assertAlmostEqual(bw, correct_bw)
       self.assertAlmostEqual(q, correct_q)
 
-  def run_ihc(self, test_freq=300):
+  def run_ihc(self, test_freq=300, one_cap=True):
     fs = 40000
     sampling_interval = 1 / fs
     tmax = 0.28  # a half second
@@ -230,7 +231,7 @@ class CarfacTest(absltest.TestCase):
     amplitude = 0.09 * 2**stim_num
     omega = 2 * np.pi * test_freq
 
-    cfp = carfac.design_carfac(fs=fs)
+    cfp = carfac.design_carfac(fs=fs, one_cap=one_cap)
     cfp = carfac.carfac_init(cfp)
 
     quad_sin = np.sin(omega * t) * present
@@ -248,8 +249,7 @@ class CarfacTest(absltest.TestCase):
     plt.plot(t, neuro_output)
     plt.xlabel('Seconds')
     plt.title(f'IHC Response for tone blips at {test_freq}Hz')
-    plt.savefig(f'/tmp/ihc_response_{test_freq}Hz.png')
-
+    plt.savefig(f'/tmp/ihc_response_cap_{one_cap}cap_{test_freq}Hz.png')
     blip_maxes = []
     blip_ac = []
     for i in range(1, 7):
@@ -262,29 +262,63 @@ class CarfacTest(absltest.TestCase):
       blip_ac.append(np.sqrt(carrier_power))
     return blip_maxes, blip_ac
 
-  def test_ihc(self):
-    test_results = [
-        [2.591120, 714.093923],
-        [4.587200, 962.263411],
-        [6.764676, 1141.981740],
-        [8.641429, 1232.411638],
-        [9.991695, 1260.430082],
-        [10.580713, 1248.820852],
-    ]
-    blip_maxes, blip_ac = self.run_ihc(300)
-    for i, (max_val, ac) in enumerate(test_results):
-      self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
-      self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
-
-    test_results = [  # From the Matlab test
-        [1.405700, 234.125387],
-        [2.781740, 316.707076],
-        [4.763687, 376.773748],
-        [6.967957, 407.915892],
-        [8.954049, 420.217294],
-        [10.426862, 422.570402],
-    ]
-    blip_maxes, blip_ac = self.run_ihc(3000)
+  # all test results from the matlab test.
+  @parameterized.named_parameters(
+      (
+          'two_cap_300',
+          False,
+          300,
+          [
+              [1.902415, 538.527222],
+              [3.359364, 749.276463],
+              [4.896701, 917.197384],
+              [6.108056, 1010.808002],
+              [6.871368, 1045.890574],
+              [7.109630, 1042.256991],
+          ],
+      ),
+      (
+          'two_cap_3000',
+          False,
+          3000,
+          [
+              [0.689603, 93.379491],
+              [1.504816, 131.798075],
+              [2.637552, 163.245075],
+              [3.837625, 181.940881],
+              [4.851186, 191.007773],
+              [5.560017, 194.355334],
+          ],
+      ),
+      (
+          'one_cap_300',
+          True,
+          300,
+          [
+              [2.591120, 714.093923],
+              [4.587200, 962.263411],
+              [6.764676, 1141.981740],
+              [8.641429, 1232.411638],
+              [9.991695, 1260.430082],
+              [10.580713, 1248.820852],
+          ],
+      ),
+      (
+          'one_cap_3000',
+          True,
+          3000,
+          [
+              [1.405700, 234.125387],
+              [2.781740, 316.707076],
+              [4.763687, 376.773748],
+              [6.967957, 407.915892],
+              [8.954049, 420.217294],
+              [10.426862, 422.570402],
+          ],
+      ),
+  )
+  def test_ihc_param(self, cap, freq, test_results):
+    blip_maxes, blip_ac = self.run_ihc(freq, one_cap=cap)
     for i, (max_val, ac) in enumerate(test_results):
       self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
       self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
@@ -363,7 +397,8 @@ class CarfacTest(absltest.TestCase):
       self.assertAlmostEqual(amp, expected_amplitude, places=5)
       self.assertAlmostEqual(bw, expected_bw, places=5)
 
-  def test_whole_carfac(self):
+  @parameterized.named_parameters(('two_cap', False), ('one_cap', True))
+  def test_whole_carfac(self, cap):
     # Test: Make sure that the AGC adapts to a tone. Test with open-loop impulse
     # response.
 
@@ -376,7 +411,7 @@ class CarfacTest(absltest.TestCase):
     impulse = np.zeros(t.shape)
     impulse[0] = 1e-4
 
-    cfp = carfac.design_carfac(fs=fs)
+    cfp = carfac.design_carfac(fs=fs, one_cap=cap)
     cfp = carfac.carfac_init(cfp)
 
     _, cfp, bm_initial, _, _ = carfac.run_segment(
@@ -436,6 +471,26 @@ class CarfacTest(absltest.TestCase):
         65: (7.950785402499605e-06, 7.825520867310773e-06),
         70: (9.104484206545749e-07, 9.082570178663831e-07),
     }
+    if not cap:
+      # The following data comes from the Numpy implementation
+      max_expected_responses = {  # By channel, pre and post adaptation
+          0: (9.487948409514502e-05, 9.491079365597054e-05),
+          5: (0.00017297988233622164, 0.00010639900400603283),
+          10: (0.0008493493078276515, 0.00037535216834182764),
+          15: (0.002143998397514224, 0.0006000931599230095),
+          20: (0.003477955237030983, 0.0006444311897494901),
+          25: (0.0038766416255384684, 0.0004217723020154104),
+          30: (0.003501462982967496, 0.00019322483457432434),
+          35: (0.0025851549580693245, 0.00010539991228906852),
+          40: (0.001656502252444625, 8.12489595378981e-05),
+          45: (0.0009385987068526447, 0.00015079366430942917),
+          50: (0.0004409996035974473, 0.0002228318504547852),
+          55: (0.00016036791203077883, 0.0001294490176714039),
+          60: (4.511831502895802e-05, 4.233053193781809e-05),
+          65: (7.950785402499605e-06, 7.827730773276617e-06),
+          70: (9.104484206545749e-07, 9.082821405890624e-07),
+      }
+
     def err(a, b):
       return (a-b)/b
 
@@ -501,15 +556,28 @@ class CarfacTest(absltest.TestCase):
     def find_closest_channel(cfs: List[float], desired: float) -> np.ndarray:
       return np.argmin((np.asarray(cfs) - desired)**2)
 
-    results = {  # The Matlab test prints this data block:
-        125: [64, 118.944255, 0.186261],
-        250: [58, 239.771898, 0.910003],
-        500: [49, 514.606412, 7.243568],
-        1000: [38, 1099.433179, 31.608529],
-        2000: [28, 2038.873929, 27.242882],
-        4000: [16, 4058.881505, 13.865787],
-        8000: [2, 8289.882476, 3.574972],
-    }
+    results = {}
+    if cap:
+      results = {  # The Matlab test prints this data block:
+          125: [64, 118.944255, 0.186261],
+          250: [58, 239.771898, 0.910003],
+          500: [49, 514.606412, 7.243568],
+          1000: [38, 1099.433179, 31.608529],
+          2000: [28, 2038.873929, 27.242882],
+          4000: [16, 4058.881505, 13.865787],
+          8000: [2, 8289.882476, 3.574972],
+      }
+    else:
+      # The Matlab test, with a change to run 2 cap, prints this data block:
+      results = {
+          125: [64, 118.944255, 0.183133],
+          250: [58, 239.771898, 0.889055],
+          500: [49, 514.606412, 7.160368],
+          1000: [38, 1099.433179, 31.339611],
+          2000: [28, 2038.873929, 26.271936],
+          4000: [16, 4058.881505, 12.762211],
+          8000: [2, 8289.882476, 3.221043],
+      }
     # Print out these results first, before possible test failure.
     for desired_cf in results:
       c = find_closest_channel([f[0] for f in final_resps], desired_cf)
