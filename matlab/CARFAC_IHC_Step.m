@@ -16,20 +16,16 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
-% function [ihc_out, state] = CARFAC_IHC_Step(filters_out, coeffs, state);
+function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
+% function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
 %
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.
 
-% AC couple the filters_out, with 20 Hz corner
-ac_diff = filters_out - state.ac_coupler;
-state.ac_coupler = state.ac_coupler + coeffs.ac_coeff * ac_diff;
-
 if coeffs.just_hwr
-  ihc_out = min(2, max(0, ac_diff));  % limit it for stability
+  ihc_out = min(2, max(0, bm_out));  % limit it for stability
 else
-  conductance = CARFAC_Detect(ac_diff);  % rectifying nonlinearity
+  conductance = CARFAC_Detect(bm_out);  % rectifying nonlinearity
 
   if coeffs.one_cap;
     % Output comes from receptor current like in Hall and Allen's models.

@@ -62,7 +62,9 @@ if nargin < 3
     'ERB_per_step', 0.5, ... % assume G&M's ERB formula
     'min_pole_Hz', 30, ...
     'ERB_break_freq', 165.3, ...  % 165.3 is Greenwood map's break freq.
-    'ERB_Q', 1000/(24.7*4.37));  % Glasberg and Moore's high-cf ratio
+    'ERB_Q', 1000/(24.7*4.37), ...  % Glasberg and Moore's high-cf ratio
+    'ac_corner_Hz', 20 ...    % AC couple at 20 Hz corner
+    );
 end
 
 if nargin < 4
@@ -83,7 +85,6 @@ if nargin < 5
   CF_IHC_params = struct( ...
     'just_hwr', just_hwr, ...  % not just a simple HWR
     'one_cap', one_cap, ...    % bool; 0 for new two-cap hack
-    'ac_corner_Hz', 20, ...    % AC couple at 20 Hz corner
     'tau_lpf', 0.000080, ...   % 80 microseconds smoothing twice
     'tau_out', 0.0005, ...     % depletion tau is pretty fast
     'tau_in', 0.010, ...       % recovery tau is slower
@@ -151,7 +152,8 @@ n_ch = length(pole_freqs);
 CAR_coeffs = struct( ...
   'n_ch', n_ch, ...
   'velocity_scale', CAR_params.velocity_scale, ...
-  'v_offset', CAR_params.v_offset ...
+  'v_offset', CAR_params.v_offset, ...
+  'ac_coeff', 2 * pi * CAR_params.ac_corner_Hz / fs ...
   );
 
 % don't really need these zero arrays, but it's a clue to what fields
@@ -432,7 +434,6 @@ else
     IHC_coeffs = struct( ...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
-      'ac_coeff', 2 * pi * IHC_params.ac_corner_Hz / fs, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
       'out_rate', rmin / (IHC_params.tau_out * fs), ...
       'in_rate', 1 / (IHC_params.tau_in * fs), ...
@@ -478,7 +479,6 @@ else
     IHC_coeffs = struct(...
       'n_ch', n_ch, ...
       'just_hwr', 0, ...
-      'ac_coeff', 2 * pi * IHC_params.ac_corner_Hz / fs, ...
       'lpf_coeff', 1 - exp(-1/(IHC_params.tau_lpf * fs)), ...
       'out1_rate', r1min / (IHC_params.tau1_out * fs), ...
       'in1_rate', 1 / (IHC_params.tau1_in * fs), ...
@@ -498,145 +498,3 @@ else
       'ihc_accum', 0);
   end
 end
-
-%%
-% default design result, running this function with no args, should look
-% like this, before CARFAC_Init puts state storage into it:
-%
-
-% CF = CARFAC_Design
-% CAR_params = CF.CAR_params
-% AGC_params = CF.AGC_params
-% IHC_params = CF.IHC_params
-% CAR_coeffs = CF.ears(1).CAR_coeffs
-% AGC_coeffs = CF.ears(1).AGC_coeffs
-% AGC_coeffs(1)
-% AGC_coeffs(2)
-% AGC_coeffs(3)
-% AGC_coeffs(4)
-% IHC_coeffs = CF.ears(1).IHC_coeffs
-
-% CF =
-%                          fs: 22050
-%     max_channels_per_octave: 12.2709
-%                  CAR_params: [1x1 struct]
-%                  AGC_params: [1x1 struct]
-%                  IHC_params: [1x1 struct]
-%                        n_ch: 71
-%                  pole_freqs: [71x1 double]
-%                        ears: [1x1 struct]
-%                      n_ears: 1
-% CAR_params =
-%                 velocity_scale: 0.1000
-%                       v_offset: 0.0400
-%                       min_zeta: 0.1000
-%                       max_zeta: 0.3500
-%               first_pole_theta: 2.6704
-%                     zero_ratio: 1.4142
-%     high_f_damping_compression: 0.5000
-%                   ERB_per_step: 0.5000
-%                    min_pole_Hz: 30
-%                 ERB_break_freq: 165.3000
-%                          ERB_Q: 9.2645
-% AGC_params =
-%           n_stages: 4
-%     time_constants: [0.0020 0.0080 0.0320 0.1280]
-%     AGC_stage_gain: 2
-%         decimation: [8 2 2 2]
-%        AGC1_scales: [1 1.4142 2.0000 2.8284]
-%        AGC2_scales: [1.6500 2.3335 3.3000 4.6669]
-%      AGC_mix_coeff: 0.5000
-% IHC_params =
-%         just_hwr: 0
-%          one_cap: 1
-%          tau_lpf: 8.0000e-05
-%          tau_out: 5.0000e-04
-%           tau_in: 0.0100
-%     ac_corner_Hz: 20
-% CAR_coeffs =
-%               n_ch: 71
-%     velocity_scale: 0.1000
-%           v_offset: 0.0400
-%          r1_coeffs: [71x1 double]
-%          a0_coeffs: [71x1 double]
-%          c0_coeffs: [71x1 double]
-%           h_coeffs: [71x1 double]
-%          g0_coeffs: [71x1 double]
-%          zr_coeffs: [71x1 double]
-% AGC_coeffs =
-% 1x4 struct array with fields:
-%     n_ch
-%     n_AGC_stages
-%     AGC_stage_gain
-%     decimation
-%     AGC_epsilon
-%     AGC_polez1
-%     AGC_polez2
-%     AGC_spatial_iterations
-%     AGC_spatial_FIR
-%     AGC_spatial_n_taps
-%     AGC_mix_coeffs
-%     detect_scale
-% ans =
-%                       n_ch: 71
-%               n_AGC_stages: 4
-%             AGC_stage_gain: 2
-%                 decimation: 8
-%                AGC_epsilon: 0.1659
-%                 AGC_polez1: 0.1737
-%                 AGC_polez2: 0.2472
-%     AGC_spatial_iterations: 1
-%            AGC_spatial_FIR: [0.2856 0.3108 0.4036]
-%         AGC_spatial_n_taps: 3
-%             AGC_mix_coeffs: 0
-%               detect_scale: 0.0667
-% ans =
-%                       n_ch: 71
-%               n_AGC_stages: 4
-%             AGC_stage_gain: 2
-%                 decimation: 2
-%                AGC_epsilon: 0.0867
-%                 AGC_polez1: 0.1845
-%                 AGC_polez2: 0.2365
-%     AGC_spatial_iterations: 1
-%            AGC_spatial_FIR: [0.2994 0.3178 0.3828]
-%         AGC_spatial_n_taps: 3
-%             AGC_mix_coeffs: 0.0454
-%               detect_scale: []
-% ans =
-%                       n_ch: 71
-%               n_AGC_stages: 4
-%             AGC_stage_gain: 2
-%                 decimation: 2
-%                AGC_epsilon: 0.0443
-%                 AGC_polez1: 0.1921
-%                 AGC_polez2: 0.2288
-%     AGC_spatial_iterations: 1
-%            AGC_spatial_FIR: [0.3099 0.3212 0.3689]
-%         AGC_spatial_n_taps: 3
-%             AGC_mix_coeffs: 0.0227
-%               detect_scale: []
-% ans =
-%                       n_ch: 71
-%               n_AGC_stages: 4
-%             AGC_stage_gain: 2
-%                 decimation: 2
-%                AGC_epsilon: 0.0224
-%                 AGC_polez1: 0.1975
-%                 AGC_polez2: 0.2235
-%     AGC_spatial_iterations: 1
-%            AGC_spatial_FIR: [0.3177 0.3230 0.3594]
-%         AGC_spatial_n_taps: 3
-%             AGC_mix_coeffs: 0.0113
-%               detect_scale: []
-% IHC_coeffs =
-%            n_ch: 71
-%        just_hwr: 0
-%       lpf_coeff: 0.4327
-%        out_rate: 0.0996
-%         in_rate: 0.0045
-%         one_cap: 1
-%     output_gain: 49.3584
-%     rest_output: 1.0426
-%        rest_cap: 0.5360
-%        ac_coeff: 0.0057

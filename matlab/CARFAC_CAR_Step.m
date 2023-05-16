@@ -77,4 +77,9 @@ state.zB_memory = zB;
 state.zY_memory = zY;
 state.g_memory = g;
 
-car_out = zY;
+% AC couple the filters_out, with 20 Hz corner (previously part of IHC)
+ac_diff = zY - state.ac_coupler;
+state.ac_coupler = state.ac_coupler + CAR_coeffs.ac_coeff * ac_diff;
+
+car_out = ac_diff;
+
