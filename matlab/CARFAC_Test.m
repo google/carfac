@@ -459,7 +459,7 @@ for undamping = 0:0.1:1  % including the "training" points 0, 0.5, 1.
   end
 end
 
-report_status(status, 'test_AGC_steady_state')
+report_status(status, 'test_stage_g_calculation')
 return
 
 

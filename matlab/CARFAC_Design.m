@@ -238,7 +238,6 @@ CAR_coeffs.gc_coeffs = g0;
 % Maybe re-do this at Init time?
 undamping = CAR_coeffs.OHC_health;  % Typically just ones.
 % Avoid running this model function at Design time; see tests.
-% CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, undamping);
 CAR_coeffs.g0_coeffs = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
 
 

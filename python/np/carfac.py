@@ -77,6 +77,9 @@ class CarCoeffs:
   c0_coeffs: np.ndarray = np.zeros(())
   h_coeffs: np.ndarray = np.zeros(())
   g0_coeffs: np.ndarray = np.zeros(())
+  ga_coeffs: np.ndarray = np.zeros(())
+  gb_coeffs: np.ndarray = np.zeros(())
+  gc_coeffs: np.ndarray = np.zeros(())
   zr_coeffs: np.ndarray = np.zeros(())
   ohc_health: np.ndarray = np.ones(())
 
@@ -166,16 +169,31 @@ def design_filters(car_params: CarParams, fs: float,
   h = c0 * f
   car_coeffs.h_coeffs = h
 
-  # for unity gain at min damping, radius r; only used in Init:
-  relative_undamping = car_coeffs.ohc_health  # Just ones for now.
-  # this function needs to take car_coeffs even if we haven't finished
-  # constucting it by putting in the g0_coeffs:
-  car_coeffs.g0_coeffs = stage_g(car_coeffs, relative_undamping)
+  # Efficient approximation with g as quadratic function of undamping.
+  # First get g at both ends and the half-way point.
+  undamping = 0.0
+  g0 = design_stage_g(car_coeffs, undamping)
+  undamping = 1.0
+  g1 = design_stage_g(car_coeffs, undamping)
+  undamping = 0.5
+  ghalf = design_stage_g(car_coeffs, undamping)
+  # Store fixed coefficients for A*undamping.^2 + B^undamping + C
+  car_coeffs.ga_coeffs = 2 * (g0 + g1 - 2 * ghalf)
+  car_coeffs.gb_coeffs = 4 * ghalf - 3 * g0 - g1
+  car_coeffs.gc_coeffs = g0
+
+  # Set up initial stage gains.
+  # Maybe re-do this at Init time?
+  undamping = car_coeffs.ohc_health
+  # Avoid running this model function at Design time; see tests.
+  car_coeffs.g0_coeffs = design_stage_g(car_coeffs, undamping)
 
   return car_coeffs
 
 
-def stage_g(car_coeffs: CarCoeffs, relative_undamping: float) -> np.ndarray:
+def design_stage_g(
+    car_coeffs: CarCoeffs, relative_undamping: float
+) -> np.ndarray:
   """Return the stage gain g needed to get unity gain at DC.
 
   Args:
@@ -197,6 +215,24 @@ def stage_g(car_coeffs: CarCoeffs, relative_undamping: float) -> np.ndarray:
   g = (1 - 2 * r * a0 + r**2) / (1 - 2 * r * a0 + h * r * c0 + r**2)
 
   return g
+
+
+def stage_g(car_coeffs: CarCoeffs, undamping: float) -> np.ndarray:
+  """Return the stage gain g needed to get unity gain at DC, using a quadratic approximation.
+
+  Args:
+    car_coeffs: The already-designed coefficients for the filterbank.
+    undamping:  The r variable, defined in section 17.4 of Lyon's book to be
+      (1-b) * NLF(v). The first term is undamping (because b is the gain).
+
+  Returns:
+    A float vector with the gain for each AGC stage.
+  """
+  return (
+      car_coeffs.ga_coeffs * (undamping**2)
+      + car_coeffs.gb_coeffs * undamping
+      + car_coeffs.gc_coeffs
+  )
 
 
 @dataclasses.dataclass
