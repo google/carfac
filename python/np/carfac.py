@@ -62,6 +62,7 @@ class CarParams:
   min_pole_hz: float = 30
   erb_break_freq: float = 165.3  # Greenwood map's break freq.
   erb_q: float = 1000 / (24.7 * 4.37)  # Glasberg and Moore's high-cf ratio
+  ac_corner_hz: float = 20  # AC couple at 20 Hz corner
 
 
 @dataclasses.dataclass
@@ -70,6 +71,7 @@ class CarCoeffs:
   n_ch: int
   velocity_scale: float
   v_offset: float
+  ac_coeff: float
   use_delay_buffer: bool = False
 
   r1_coeffs: np.ndarray = np.zeros(())
@@ -125,7 +127,9 @@ def design_filters(car_params: CarParams, fs: float,
   car_coeffs = CarCoeffs(
       n_ch=n_ch,
       velocity_scale=car_params.velocity_scale,
-      v_offset=car_params.v_offset)
+      v_offset=car_params.v_offset,
+      ac_coeff=2 * np.pi * car_params.ac_corner_hz / fs,
+  )
 
   car_coeffs.ohc_health = np.ones(n_ch, dtype=np.float32)
 
@@ -246,6 +250,7 @@ class CarState:
   zy_memory: np.ndarray  # zeros(n_ch, 1), ...
   g_memory: np.ndarray  # coeffs.g0_coeffs, ...
   dg_memory: np.ndarray  #  zeros(n_ch, 1) ...
+  ac_coupler: np.ndarray
 
   def __init__(self, coeffs: CarCoeffs, dtype=np.float32):
     n_ch = coeffs.n_ch
@@ -257,6 +262,7 @@ class CarState:
     self.zy_memory = np.zeros((n_ch,), dtype=dtype)
     self.g_memory = coeffs.g0_coeffs
     self.dg_memory = np.zeros((n_ch,), dtype=dtype)
+    self.ac_coupler = np.zeros((n_ch,), dtype=dtype)
 
 
 def car_init_state(coeffs: CarCoeffs) -> CarState:
@@ -331,9 +337,9 @@ def car_step(x_in: float,
   car_state.zy_memory = zy
   car_state.g_memory = g
 
-  car_out = zy
-
-  return car_out, car_state
+  ac_diff = zy - car_state.ac_coupler
+  car_state.ac_coupler = car_state.ac_coupler + car_coeffs.ac_coeff * ac_diff
+  return ac_diff, car_state
 
 
 ############################################################################
@@ -346,7 +352,6 @@ def car_step(x_in: float,
 @dataclasses.dataclass
 class IhcJustHwrParams:
   just_hwr: bool = True  # just a simple HWR
-  ac_corner_hz: float = 20
 
 
 @dataclasses.dataclass
@@ -356,7 +361,6 @@ class IhcOneCapParams(IhcJustHwrParams):
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
   tau_in: float = 0.010  # recovery tau is slower
-  ac_corner_hz: float = 20
 
 
 @dataclasses.dataclass
@@ -370,7 +374,6 @@ class IhcTwoCapParams(IhcJustHwrParams):
   tau1_in: float = 0.000200  # recovery tau is very fast 200 us
   tau2_out: float = 0.001  # depletion tau is pretty fast 1 ms
   tau2_in: float = 0.010  # recovery tau is slower 10 ms
-  ac_corner_hz: float = 20
 
 
 # See Section 18.3 (A Digital IHC Model)
@@ -502,8 +505,6 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
     )
   else:
     raise NotImplementedError
-  # one more, AC coupling coefficient that applies to all cases:
-  ihc_coeffs.ac_coeff = 2 * math.pi * ihc_params.ac_corner_hz / fs
   return ihc_coeffs
 
 
@@ -519,24 +520,21 @@ class IhcState:
   cap1_voltage: np.ndarray = np.array(0)
   cap2_voltage: np.ndarray = np.array(0)
 
-  def __init__(self, coeffs):
+  def __init__(self, coeffs, dtype=np.float32):
     n_ch = coeffs.n_ch
     if coeffs.just_hwr:
-      self.ihc_accum = np.zeros((n_ch,))
-      self.ac_coupler = np.zeros((n_ch,))
+      self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
     else:
       if coeffs.one_cap:
-        self.ihc_accum = np.zeros((n_ch,))
-        self.cap_voltage = coeffs.rest_cap * np.ones((n_ch,))
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
-        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,))
-        self.ac_coupler = np.zeros((n_ch,))
+        self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
+        self.cap_voltage = coeffs.rest_cap * np.ones((n_ch,), dtype=dtype)
+        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
+        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
       else:
-        self.ihc_accum = np.zeros((n_ch,))
-        self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,))
-        self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,))
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,))
-        self.ac_coupler = np.zeros((n_ch,))
+        self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
+        self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,), dtype=dtype)
+        self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,), dtype=dtype)
+        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
 
 
 def ihc_init_state(coeffs):
@@ -565,7 +563,7 @@ def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
   return nlf
 
 
-def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
+def ihc_step(bm_out: np.ndarray, ihc_coeffs: IhcCoeffs,
              ihc_state: IhcState) -> Tuple[np.ndarray, IhcState]:
   """Step the inner-hair cell model with ont input sample.
 
@@ -573,7 +571,7 @@ def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
   detection nonlinearity and one or two capacitor state variables.
 
   Args:
-    filters_out: The output from the CAR filterbank
+    bm_out: The output from the CAR filterbank
     ihc_coeffs: The run-time parameters for the inner hair cells
     ihc_state: The run-time state
 
@@ -582,15 +580,11 @@ def ihc_step(filters_out: np.ndarray, ihc_coeffs: IhcCoeffs,
     and the new state.
   """
 
-  # AC couple the filters_out, with 20 Hz corner
-  ac_diff = filters_out - ihc_state.ac_coupler
-  ihc_state.ac_coupler = ihc_state.ac_coupler + ihc_coeffs.ac_coeff * ac_diff
-
   if ihc_coeffs.just_hwr:
-    ihc_out = np.min(2, np.max(0, ac_diff))
+    ihc_out = np.min(2, np.max(0, bm_out))
     #  limit it for stability
   else:
-    conductance = ihc_detect(ac_diff)  # rectifying nonlinearity
+    conductance = ihc_detect(bm_out)  # rectifying nonlinearity
 
     if ihc_coeffs.one_cap:
       ihc_out = conductance * ihc_state.cap_voltage

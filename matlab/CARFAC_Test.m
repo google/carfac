@@ -73,15 +73,13 @@ if do_plots
 end
 
 expected = [ ...
-  [10, 5604, 39.3, 705.6, 7.9];
-  [20, 3245, 55.6, 429.8, 7.6];
-%   [30, 1809, 60.4, 248.1, 7.3];  % changed 60.4 to 60.5 after ac move.
-  [30, 1809, 60.5, 248.1, 7.3];
-  [40, 965, 59.2, 138.7, 7.0];
-  [50, 477, 52.8, 74.8, 6.4];
-  [60, 195, 39.0, 37.5, 5.2];
-%   [70, 31, 9.4, 15.1, 2.1];  % Before moving ac coupling from IHC to CAR.
-  [70, 32, 8.0, 14.6, 2.2];
+  [10, 5604, 39.34, 705.6, 7.9];
+  [20, 3245, 55.61, 429.8, 7.6];
+  [30, 1809, 60.46, 248.1, 7.3];
+  [40, 965, 59.18, 138.7, 7.0];
+  [50, 477, 52.81, 74.8, 6.4];
+  [60, 195, 38.98, 37.5, 5.2];
+  [70, 32, 7.95, 14.6, 2.2];
   ];
 
 % Test: check overall frequency response of a cascade of CAR filters.
@@ -95,11 +93,12 @@ for i = 1:size(expected, 1)
   correct_q = expected(i, 5);
   cf_amp_bw = find_peak_response(spectrum_freqs, ...
     db_spectra(:, channel), 3);  % 3 dB width
-  % Round to 1 decimal place; require exact match then.
   cf = round(cf_amp_bw(1));  % Zero decimals on this one.
-  gain = round(10 * cf_amp_bw(2)) / 10;
-  bw = round(10 * cf_amp_bw(3)) / 10;
-  q = round(10 * cf_amp_bw(1) / cf_amp_bw(3)) / 10;
+  % Round to 1 or 2 decimal places, require exact match then.
+  % 2 Decimal places for gain.
+  gain = round(cf_amp_bw(2), 2);
+  bw = round(cf_amp_bw(3), 1);
+  q = round(cf_amp_bw(1) / cf_amp_bw(3), 1);
   fprintf(1, ...
     ['%d: cf is %.1f Hz, peak gain is %.1f dB,' ...
     ' 3 dB bandwidth is %.1f Hz (Q = %.1f).\n'], ...
@@ -186,12 +185,6 @@ for k = 1:length(test_freqs)
   switch test_freqs(k)
     case 300
       expected_results = [ ...
-%         [2.591120, 714.093923];
-%         [4.587200, 962.263411];
-%         [6.764676, 1141.981740];
-%         [8.641429, 1232.411638];
-%         [9.991695, 1260.430082];
-%         [10.580713, 1248.820852];
         [2.752913, 721.001685];
         [4.815015, 969.505412];
         [7.062418, 1147.285676];
@@ -201,12 +194,6 @@ for k = 1:length(test_freqs)
         ];
     case 3000
       expected_results = [ ...
-%         [1.405700, 234.125387];
-%         [2.781740, 316.707076];
-%         [4.763687, 376.773748];
-%         [6.967957, 407.915892];
-%         [8.954049, 420.217294];
-%         [10.426862, 422.570402];
         [1.417657, 234.098558];
         [2.804747, 316.717957];
         [4.802444, 376.787575];
@@ -266,12 +253,6 @@ for k = 1:length(test_freqs)
   switch test_freqs(k)
     case 300
       expected_results = [ ...
-%         [1.902415, 538.527222];
-%         [3.359364, 749.276463];
-%         [4.896701, 917.197384];
-%         [6.108056, 1010.808002];
-%         [6.871368, 1045.890574];
-%         [7.109630, 1042.256991];
         [2.026682, 544.901381];
         [3.533259, 756.736631];
         [5.108579, 923.142282];
@@ -281,12 +262,6 @@ for k = 1:length(test_freqs)
         ];
     case 3000
       expected_results = [ ...
-%         [0.689603, 93.379491];
-%         [1.504816, 131.798075];
-%         [2.637552, 163.245075];
-%         [3.837625, 181.940881];
-%         [4.851186, 191.007773];
-%         [5.560017, 194.355334];
         [0.698303, 93.388172];
         [1.520033, 131.832247];
         [2.660770, 163.287206];
@@ -528,17 +503,21 @@ for ch = 1:CF.n_ch
     find_peak_response(freqs, final_freq_response(:, ch), 3)];
 end
 
+if do_plots
+  figure; clf('reset')
+  plot(1:CF.n_ch, initial_resps(:,2), ':')
+  hold on
+  plot(1:CF.n_ch, final_resps(:,2))
+  xlabel('Ear Channel #')
+  ylabel('dB')
+  title('NP: Initial (dotted) vs. Adapted (solid) Peak Gain')
+  %.   savefig('/tmp/whole_carfac_peak_gain.png')
+  drawnow
+end
+
 % Test for change in peak gain after adaptation.
 % Golden data table of frequency, channel, peak frequency, delta:
 results = [
-% Before moving ac coupling into CAR, peaks gains a little different:
-%   125, 65,   118.944255,     0.186261
-%   250, 59,   239.771898,     0.910003
-%   500, 50,   514.606412,     7.243568
-%   1000, 39,  1099.433179,    31.608529
-%   2000, 29,  2038.873929,    27.242882
-%   4000, 17,  4058.881505,    13.865787
-%   8000,  3,  8289.882476,     3.574972
   125, 65,      119.007,        0.264
   250, 59,      239.791,        0.986
   500, 50,      514.613,        7.309
