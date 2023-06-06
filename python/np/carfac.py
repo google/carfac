@@ -421,7 +421,6 @@ class IhcCoeffs:
   rest_output: float = 0
   rest_cap2: float = 0
   rest_cap1: float = 0
-  ac_coeff: float = 0
 
   rest_cap: float = 0
   out_rate: float = 0
@@ -515,7 +514,6 @@ class IhcState:
   cap_voltage: np.ndarray = np.array(0)
   lpf1_state: np.ndarray = np.array(0)
   lpf2_state: np.ndarray = np.array(0)
-  ac_coupler: np.ndarray = np.array(0)
 
   cap1_voltage: np.ndarray = np.array(0)
   cap2_voltage: np.ndarray = np.array(0)
