@@ -74,16 +74,34 @@ class CarCoeffs:
   ac_coeff: float
   use_delay_buffer: bool = False
 
-  r1_coeffs: np.ndarray = np.zeros(())
-  a0_coeffs: np.ndarray = np.zeros(())
-  c0_coeffs: np.ndarray = np.zeros(())
-  h_coeffs: np.ndarray = np.zeros(())
-  g0_coeffs: np.ndarray = np.zeros(())
-  ga_coeffs: np.ndarray = np.zeros(())
-  gb_coeffs: np.ndarray = np.zeros(())
-  gc_coeffs: np.ndarray = np.zeros(())
-  zr_coeffs: np.ndarray = np.zeros(())
-  ohc_health: np.ndarray = np.ones(())
+  r1_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  a0_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  c0_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  h_coeffs: np.ndarray = dataclasses.field(default_factory=lambda: np.zeros(()))
+  g0_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  ga_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  gb_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  gc_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  zr_coeffs: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.zeros(())
+  )
+  ohc_health: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.ones(())
+  )
 
 
 def hz_to_erb(cf_hz: Union[float, np.ndarray],
@@ -510,13 +528,25 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
 @dataclasses.dataclass
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
-  ihc_accum: np.ndarray = np.array(0)  # Placeholders
-  cap_voltage: np.ndarray = np.array(0)
-  lpf1_state: np.ndarray = np.array(0)
-  lpf2_state: np.ndarray = np.array(0)
+  ihc_accum: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )  # Placeholders
+  cap_voltage: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )
+  lpf1_state: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )
+  lpf2_state: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )
 
-  cap1_voltage: np.ndarray = np.array(0)
-  cap2_voltage: np.ndarray = np.array(0)
+  cap1_voltage: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )
+  cap2_voltage: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array(0)
+  )
 
   def __init__(self, coeffs, dtype=np.float32):
     n_ch = coeffs.n_ch
@@ -658,13 +688,18 @@ def ihc_model_run(input_data: np.ndarray, fs: float) -> np.ndarray:
 class AgcParams:
   """All the parameters needed to define the behavior of the AGC filters."""
   n_stages: int = 4
-  time_constants: np.ndarray = 0.002 * 4**np.arange(4)
+  time_constants: np.ndarray = dataclasses.field(
+      default_factory=lambda: 0.002 * 4 ** np.arange(4)
+  )
   agc_stage_gain: float = 2  # gain from each stage to next slower stage
   # how often to update the AGC states
   decimation: Tuple[int, ...] = (8, 2, 2, 2)
-  agc1_scales: List[float] = 1.0 * np.sqrt(2)**np.arange(4)  # 1 per channel
-  agc2_scales: List[float] = 1.65 * math.sqrt(2)**np.arange(
-      4)  # spread more toward base
+  agc1_scales: List[float] = dataclasses.field(
+      default_factory=lambda: 1.0 * np.sqrt(2) ** np.arange(4)
+  )  # 1 per channel
+  agc2_scales: List[float] = dataclasses.field(
+      default_factory=lambda: 1.65 * math.sqrt(2) ** np.arange(4)
+  )  # spread more toward base
   agc_mix_coeff: float = 0.5
 
 
