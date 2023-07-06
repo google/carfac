@@ -8,7 +8,9 @@ from absl.testing import parameterized
 import matplotlib.pyplot as plt
 import numpy as np
 
-from . import carfac
+import sys
+sys.path.insert(0, '.')
+import carfac
 
 # Note some of these tests create plots for easier comparison to the results
 # in Dick Lyon's Human and Machine Hearing.  The plots are stored in /tmp, and
