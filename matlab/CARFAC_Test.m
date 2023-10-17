@@ -34,6 +34,8 @@ status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
+status = status | test_multiaural_silent_channel_carfac(do_plots);
+status = status | test_multiaural_carfac(do_plots);
 report_status(status, 'CARFAC_Test', 1)
 return
 
@@ -650,6 +652,100 @@ fprintf(1, 'Delay nonlinear max_max_rel_error = %f\n', max_max_rel_error);
 report_status(status, 'test_delay_buffer')
 return
 
+function status = test_multiaural_silent_channel_carfac(do_plots)
+  % Test multiaural functionality with 2 ears. Runs a 50ms sample of a pair of
+  % C Major chords, and tests a binaural carfac, with 1 silent ear against
+  % a simple monoaural carfac with only the chords.
+  %
+  % Tests that:
+  % 1. The ratio of the BM in total is within an expected ratio [1, 1.25]
+  % 2. Checks a golden set against a precise set of ratios for these chords
+  % The latter is to ensure identical behavior in python.
+  status = 0;
+  fs = 22050;
+  t = (0:(1/fs):(0.05 - 1/fs))';  % 50ms
+  amplitude = 1e-3;  % -70 dBFS, around 30-40 dB SPL
+
+  % c major chord of c-e-g at 523.25, 659.25 and 783.99
+  % and 32.7, 41.2 and 49
+  freqs = [523.25 659.25 783.99 32.7 41.2 49];
+  c_chord = amplitude * sum(sin(2 * pi * t * freqs), 2);
+
+  binaural_audio = [c_chord zeros(size(t))];
+  CF = CARFAC_Design(2, fs);
+  CF = CARFAC_Init(CF);
+  MONO_CF = CARFAC_Design(1, fs);
+  MONO_CF = CARFAC_Init(MONO_CF);
+  [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
+  [mono_naps, MONO_CF, mono_bm_baseline] = CARFAC_Run_Segment(MONO_CF, c_chord);
+  good_ear_bm = bm_baseline(:, :, 1);
+  rms_good_ear = rms(good_ear_bm);
+  rms_mono = rms(mono_bm_baseline);
+  tf_ratio = rms_good_ear ./ rms_mono;
+
+  fprintf(1, 'for python, tf_ratio = [');
+  for ch = 1:size(tf_ratio')
+    fprintf(1, ' %.4f,', tf_ratio(ch));
+    if mod(ch, 5) == 0
+      fprintf(1, '\n');
+    end
+  end
+  fprintf(1, ']\nfor matlab, expected_tf_ratio = [');
+  for ch = 1:size(tf_ratio')
+    fprintf(1, '%.4f, ', tf_ratio(ch));
+    if mod(ch, 5) == 0
+      fprintf(1, '...\n');
+    end
+  end
+  fprintf(1, '];\n');
+  expected_tf_ratio = [1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+  1.0000, 1.0000, 1.0001, 1.0001, 1.0001, ...
+  1.0002, 1.0004, 1.0007, 1.0018, 1.0050, ...
+  1.0133, 1.0290, 1.0463, 1.0562, 1.0552, ...
+  1.0505, 1.0497, 1.0417, 1.0426, 1.0417, ...
+  1.0320, 1.0110, 1.0093, 1.0124, 1.0065, ...
+  1.0132, 1.0379, 1.0530, 1.0503, 1.0477, ...
+  1.0556, 1.0659, 1.0739, 1.0745, 1.0762, ...
+  1.0597, 1.0200, 1.0151, 1.0138, 1.0129, ...
+  1.0182, ];
+  max_error = max(abs(expected_tf_ratio - tf_ratio));
+  if max_error > 1e-3
+    status = 1
+    fprintf(1, 'Expected TF Ratio is not within 1e-3 of TF Ratio');
+  end
+  if any(tf_ratio < 1) | any(tf_ratio > 1.25)
+    status = 1;
+    fprintf(1, 'bm ratio is expected to be between 1 and 1.2 for noise');
+  end
+  report_status(status, 'test_multiaural_silent_channel_carfac');
+return
+
+function status = test_multiaural_carfac(do_plots)
+  % Tests that in binaural carfac, providing identical noise to both ears
+  % gives identical nap output at end.
+  status = 0;
+  fs = 22050;
+  t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
+  amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
+  noise = amplitude * randn(size(t));
+  binaural_noise = [noise noise];
+  CF = CARFAC_Design(2, fs);
+  CF = CARFAC_Init(CF);
+  [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_noise);
+  ear_one_naps = naps(:, :, 1);
+  ear_two_naps = naps(:, :, 2);
+  max_error =  max(abs(ear_one_naps - ear_two_naps));
+  if max_error > 1e-6
+    status = 1;
+    fprintf(1, 'Failed to have both ears equal in binaural');
+  end
+  report_status(status, 'test_multiaural_carfac');
+  return
 
 function status = test_OHC_health(do_plots)
 % Test: Verify frequency dependent reduced gain with reduced health.
