@@ -730,6 +730,102 @@ class CarfacTest(parameterized.TestCase):
     for ch in np.arange(half_ch + 5, n_ch - 2):
       self.assertGreater(tf_ratio[ch], 0.35)
 
+  def test_multiaural_carfac(self):
+    """Test multiaural functionality with 2 ears.
+
+    Tests that in binaural carfac, providing identical noise to both ears
+    gives idental nap output at end.
+    """
+    # for now only test 2 ears.
+    np.random.seed(seed=1)
+
+    fs = 22050.0
+    t = np.arange(0, 1, 1 / fs)  # A second of noise.
+    amplitude = 1e-3  # -70 dBFS, around 30 or 40 dB SPL
+    noise = amplitude * np.random.randn(len(t))
+    two_chan_noise = np.zeros((len(t), 2))
+    two_chan_noise[:, 0] = noise
+    two_chan_noise[:, 1] = noise
+    cfp = carfac.design_carfac(fs=fs, n_ears=2, one_cap=True)
+    cfp = carfac.carfac_init(cfp)
+    naps, _, _, _, _ = carfac.run_segment(cfp, two_chan_noise)
+    max_abs_diff = np.amax(np.abs(naps[:, :, 0] - naps[:, :, 1]))
+    self.assertLess(max_abs_diff, 1e-5)
+
+  def test_multiaural_carfac_with_silent_channel(self):
+    """Test multiaural functionality with 2 ears.
+
+    Runs a 50ms sample of a pair of C Major chords, and tests a binaural carfac
+    with 1 silent ear against a simple monoaural carfac with only the chords as
+    input.
+
+    Tests that:
+    1. The ratio of BM Movement is within an expected range [1, 1.25]
+    2. Tests the precise ratio between the two, taken as golden data from the
+    matlab
+    """
+    # for now only test 2 ears.
+    fs = 22050.0
+    t = np.arange(0, 0.05 - 1 / fs, 1 / fs)  # 50ms of times.
+    t_prime = t.reshape(1, len(t))
+    amplitude = 1e-3  # -70 dBFS, around 30 or 40 dB SPL
+
+    # c major chord at 4th octave . C-E-G, 523.25-659.25-783.99
+    # and then a few octaves lower, at 32.7 41.2 and 49.
+    freqs = np.asarray(
+        [523.25, 659.25, 783.99, 32.7, 41.2, 49], dtype=np.float64
+    )
+    freqs = freqs.reshape(len(freqs), 1)
+    c_major_chord = amplitude * np.sum(
+        np.sin(2 * np.pi * np.matmul(freqs, t_prime)), 0
+    )
+
+    two_chan_noise = np.zeros((len(t), 2))
+    two_chan_noise[:, 0] = c_major_chord
+    # Leave the audio in channel 1 as silence.
+    cfp = carfac.design_carfac(fs=fs, n_ears=2, one_cap=True)
+    cfp = carfac.carfac_init(cfp)
+    mono_cfp = carfac.design_carfac(fs=fs, n_ears=1, one_cap=True)
+    mono_cfp = carfac.carfac_init(mono_cfp)
+
+    _, _, bm_binaural, _, _ = carfac.run_segment(cfp, two_chan_noise)
+    _, _, bm_monoaural, _, _ = carfac.run_segment(mono_cfp, c_major_chord)
+
+    bm_mono_ear = bm_monoaural[:, :, 0]
+    rms_bm_mono = np.sqrt(np.mean(bm_mono_ear**2, axis=0))
+
+    bm_good_ear = bm_binaural[:, :, 0]
+    rms_bm_binaural_good_ear = np.sqrt(np.mean(bm_good_ear**2, axis=0))
+
+    tf_ratio = rms_bm_binaural_good_ear / rms_bm_mono
+    # this data comes directly from the same test that executes in Matlab.
+    expected_tf_ratio = [
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0001, 1.0001, 1.0001,
+        1.0002, 1.0004, 1.0007, 1.0018, 1.0050,
+        1.0133, 1.0290, 1.0463, 1.0562, 1.0552,
+        1.0505, 1.0497, 1.0417, 1.0426, 1.0417,
+        1.0320, 1.0110, 1.0093, 1.0124, 1.0065,
+        1.0132, 1.0379, 1.0530, 1.0503, 1.0477,
+        1.0556, 1.0659, 1.0739, 1.0745, 1.0762,
+        1.0597, 1.0200, 1.0151, 1.0138, 1.0129,
+        1.0182,]
+    diff_ratio = np.abs(tf_ratio - expected_tf_ratio)
+    for ch in np.arange(len(diff_ratio)):
+      self.assertAlmostEqual(
+          tf_ratio[ch],
+          expected_tf_ratio[ch],
+          places=3,
+          msg='Failed at channel %d' % ch,
+      )
+    self.assertTrue(np.all(tf_ratio >= 1))
+    self.assertTrue(np.all(tf_ratio <= 1.25))
+
 
 if __name__ == '__main__':
   absltest.main()

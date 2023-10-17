@@ -714,6 +714,7 @@ class AgcCoeffs:
   agc_spatial_fir: Optional[List[float]] = None
   agc_spatial_n_taps: int = 0
   detect_scale: float = 1
+  agc_mix_coeffs: float = 0
 
 
 def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
@@ -862,7 +863,8 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
       agc_coeffs[stage].agc_mix_coeffs = 0
     else:
       agc_coeffs[stage].agc_mix_coeffs = agc_params.agc_mix_coeff / (
-          tau * (fs / decim))
+          tau * (fs / decim)
+      )
 
   # adjust stage 1 detect_scale to be the reciprocal DC gain of the AGC filters:
   agc_coeffs[0].detect_scale = 1 / total_dc_gain
@@ -1198,6 +1200,41 @@ def close_agc_loop(cfp: CarfacParams) -> CarfacParams:
   return cfp
 
 
+def cross_couple(ears: List[CarfacCoeffs]) -> List[CarfacCoeffs]:
+  """This function cross couples gain between multiple ears.
+
+  There's no impact for this function in the case of monoaural input.
+  Args:
+    ears: the list of ear inputs.
+
+  Returns:
+    The list of ear inputs, modified to multiaural coupling.
+  """
+  if len(ears) <= 1:
+    return ears
+  n_stages = ears[0].agc_coeffs[0].n_agc_stages
+  # now cross-ear mix the stages that updated (leading stages at phase 0):
+  for stage in range(n_stages):
+    if ears[0].agc_state[stage].decim_phase > 0:
+      return ears
+    else:
+      mix_coeff = ears[0].agc_coeffs[stage].agc_mix_coeffs
+      if mix_coeff <= 0:
+        continue
+      this_stage_sum = 0
+      # sum up over the ears and get their mean:
+      for ear in ears:
+        this_stage_sum += ear.agc_state[stage].agc_memory
+      this_stage_mean = this_stage_sum / len(ears)
+      # now move them all toward the mean:
+      for ear in ears:
+        stage_state = ear.agc_state[stage].agc_memory
+        ear.agc_state[stage].agc_memory = stage_state + mix_coeff * (
+            this_stage_mean - stage_state
+        )
+  return ears
+
+
 def run_segment(
     cfp: CarfacParams,
     input_waves: np.ndarray,
@@ -1301,9 +1338,7 @@ def run_segment(
     if agc_updated:
       if n_ears > 1:
         #  do multi-aural cross-coupling:
-        raise NotImplementedError
-        # TODO(malcolmslaney) Translate Cross_Couple()
-        # cfp.ears = Cross_Couple(cfp.ears)
+        cfp.ears = cross_couple(cfp.ears)
       if not open_loop:
         cfp = close_agc_loop(cfp)
 
