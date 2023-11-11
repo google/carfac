@@ -17,40 +17,72 @@
 % limitations under the License.
 
 function CF = CARFAC_Design(n_ears, fs, ...
-  CF_CAR_params, CF_AGC_params, CF_IHC_params)
+  CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_IHC_keyword)
 % function CF = CARFAC_Design(n_ears, fs, ...
-%   CF_CAR_params, CF_AGC_params, CF_IHC_params)
+%   CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_IHC_keyword)
 %
 % This function designs the CARFAC (Cascade of Asymmetric Resonators with
 % Fast-Acting Compression); that is, it take bundles of parameters and
-% computes all the filter coefficients needed to run it.
+% computes all the filter coefficients needed to run it.  Before running,
+% CARFAC_Init is needed, to build and initialize the state variables.
 %
+% n_ears (typically 1 or 2, can be more) is number of sound channels.
 % fs is sample rate (per second)
 % CF_CAR_params bundles all the pole-zero filter cascade parameters
 % CF_AGC_params bundles all the automatic gain control parameters
 % CF_IHC_params bundles all the inner hair cell parameters
+% Indendent of how many of these are provided, if the last arg is a string
+% it will be interpreted as an IHC_style keyword ('just_hwr' or 'one_cap';
+% omit or 'two_cap' for default v2 two-cap IHC model.
 %
 % See other functions for designing and characterizing the CARFAC:
 % [naps, CF] = CARFAC_Run(CF, input_waves)
 % transfns = CARFAC_Transfer_Functions(CF, to_channels, from_channels)
 %
-% Defaults to Glasberg & Moore's ERB curve:
-% ERB_break_freq = 1000/4.37;  % 165.3 -- No, default is Greenwood 165.3
+% Scale is like Glasberg & Moore's ERB curve, but Greenwood's breakf.
+% ERB_break_freq = 165.3;  % Not 1000/4.37, 228.8 Hz breakf of Moore.
 % ERB_Q = 1000/(24.7*4.37);    % 9.2645
+% Edit CF.CF_CAR_params and call CARFAC_Design again to change.
+% Similarly for changing other things.
 %
 % All args are defaultable; for sample/default args see the code; they
 % make 71 channels at default fs = 22050.
+% For "modern" applications we prefer fs = 48000, which makes 84 channels.
 
-if nargin < 1
+switch nargin
+  case 0
+    last_arg = [];
+  case 1
+    last_arg = n_ears;
+  case 2
+    last_arg = fs;
+  case 3
+    last_arg = CF_CAR_params;
+  case 4
+    last_arg = CF_AGC_params;
+  case 5
+    last_arg = CF_IHC_params;
+  case 6
+    last_arg = CF_IHC_keyword;
+end
+if ischar(last_arg)  % string is a character array, not a string array.
+  IHC_keyword = last_arg;
+  num_args = nargin - 1;
+else
+  IHC_keyword = 'two_cap';  % the CARFAC v2 default
+  num_args = nargin;
+end
+
+if num_args < 1
   n_ears = 1;  % if more than 1, make them identical channels;
   % then modify the design if necessary for different reasons
 end
 
-if nargin < 2
+if num_args < 2
   fs = 22050;
 end
 
-if nargin < 3
+if num_args < 3
   CF_CAR_params = struct( ...
     'velocity_scale', 0.1, ...  % for the velocity nonlinearity
     'v_offset', 0.04, ...  % offset gives a quadratic part
@@ -67,7 +99,7 @@ if nargin < 3
     );
 end
 
-if nargin < 4
+if num_args < 4
   CF_AGC_params = struct( ...
     'n_stages', 4, ...
     'time_constants', 0.002 * 4.^(0:3), ...
@@ -78,10 +110,19 @@ if nargin < 4
     'AGC_mix_coeff', 0.5);
 end
 
-if nargin < 5
-  % HACK: these constants control the defaults
-  one_cap = 1;         % bool; 1 for Allen model, as text states we use
+if num_args < 5
+  one_cap = 0;         % bool; 1 for Allen model, 0 for new default two-cap
   just_hwr = 0;        % bool; 0 for normal/fancy IHC; 1 for HWR
+  switch IHC_keyword
+    case 'just_hwr'
+      just_hwr = 1;        % bool; 0 for normal/fancy IHC; 1 for HWR
+    case 'one_cap'
+      one_cap = 1;         % bool; 1 for Allen model, as text states we use
+    case 'two_cap'
+      % nothing to do; accept the default
+    otherwise
+      error('unknown IHC_keyword in CARFAC_Design')
+  end
   CF_IHC_params = struct( ...
     'just_hwr', just_hwr, ...  % not just a simple HWR
     'one_cap', one_cap, ...    % bool; 0 for new two-cap hack
@@ -238,6 +279,7 @@ CAR_coeffs.gc_coeffs = g0;
 % Maybe re-do this at Init time?
 undamping = CAR_coeffs.OHC_health;  % Typically just ones.
 % Avoid running this model function at Design time; see tests.
+% CAR_coeffs.g0_coeffs = CARFAC_Stage_g(CAR_coeffs, undamping);
 CAR_coeffs.g0_coeffs = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
 
 
@@ -440,6 +482,12 @@ else
       'output_gain', 1 / (saturation_current - rest_current), ...
       'rest_output', rest_current / (saturation_current - rest_current), ...
       'rest_cap', cap_voltage);
+    % one-channel state for testing/verification:
+    IHC_state = struct( ...
+      'cap_voltage', IHC_coeffs.rest_cap, ...
+      'lpf1_state', 0, ...
+      'lpf2_state', 0, ...
+      'ihc_accum', 0);
   else
     g1max = CARFAC_Detect(10);  % receptor conductance at high level
     r1min = 1 / g1max;
@@ -482,5 +530,12 @@ else
       'rest_output', rest_current2 / (saturation_current2 - rest_current2), ...
       'rest_cap2', cap2_voltage, ...
       'rest_cap1', cap1_voltage);
+    % one-channel state for testing/verification:
+    IHC_state = struct( ...
+      'cap1_voltage', IHC_coeffs.rest_cap1, ...
+      'cap2_voltage', IHC_coeffs.rest_cap2, ...
+      'lpf1_state', 0, ...
+      'lpf2_state', 0, ...
+      'ihc_accum', 0);
   end
 end

@@ -31,7 +31,8 @@ status = status | test_IHC(do_plots);
 status = status | test_IHC2(do_plots);
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_stage_g_calculation(do_plots);
-status = status | test_whole_carfac(do_plots);
+status = status | test_whole_carfac1(do_plots);
+status = status | test_whole_carfac2(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
 status = status | test_multiaural_silent_channel_carfac(do_plots);
@@ -440,7 +441,19 @@ report_status(status, 'test_stage_g_calculation')
 return
 
 
-function status = test_whole_carfac(do_plots)
+function status = test_whole_carfac1(do_plots)
+status = test_whole_carfac(do_plots, 'one_cap')
+report_status(status, 'test_whole_carfac1')
+return
+
+
+function status = test_whole_carfac2(do_plots)
+status = test_whole_carfac(do_plots, 'two_cap')
+report_status(status, 'test_whole_carfac2')
+return
+
+
+function status = test_whole_carfac(do_plots, IHC_style)
 % Test: Make sure that the AGC adapts to a tone. Test with open-loop
 % impulse response.
 
@@ -456,7 +469,7 @@ impulse_dur = 0.5;  % 0.25 is about enough; this is conservative.
 impulse = zeros(round(impulse_dur*fs), 1);  % For short impulse wave.
 impulse(1) = 1e-4;  % Small amplitude impulse to keep it pretty linear
 
-CF = CARFAC_Design(1, fs);
+CF = CARFAC_Design(1, fs, IHC_style);
 CF = CARFAC_Init(CF);
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -519,15 +532,36 @@ end
 
 % Test for change in peak gain after adaptation.
 % Golden data table of frequency, channel, peak frequency, delta:
-results = [
-  125, 65,      119.007,        0.264
-  250, 59,      239.791,        0.986
-  500, 50,      514.613,        7.309
-  1000, 39,     1099.436,       31.644
-  2000, 29,     2038.875,       27.214
-  4000, 17,     4058.882,       13.823
-  8000,  3,     8289.883,        3.565
-  ];
+switch IHC_style
+  case 'one_cap'
+    % Before moving ac coupling into CAR, peaks gains a little different:
+    %   125, 65,   118.944255,     0.186261
+    %   250, 59,   239.771898,     0.910003
+    %   500, 50,   514.606412,     7.243568
+    %   1000, 39,  1099.433179,    31.608529
+    %   2000, 29,  2038.873929,    27.242882
+    %   4000, 17,  4058.881505,    13.865787
+    %   8000,  3,  8289.882476,     3.574972
+    results = [
+      125, 65,      119.007,        0.264
+      250, 59,      239.791,        0.986
+      500, 50,      514.613,        7.309
+      1000, 39,     1099.436,       31.644
+      2000, 29,     2038.875,       27.214
+      4000, 17,     4058.882,       13.823
+      8000,  3,     8289.883,        3.565
+      ];
+  case 'two_cap'
+    results = [
+      125, 65,      119.007,        0.258
+      250, 59,      239.791,        0.963
+      500, 50,      514.613,        7.224
+      1000, 39,     1099.436,       31.373
+      2000, 29,     2038.875,       26.244
+      4000, 17,     4058.882,       12.726
+      8000,  3,     8289.883,        3.212
+      ];
+end
 
 % Print data blocks that can be used to update golden test data.
 test_cfs = 125 * 2.^(0:6);
@@ -581,7 +615,6 @@ for j = 1:size(results, 1)
       dB_change, expected_change);
   end
 end
-report_status(status, 'test_whole_carfac')
 return
 
 
@@ -672,9 +705,9 @@ function status = test_multiaural_silent_channel_carfac(do_plots)
   c_chord = amplitude * sum(sin(2 * pi * t * freqs), 2);
 
   binaural_audio = [c_chord zeros(size(t))];
-  CF = CARFAC_Design(2, fs);
+  CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
   CF = CARFAC_Init(CF);
-  MONO_CF = CARFAC_Design(1, fs);
+  MONO_CF = CARFAC_Design(1, fs, 'one_cap');  % Legacy
   MONO_CF = CARFAC_Init(MONO_CF);
   [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
   [mono_naps, MONO_CF, mono_bm_baseline] = CARFAC_Run_Segment(MONO_CF, c_chord);
@@ -734,7 +767,7 @@ function status = test_multiaural_carfac(do_plots)
   amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
   noise = amplitude * randn(size(t));
   binaural_noise = [noise noise];
-  CF = CARFAC_Design(2, fs);
+  CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
   CF = CARFAC_Init(CF);
   [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_noise);
   ear_one_naps = naps(:, :, 1);
@@ -758,7 +791,7 @@ t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
 amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
 noise = amplitude * randn(size(t));
 
-CF = CARFAC_Design(1, fs);
+CF = CARFAC_Design(1, fs, 'one_cap');  % Legacy
 CF = CARFAC_Init(CF);
 [~, CF, bm_baseline] = CARFAC_Run_Segment(CF, noise);
 
