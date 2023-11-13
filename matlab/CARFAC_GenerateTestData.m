@@ -140,7 +140,7 @@ WriteTestData(test_data_dir, 'ihc_just_hwr_test', signal, CF_struct, sai_struct,
 
 function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct, open_loop)
 % function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct, open_loop)
-% 
+%
 % Helper function to run CARFAC and SAI over the given signal and
 % save the results to text files in test_data_dir.
 
@@ -154,8 +154,10 @@ filename_prefix = [test_data_dir test_name];
 
 WriteMatrixToFile([filename_prefix '-audio.txt'], signal);
 
+CF_struct.open_loop = open_loop;
+
 CF_struct = CARFAC_Init(CF_struct);
-[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal, 0, open_loop);
+[CF_struct, nap_decim, nap, bm, ohc, agc] = CARFAC_Run(CF_struct, signal, 0);
 
 % Store the data for each ear of each output signal in a separate file.
 for ear = 1:CF_struct.n_ears

@@ -17,7 +17,7 @@
 % limitations under the License.
 
 function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
-  (CF, input_waves, AGC_plot_fig_num, open_loop)
+  (CF, input_waves, AGC_plot_fig_num)
 % function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 %   (CF, input_waves, AGC_plot_fig_num)
 % This function runs the CARFAC; that is, filters a 1 or more channel
@@ -41,10 +41,6 @@ function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 
 [n_samp, n_ears] = size(input_waves);
 n_ch = CF.n_ch;
-
-if nargin < 4
-  open_loop = 0;
-end
 
 if nargin < 3
   AGC_plot_fig_num = 0;
@@ -102,46 +98,46 @@ for seg_num = 1:n_segs
   % Process a segment to get a slice of decim_naps, and plot AGC state:
   if ~isempty(BM)
     % ask for everything in this case, for laziness:
-    [seg_naps, CF, seg_BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(CF, input_waves(k_range, :), open_loop);
+    [seg_naps, CF, seg_BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
   else
-    [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :), open_loop);
+    [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :));
   end
-  
+
   if ~isempty(BM)
     for ear = 1:n_ears
       % Accumulate segment BM to make full BM
       BM(k_range, :, ear) = seg_BM(:, :, ear);
     end
   end
-  
+
   if ~isempty(naps)
     for ear = 1:n_ears
       % Accumulate segment naps to make full naps
       naps(k_range, :, ear) = seg_naps(:, :, ear);
     end
   end
-  
+
   if ~isempty(ohc)
     for ear = 1:n_ears
       % Accumulate segment naps to make full naps
       ohc(k_range, :, ear) = seg_ohc(:, :, ear);
     end
   end
-  
+
   if ~isempty(agc)
     for ear = 1:n_ears
       % Accumulate segment naps to make full naps
       agc(k_range, :, ear) = seg_agc(:, :, ear);
     end
   end
-  
+
   if ~isempty(decim_naps)
     for ear = 1:n_ears
       decim_naps(seg_num, :, ear) = CF.ears(ear).IHC_state.ihc_accum / seglen;
       CF.ears(ear).IHC_state.ihc_accum = zeros(n_ch,1);
     end
   end
-  
+
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
     maxmax = 0;
