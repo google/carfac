@@ -1011,14 +1011,17 @@ class CarfacParams:
   n_ears: int
 
 
-def design_carfac(n_ears: int = 1,
-                  fs: float = 22050,
-                  car_params: Optional[CarParams] = None,
-                  agc_params: Optional[AgcParams] = None,
-                  ihc_params: Optional[Union[IhcJustHwrParams, IhcOneCapParams,
-                                             IhcTwoCapParams]] = None,
-                  one_cap: bool = True,
-                  just_hwr: bool = False) -> CarfacParams:
+def design_carfac(
+    n_ears: int = 1,
+    fs: float = 22050,
+    car_params: Optional[CarParams] = None,
+    agc_params: Optional[AgcParams] = None,
+    ihc_params: Optional[
+        Union[IhcJustHwrParams, IhcOneCapParams, IhcTwoCapParams]
+    ] = None,
+    one_cap: bool = False,
+    just_hwr: bool = False,
+) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
   CARFAC is a Cascade of Asymmetric Resonators with Fast-Acting Compression);
