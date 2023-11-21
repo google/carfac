@@ -34,7 +34,7 @@ You will also need these path environment variables
 
 If you have difficulites building with libgtest from apt,
 you can build and install gtest from source:
-https://github.com/google/googletest/blob/master/googletest/README.md
+https://github.com/google/googletest/blob/main/googletest/README.md
 
 In this case you might need to modify the GTEST_SOURCE flag:
   export GTEST_SOURCE=/usr/src/googletest
