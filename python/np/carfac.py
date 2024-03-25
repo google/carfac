@@ -20,8 +20,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Note this is a pretty direct translation of the Matlab code, preserving
-the original variable names.
-https://github.com/google/carfac/tree/master/matlab
+the original variable names. The Matlab code can be found in the `matlab` folder
+at https://github.com/google/carfac.
 """
 
 import dataclasses
