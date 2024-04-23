@@ -124,14 +124,19 @@ def hz_to_erb(cf_hz: Union[float, np.ndarray],
   return (erb_break_freq + cf_hz) / erb_q
 
 
-def design_filters(car_params: CarParams, fs: float,
-                   pole_freqs: Union[List[float], np.ndarray]) -> CarCoeffs:
+def design_filters(
+    car_params: CarParams,
+    fs: float,
+    pole_freqs: Union[List[float], np.ndarray],
+    use_delay_buffer: bool = False,
+) -> CarCoeffs:
   """Design the actual CAR filters.
 
   Args:
     car_params: The parameters of the desired CAR filterbank.
     fs: The sampling rate in Hz
     pole_freqs: Where to put the poles for each channel.
+    use_delay_buffer: Whether to use delay buffer in car step.
 
   Returns:
     The CAR coefficient structure which allows the filters be computed quickly.
@@ -147,6 +152,7 @@ def design_filters(car_params: CarParams, fs: float,
       velocity_scale=car_params.velocity_scale,
       v_offset=car_params.v_offset,
       ac_coeff=2 * np.pi * car_params.ac_corner_hz / fs,
+      use_delay_buffer=use_delay_buffer,
   )
 
   car_coeffs.ohc_health = np.ones(n_ch, dtype=np.float32)
@@ -1021,6 +1027,7 @@ def design_carfac(
     ] = None,
     one_cap: bool = False,
     just_hwr: bool = False,
+    use_delay_buffer: bool = False,
 ) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
@@ -1032,9 +1039,8 @@ def design_carfac(
     [naps, cfp] = Run(cfp, input_waves)
     transfns = Transfer_Functions(cfp, to_channels, from_channels)
 
-  Defaults to Glasberg & Moore's ERB curve:
-    erb_break_freq = 1000/4.37;  # 228.833
-    erb_q = 1000/(24.7*4.37);    # 9.2645
+  Defaults to Greenwood map with Q value from Glasberg & Moore's ERB scale:
+  erb_break_freq = 165.3;  # Greenwood map's break freq.
 
   All args are defaultable; for sample/default args see the code; they
   make 96 channels at default fs = 22050, 114 channels at 44100.
@@ -1047,6 +1053,8 @@ def design_carfac(
     ihc_params: bundles all the inner hair cell parameters
     one_cap: True for Allen model, as Lyon's book describes
     just_hwr: False for normal/fancy IHC; True for HWR.
+    use_delay_buffer: Whether to use the delay buffer implementation in the CAR
+      step.
 
   Returns:
     A Carfac filter structure (for running the calcs.)
@@ -1085,7 +1093,9 @@ def design_carfac(
   max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 
   # Convert to include an ear_array, each w coeffs and state...
-  car_coeffs = design_filters(car_params, fs, pole_freqs)
+  car_coeffs = design_filters(
+      car_params, fs, pole_freqs, use_delay_buffer=use_delay_buffer
+  )
   agc_coeffs = design_agc(agc_params, fs, n_ch)
   ihc_coeffs = design_ihc(ihc_params, fs, n_ch)
 
