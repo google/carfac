@@ -16,15 +16,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "carfac.h"
+
 #include <cmath>
 #include <string>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
-
 #include "agc.h"
 #include "car.h"
-#include "carfac.h"
 #include "common.h"
 #include "ear.h"
 #include "ihc.h"
@@ -296,3 +297,33 @@ TEST_F(CARFACTest, AGCDesignAtLowSampleRate) {
     }
   }
 }
+
+void BM_CarfacSegment(benchmark::State& state) {
+  const auto segment_length_samples = state.range(0);
+  const int num_ears = 1;
+  const FPType sample_rate = 22050.0;
+  CARParams car_params;
+  IHCParams ihc_params;
+  AGCParams agc_params;
+  CARFAC carfac(num_ears, sample_rate, car_params, ihc_params, agc_params);
+  // Sinusoid input.
+  const float kFrequency = 500.0;  // Hz.
+  ArrayXX sound_data(num_ears, segment_length_samples);
+  sound_data.row(0) =
+      ArrayX::LinSpaced(segment_length_samples, 0.0, 2 * kFrequency * M_PI)
+          .sin();
+
+  const bool open_loop = false;
+  for (auto s : state) {
+    // store everything for the benchmarks.
+    CARFACOutput output(true, true, true, true);
+    carfac.RunSegment(sound_data, open_loop, &output);
+  }
+}
+
+BENCHMARK(BM_CarfacSegment)->ThreadRange(1, 128)
+    ->Arg(220)
+    ->Arg(2205)
+    ->Arg(22050)
+    ->Arg(44100)
+    ->Arg(220500);
