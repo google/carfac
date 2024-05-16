@@ -90,12 +90,12 @@ class CarfacUtilTest(absltest.TestCase):
     self.assertTrue((combined_output[1][4] == agc_out_b).all())
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, state_out_a, combined_output[0][1])
+            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][1])
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, state_out_b, combined_output[1][1])
+            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][1])
         )
     )
 
@@ -154,12 +154,12 @@ class CarfacUtilTest(absltest.TestCase):
     self.assertTrue((combined_output[1][4] == agc_out_b).all())
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, state_out_a, combined_output[0][1])
+            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][1])
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, state_out_b, combined_output[1][1])
+            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][1])
         )
     )
 
@@ -167,12 +167,12 @@ class CarfacUtilTest(absltest.TestCase):
     # equality is complete and double sided.
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, combined_output[0][1], state_out_a)
+            jax.tree.map(jnp.allclose, combined_output[0][1], state_out_a)
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree_map(jnp.allclose, combined_output[1][1], state_out_b)
+            jax.tree.map(jnp.allclose, combined_output[1][1], state_out_b)
         )
     )
 

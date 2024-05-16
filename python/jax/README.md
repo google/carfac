@@ -79,7 +79,7 @@ grad_jax, new_state = gfunc(weights_jax, run_seg_input, hypers_jax, state_jax)
 ## Now one can update `Weights` based on `grad_jax`.
 # One can use a library like `Optax`. Here, for illustration, we can just do the
 # gradient descent (stepsize=0.1) by,
-new_weights = jax.tree_map(lambda x,y: x-0.1*y, weights_jax, grad_jax)
+new_weights = jax.tree.map(lambda x,y: x-0.1*y, weights_jax, grad_jax)
 # Please note that: we currently put as many coefficients as possible into
 # `Weights` but normally we don't need to train all of them (and some of the
 # weights are much more sensitive than the others). One can selectively update
