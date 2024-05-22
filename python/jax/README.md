@@ -31,7 +31,7 @@ The relation between the data classes and the model functions can be classified
 as follows,
 
 | Data Type        | In Design&Init Functions | In Model Functions               |
-|------------------+--------------------------+----------------------------------|
+|------------------|--------------------------|----------------------------------|
 | DesignParameters | Input, unchanged         | Not related                      |
 | Hypers           | Output (designed)        | Input, static                    |
 | Weights          | Output (initialised)     | Input, unchanged                 |
