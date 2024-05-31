@@ -21,19 +21,6 @@ class CarfacJaxTest(parameterized.TestCase):
     # The default tolerance used in `assertAlmostEqual` etc.
     self.default_delta = 1e-6
 
-  def test_equal_hypers(self):
-    params_jax = carfac_jax.CarfacDesignParameters()
-    params_jax.ears[0].ihc.n_caps = 2
-    params_jax.ears[0].car.linear_car = False
-    hypers_jax, _, _ = carfac_jax.design_and_init_carfac(params_jax)
-    hypers_jax2, _, _ = carfac_jax.design_and_init_carfac(params_jax)
-    self.assertEqual(hypers_jax, hypers_jax2)
-    self.assertEqual(hash(hypers_jax), hash(hypers_jax2))
-    # If the hypers are not the same, we don't care if the hash collides,
-    # but we do care that equality shows a difference.
-    hypers_jax2.ears[0].car.r1_coeffs /= 2.0
-    self.assertNotEqual(hypers_jax, hypers_jax2)
-
   def test_hypers_hash(self):
     # Tests hyperparameter objects can be hashed. This is needed by `jax.jit`
     # because hyperparameters are tagged `static`.
@@ -49,12 +36,9 @@ class CarfacJaxTest(parameterized.TestCase):
     hypers.ears[0].car.n_ch += 1
     h2 = hash(hypers)
     self.assertNotEqual(h1, h2)
-    original_decimation_hypers = copy.deepcopy(hypers)
-    # modifying an array keeps the hash the same, but equality is different.
     hypers.ears[0].agc[1].reverse_cumulative_decimation += 1
     h3 = hash(hypers)
-    self.assertEqual(h2, h3)
-    self.assertNotEqual(original_decimation_hypers, hypers)
+    self.assertNotEqual(h2, h3)
     hypers.ears[0].ihc.just_hwr = not hypers.ears[0].ihc.just_hwr
     h4 = hash(hypers)
     self.assertNotEqual(h3, h4)

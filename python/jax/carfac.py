@@ -88,8 +88,11 @@ def _are_two_equal_hypers(hypers1, hypers2):
   children1, _ = hypers1.tree_flatten()
   children2, _ = hypers2.tree_flatten()
   for child1, child2 in zip(children1, children2):
+    # Notice that when `__eq__` returns true for two objects, their `__hash__`
+    # must return the same. So if `__hash__` hashes member variables' `id`, we
+    # must compare `id` in `__eq__` too.
     if isinstance(child1, jnp.ndarray):
-      if (child1 != child2).any():
+      if id(child1) != id(child2):
         return False
     else:
       if child1 != child2:
@@ -233,6 +236,12 @@ class CarHypers:
         self.n_ch,
         self.use_delay_buffer,
         self.linear_car,
+        id(self.r1_coeffs),
+        id(self.a0_coeffs),
+        id(self.c0_coeffs),
+        id(self.h_coeffs),
+        id(self.g0_coeffs),
+        id(self.zr_coeffs),
     ))
 
   def __eq__(self, other):
@@ -425,15 +434,19 @@ class AgcHypers:
 
   # Needed by `static_argnums` of `jax.jit`.
   def __hash__(self):
-    # Notice that we don't include the arrays in the hash here. This is because
-    # arrays are immutable and we don't want to introspect for hashes. We do
-    # include checks on them during eq checking.
+    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+    # speed. This should always be correct because `jnp.ndarray` is immutable.
+    # But this also means the hash will be different if this field is assigned
+    # to a different array with exactly the same value. We think such case
+    # should be very rare in usage.
     return hash((
         self.n_ch,
         self.n_agc_stages,
         self.decimation,
         self.agc_spatial_iterations,
         self.agc_spatial_n_taps,
+        id(self.reverse_cumulative_decimation),
+        id(self.max_cumulative_decimation),
     ))
 
   def __eq__(self, other):
@@ -734,11 +747,14 @@ class EarHypers:
 
   # Needed by `static_argnums` of `jax.jit`.
   def __hash__(self):
-    # Notice that we don't include the arrays in the hash here. This is because
-    # arrays are immutable and we don't want to introspect for hashes. We do
-    # include checks on them during eq checking.
+    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+    # speed. This should always be correct because `jnp.ndarray` is immutable.
+    # But this also means the hash will be different if this field is assigned
+    # to a different array with exactly the same value. We think such case
+    # should be very rare in usage.
     return hash((
         self.n_ch,
+        id(self.pole_freqs),
         self.max_channels_per_octave,
         self.car,
         tuple(self.agc),
