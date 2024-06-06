@@ -28,8 +28,8 @@ dB_list = -40;  % -60:20:40
 if use_wav_file
   wav_fn = '../test_data/binaural_test.wav';
   
-  wav_fn
-  file_signal = wavread(wav_fn);
+  disp(wav_fn)
+  file_signal = audioread(wav_fn);
   file_signal = file_signal(:, 1);  % Mono test only.
 else
   % A tone complex.
@@ -93,7 +93,7 @@ for n_ears = 1:2
   end
   
   % Show resulting data, even though M-Lint complains:
-  CF_struct
+  disp(CF_struct)
   CF_struct.ears(1).CAR_state
   CF_struct.ears(1).AGC_state
   min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
