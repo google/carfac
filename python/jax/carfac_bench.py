@@ -20,6 +20,8 @@ sys.path.insert(0, '.')
 import carfac as carfac_jax
 import carfac_util
 import np.carfac as carfac_np
+import os
+os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=2048"
 
 # Noise factor to mulitply for random noise.
 _NOISE_FACTOR = 1e-4

@@ -12,6 +12,10 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '.')
 import carfac as carfac
 import carfac_util as carfac_util
+import os
+os.environ["XLA_FLAGS"] = (
+   "--xla_force_host_platform_device_count=2"
+)
 
 _NOISE_FACTOR = 1e-2
 
