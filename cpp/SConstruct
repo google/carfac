@@ -87,8 +87,8 @@ carfac_sources = [
     'pitchogram.h',
     'pitchogram_pipeline.cc',
     'pitchogram_pipeline.h',
-    'sai.cc'
-    'sai.h'
+    'sai.cc',
+    'sai.h',
     ]
 carfac = env.Library(target = 'carfac', source = carfac_sources)
 Default(carfac)
