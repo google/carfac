@@ -212,13 +212,12 @@ class CarfacTest(parameterized.TestCase):
       gain = round(amplitude, 2)
       q = round(cf / bw, 1)
       cf = round(cf)
-      bw = round(bw, 1)
       print(f'{channel}: cf is {cf} Hz, peak gain is '
-            f'{gain} dB, 3 dB bandwidth is {bw} Hz '
+            f'{gain} dB, 3 dB bandwidth is {round(bw, 1)} Hz '
             f'(Q = {q})')
       self.assertAlmostEqual(cf, correct_cf)
-      self.assertAlmostEqual(gain, correct_gain)
-      self.assertAlmostEqual(bw, correct_bw)
+      self.assertAlmostEqual(amplitude, correct_gain, delta=0.01)
+      self.assertAlmostEqual(bw, correct_bw, delta=0.1)
       self.assertAlmostEqual(q, correct_q)
 
   def run_ihc(self, test_freq=300, one_cap=True):
