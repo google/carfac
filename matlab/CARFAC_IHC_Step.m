@@ -16,14 +16,18 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
+function [ihc_out, state, receptor_potential] = CARFAC_IHC_Step(bm_out, coeffs, state);
 % function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
 %
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.
+%
+% receptor_potential output will be empty except in two_cap mode.  
+% Use it as input to CARFAC_SYN_Step to model synapses to get firing rates.
 
 if coeffs.just_hwr
   ihc_out = min(2, max(0, bm_out));  % limit it for stability
+  receptor_potential = [];
 else
   conductance = CARFAC_Detect(bm_out);  % rectifying nonlinearity
 
@@ -40,6 +44,7 @@ else
     state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
       (state.lpf1_state - state.lpf2_state);
     ihc_out = state.lpf2_state - coeffs.rest_output;
+    receptor_potential = [];
   else
     % Change to 2-cap version mediated by receptor potential at cap1:
     % Geisler book fig 8.4 suggests 40 to 800 Hz corner.
@@ -66,4 +71,5 @@ else
   end
 end
 
+% Leaving this for v2 cochleagram compatibility, but no v3/SYN version:
 state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful

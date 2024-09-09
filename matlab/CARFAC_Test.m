@@ -22,17 +22,22 @@ function status = CARFAC_Test(do_plots)
 % optional, defaults to 1 (as when executing the file as a script).
 % Run CARFAC_Test(0) to suppress plotting.
 
-if nargin < 1, do_plots = 1; end  % Produce plots by default.
+if nargin < 1, 
+  do_plots = 1;
+  close ALL  % So plots don't accumulate.
+end  % Produce plots by default.
 
 % Run tests, and see if any fail (have nonzero status):
 status = 0;  % 0 for OK so far; 1 for test fail; 2 for error.
 status = status | test_CAR_freq_response(do_plots);
 status = status | test_IHC(do_plots);
-status = status | test_IHC2(do_plots);
+status = status | test_IHC2(do_plots);  % v2 two_cap
+status = status | test_IHC3(do_plots);  % v3 synapses
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac1(do_plots);
 status = status | test_whole_carfac2(do_plots);
+status = status | test_whole_carfac3(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
 status = status | test_multiaural_silent_channel_carfac(do_plots);
@@ -127,7 +132,7 @@ report_status(status, 'test_CAR_freq_response')
 return
 
 
-function [blip_maxes, blip_ac] = run_IHC(test_freq, one_cap, do_plots)
+function [blip_maxes, blip_ac] = run_IHC(test_freq, version, do_plots)
 fs = 40000;
 sampling_interval = 1 / fs;
 tmax = 0.28;
@@ -143,17 +148,26 @@ quad_sin = present .* sin(omega * t);
 quad_cos = present .* cos(omega * t);
 x_in = quad_sin .* amplitude;
 
-CF = CARFAC_Design(1, fs);
-CF.IHC_params.one_cap = one_cap;  % Potentially override default; re-Design:
-CF = CARFAC_Design(1, fs, CF.CAR_params, CF.AGC_params, CF.IHC_params);
+CF = CARFAC_Design(1, fs, version);
 CF = CARFAC_Init(CF);
 
 neuro_output = zeros(size(x_in));
 ihc_state = CF.ears(1).IHC_state;
-for i = 1:length(x_in)
-  [ihc_out, ihc_state] = CARFAC_IHC_Step( ...
-    x_in(i), CF.ears(1).IHC_coeffs, ihc_state);
-  neuro_output(i) = ihc_out(1);
+if CF.do_syn
+  syn_state = CF.ears(1).SYN_state;
+end
+for k = 1:length(x_in)
+  [ihc_out, ihc_state, receptor_potential] = CARFAC_IHC_Step( ...
+    x_in(k), CF.ears(1).IHC_coeffs, ihc_state);
+  if CF.do_syn  % ignore ihc_out and use receptor_potential.
+    [syn_out, firings, syn_state] = CARFAC_SYN_Step( ...
+      receptor_potential, CF.ears(1).SYN_coeffs, syn_state);
+    % This can go a little negative; should be zero at rest.
+    neuro_output(k) = syn_out(1);
+    class_firings(k, :) = firings(1, :);
+  else  % ignore receptor_potential and use ihc_out.
+    neuro_output(k) = ihc_out(1);
+  end
 end
 
 if do_plots
@@ -162,16 +176,20 @@ if do_plots
   xlabel('Seconds')
   title(sprintf('IHC Response for tone blips at %d Hz', test_freq))
   drawnow
+  if CF.do_syn
+    figure
+    plot(t, class_firings)
+  end
 end
 blip_maxes = [];
 blip_ac = [];
-for i = 1:6
-  blip = neuro_output .* (stim_num == i);
+for blip_num = 1:6
+  blip = neuro_output .* (stim_num == blip_num);
   blip_max = max(blip);
   carrier_power = sum(blip .* quad_sin)^2 + sum(blip .* quad_cos)^2;
   carrier_rms = sqrt(carrier_power);
   fprintf(1, 'Blip %d: Max of %f, AC rms is %f\n', ...
-    i, blip_max, carrier_rms);
+    blip_num, blip_max, carrier_rms);
   blip_maxes(end+1) = blip_max;
   blip_ac(end+1) = sqrt(carrier_power);
 end
@@ -208,8 +226,7 @@ for k = 1:length(test_freqs)
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
         test_freqs(k));
   end
-  one_cap = 1;
-  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'one_cap', do_plots);
   num_blips = length(blip_maxes);
   if num_blips ~= size(expected_results, 1)
     fprintf(1, ...
@@ -222,7 +239,7 @@ for k = 1:length(test_freqs)
 
     fprintf(1, 'Golden data for Matlab test_IHC:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_ihc:\n');
+    fprintf(1, 'Golden data for Python test_IHC:\n');
     fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
@@ -276,12 +293,11 @@ for k = 1:length(test_freqs)
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
         test_freqs(k));
   end
-  one_cap = 0;
-  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'two_cap', do_plots);
   num_blips = length(blip_maxes);
   if num_blips ~= size(expected_results, 1)
     fprintf(1, ...
-      'Unmatched num_blips %d and expected_results rows %d in test_IHC.\n',...
+      'Unmatched num_blips %d and expected_results rows %d in test_IHC2.\n',...
       num_blips, size(expected_results, 1));
     status = 2;
   else
@@ -290,7 +306,7 @@ for k = 1:length(test_freqs)
 
     fprintf(1, 'Golden data for Matlab test_IHC2:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_ihc2:\n');
+    fprintf(1, 'Golden data for Python test_IHC2:\n');
     fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
@@ -311,6 +327,74 @@ for k = 1:length(test_freqs)
 end
 report_status(status, 'test_IHC2')
 return
+
+
+function status = test_IHC3(do_plots)
+% Test: Make sure that IHC (inner hair cell) runs as expected.
+% Two-cap version with receptor potential; slightly different blips.
+
+status = 0;
+
+test_freqs = [300, 3000];
+for k = 1:length(test_freqs)
+  switch test_freqs(k)
+    case 300
+      expected_results = [ ...
+        [1.898725, 450.438353];
+        [4.638698, 837.321627];
+        [9.234268, 1323.390156];
+        [14.389069, 1685.666781];
+        [18.996855, 1860.286080];
+        [22.655307, 1900.362728];
+        ];
+    case 3000
+      expected_results = [ ...
+        [0.451342, 55.626362],
+        [1.193582, 105.436554],
+        [2.704725, 186.486050],
+        [5.095018, 281.042320],
+        [7.861282, 360.665541],
+        [10.306236, 411.862087],
+        ];
+    otherwise
+      fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
+        test_freqs(k));
+  end
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'do_syn', do_plots);
+  num_blips = length(blip_maxes);
+  if num_blips ~= size(expected_results, 1)
+    fprintf(1, ...
+      'Unmatched num_blips %d and expected_results rows %d in test_IHC3.\n',...
+      num_blips, size(expected_results, 1));
+    status = 2;
+  else
+    expected_maxes = expected_results(:, 1)';
+    expected_acs = expected_results(:, 2)';
+
+    fprintf(1, 'Golden data for Matlab test_IHC3:\n');
+    fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
+    fprintf(1, 'Golden data for Python test_IHC3:\n');
+    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
+
+    for i = 1:num_blips
+      if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC3 fails with i = %d, expected_max = %f, blip_max = %f\n', ...
+          i, expected_maxes(i), blip_maxes(i))
+      end
+      if abs(expected_acs(i) - blip_ac(i)) > expected_acs(i)/1e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC3 fails with i = %d, expected_ac = %f, blip_ac = %f\n', ...
+          i, expected_acs(i), blip_ac(i))
+      end
+    end
+  end
+end
+report_status(status, 'test_IHC3')
+return
+
 
 
 function status = test_AGC_steady_state(do_plots)
@@ -453,6 +537,12 @@ report_status(status, 'test_whole_carfac2')
 return
 
 
+function status = test_whole_carfac3(do_plots)
+status = test_whole_carfac(do_plots, 'do_syn')
+report_status(status, 'test_whole_carfac3')
+return
+
+
 function status = test_whole_carfac(do_plots, IHC_style)
 % Test: Make sure that the AGC adapts to a tone. Test with open-loop
 % impulse response.
@@ -560,6 +650,16 @@ switch IHC_style
       2000, 29,     2038.875,       26.244
       4000, 17,     4058.882,       12.726
       8000,  3,     8289.883,        3.212
+      ];
+  case 'do_syn'
+    results = [  % Preliminary numbers to make test pass...
+      125, 72,      119.792,       -0.016
+      250, 63,      252.156,        0.576
+      500, 53,      501.438,        5.515
+      1000, 41,     1053.218,       29.887
+      2000, 30,     1998.526,       19.409
+      4000, 17,     4114.018,        5.692
+      8000,  4,     7939.317,        1.421
       ];
 end
 

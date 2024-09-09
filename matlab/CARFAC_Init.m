@@ -29,6 +29,9 @@ for ear = 1:n_ears
   CF.ears(ear).CAR_state = CAR_Init_State(CF.ears(ear).CAR_coeffs);
   CF.ears(ear).IHC_state = IHC_Init_State(CF.ears(ear).IHC_coeffs);
   CF.ears(ear).AGC_state = AGC_Init_State(CF.ears(ear).AGC_coeffs);
+  if CF.do_syn
+     CF.ears(ear).SYN_state = SYN_Init_State(CF.ears(ear).SYN_coeffs);
+  end
 end
 
 
@@ -80,3 +83,12 @@ else
       );
   end
 end
+
+function state = SYN_Init_State(coeffs)
+n_ch = coeffs.n_ch;
+n_cl = coeffs.n_classes;
+state = struct( ...
+  'reservoirs', ones(n_ch, 1) * coeffs.res_inits, ...  % 1 means full.
+  'lpf_state', zeros(n_ch, n_cl) ); 
+% Need to make different rest fullnesses for the different classes!!!
+

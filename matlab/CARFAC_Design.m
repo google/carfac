@@ -17,9 +17,9 @@
 % limitations under the License.
 
 function CF = CARFAC_Design(n_ears, fs, ...
-  CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_IHC_keyword)
+  CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_version_keyword)
 % function CF = CARFAC_Design(n_ears, fs, ...
-%   CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_IHC_keyword)
+%   CF_CAR_params, CF_AGC_params, CF_IHC_params, CF_version_keyword)
 %
 % This function designs the CARFAC (Cascade of Asymmetric Resonators with
 % Fast-Acting Compression); that is, it take bundles of parameters and
@@ -32,8 +32,8 @@ function CF = CARFAC_Design(n_ears, fs, ...
 % CF_AGC_params bundles all the automatic gain control parameters
 % CF_IHC_params bundles all the inner hair cell parameters
 % Indendent of how many of these are provided, if the last arg is a string
-% it will be interpreted as an IHC_style keyword ('just_hwr' or 'one_cap';
-% omit or 'two_cap' for default v2 two-cap IHC model.
+% it will be interpreted as a CF_version_keyword ('just_hwr' or 'one_cap';
+% omit or 'two_cap' for default v2 two-cap IHC model; or 'do_syn')
 %
 % See other functions for designing and characterizing the CARFAC:
 % [naps, CF] = CARFAC_Run(CF, input_waves)
@@ -63,13 +63,16 @@ switch nargin
   case 5
     last_arg = CF_IHC_params;
   case 6
-    last_arg = CF_IHC_keyword;
+    last_arg = CF_version_keyword;
 end
+
+
+% Last arg being a keyword can be 'do_syn' or an IHC version.
 if ischar(last_arg)  % string is a character array, not a string array.
-  IHC_keyword = last_arg;
+  CF_version_keyword = last_arg;
   num_args = nargin - 1;
 else
-  IHC_keyword = 'two_cap';  % the CARFAC v2 default
+  CF_version_keyword = 'two_cap';  % the CARFAC v2 default
   num_args = nargin;
 end
 
@@ -79,7 +82,7 @@ if num_args < 1
 end
 
 if num_args < 2
-  fs = 22050;
+  fs = 22050;  % Keeping this poor default in v3 to encourage users to always specify.
 end
 
 if num_args < 3
@@ -110,22 +113,26 @@ if num_args < 4
     'AGC_mix_coeff', 0.5);
 end
 
-if num_args < 5
+if num_args < 6
+  do_syn = 0;          % bool; 1 for v3 synapse model
   one_cap = 0;         % bool; 1 for Allen model, 0 for new default two-cap
   just_hwr = 0;        % bool; 0 for normal/fancy IHC; 1 for HWR
-  switch IHC_keyword
+  switch CF_version_keyword
     case 'just_hwr'
       just_hwr = 1;        % bool; 0 for normal/fancy IHC; 1 for HWR
     case 'one_cap'
       one_cap = 1;         % bool; 1 for Allen model, as text states we use
+    case 'do_syn';
+      do_syn = 1;
     case 'two_cap'
-      % nothing to do; accept the default
+      % nothing to do; accept the v2 default, two-cap IHC, no SYN.
     otherwise
       error('unknown IHC_keyword in CARFAC_Design')
   end
   CF_IHC_params = struct( ...
     'just_hwr', just_hwr, ...  % not just a simple HWR
     'one_cap', one_cap, ...    % bool; 0 for new two-cap hack
+    'do_syn', do_syn, ...      % bool; 1 for v3 synapse feature
     'tau_lpf', 0.000080, ...   % 80 microseconds smoothing twice
     'tau_out', 0.0005, ...     % depletion tau is pretty fast
     'tau_in', 0.010, ...       % recovery tau is slower
@@ -133,6 +140,22 @@ if num_args < 5
     'tau1_in', 0.000200, ...   % recovery tau is very fast 200 us
     'tau2_out', 0.001, ...     % depletion tau is pretty fast 1 ms
     'tau2_in', 0.010);         % recovery tau is slower 10 ms
+end
+
+if do_syn 
+  if num_args < 5  % Note that this seems a bit out of order, but needs to be.
+  n_classes = 3;
+  % Parameters could generally have columns if channel-dependent.
+  fs = 48000;
+  CF_SYN_params = struct( ...
+    'fs', fs, ...
+    'n_classes', n_classes, ...
+    'tau_lpf', 0.000080, ...
+    'out_rate', 0.02, ...  % Depletion can be quick (few ms).
+    'recovery', 0.0001);  % Recovery tau about 1000 to 10,000 sample times?
+  end
+else
+  CF_SYN_params = [];  % Empty if v3 SYN feature is not used.
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
@@ -160,6 +183,11 @@ max_channels_per_octave = log(2) / log(pole_freqs(1)/pole_freqs(2));
 CAR_coeffs = CARFAC_DesignFilters(CF_CAR_params, fs, pole_freqs);
 AGC_coeffs = CARFAC_DesignAGC(CF_AGC_params, fs, n_ch);
 IHC_coeffs = CARFAC_DesignIHC(CF_IHC_params, fs, n_ch);
+if ~isempty(CF_SYN_params)
+  SYN_coeffs = CARFAC_DesignSynapses(CF_SYN_params, fs, pole_freqs);
+else
+  SYN_coeffs = [];
+end
 
 % Copy same designed coeffs into each ear (can do differently in the
 % future, e.g. for unmatched OHC_health).
@@ -167,6 +195,7 @@ for ear = 1:n_ears
   ears(ear).CAR_coeffs = CAR_coeffs;
   ears(ear).AGC_coeffs = AGC_coeffs;
   ears(ear).IHC_coeffs = IHC_coeffs;
+  ears(ear).SYN_coeffs = SYN_coeffs;
 end
 
 CF = struct( ...
@@ -175,12 +204,14 @@ CF = struct( ...
   'CAR_params', CF_CAR_params, ...
   'AGC_params', CF_AGC_params, ...
   'IHC_params', CF_IHC_params, ...
+  'SYN_params', CF_SYN_params, ...
   'n_ch', n_ch, ...
   'pole_freqs', pole_freqs, ...
   'ears', ears, ...
   'n_ears', n_ears, ...
   'open_loop', 0, ...
-  'linear_car', 0);
+  'linear_car', 0, ...
+  'do_syn', do_syn);
 
 
 %% Design the filter coeffs:
@@ -539,3 +570,50 @@ else
       'ihc_accum', 0);
   end
 end
+
+%% the SYN design coeffs:
+function SYN_coeffs = CARFAC_DesignSynapses(SYN_params, fs, pole_freqs)
+
+n_ch = length(pole_freqs);
+n_cl = SYN_params.n_classes;
+col_n_ch_ones = ones(n_ch, 1);
+
+v_width = 0.05;
+v_widths = v_width * ones(1, n_cl);
+max_rate = 2500;  % % Instantaneous max at onset, per Kiang figure 5.18.
+max_rates = max_rate * ones(1, n_cl);
+switch n_cl  % Just enough to test that both 2 and 3 can work.
+  case 2
+    offsets = [3, 6];
+    agc_weights_col = 50 * [1; 1];
+    res_inits = [0.2, 0.6];
+    rest_output = 1.65;  % Subject off to get agc_in near 0 in quiet.
+    n_fibers = [50, 60]
+    v_half = v_widths .* [3, 6;]
+  case 3
+    offsets = [3, 5, 7];
+    agc_weights_col = 50 * [1; 1; 1];
+    res_inits = [0.13, 0.55, 0.9]
+    rest_output = 1.65;
+    n_fibers = [50, 35, 25];
+    v_half = v_widths .* [3, 5, 7];
+  otherwise
+    error('unimplemented n_classes in in SYN_params in CARFAC_DesignSynapses');
+end
+
+
+% Copy stuff from params to coeffs and design a few things.
+SYN_coeffs = struct( ...
+  'n_ch', n_ch, ...
+  'n_classes', n_cl, ...
+  'max_probs', max_rates / SYN_params.fs, ...
+  'n_fibers', col_n_ch_ones * n_fibers, ...  % Synaptopathy comes in here; channelize it, too.
+  'v_width', v_width, ...
+  'v_half', col_n_ch_ones * v_half, ...  % Same units as v_width and v_recep.
+  'out_rate', 0.1, ...  % Depletion can be quick (few ms).
+  'recovery', 1e-3, ...  % Recovery tau about 1000 sample times.  Or 10X this?
+  'agc_weights_col', agc_weights_col, ... % try to make syn_out resemble ihc_out to go to agc_in.
+  'rest_output', rest_output, ...
+  'res_inits', res_inits, ...
+  'lpf_coeff', 1 - exp(-1/(SYN_params.tau_lpf * fs)));
+
