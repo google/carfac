@@ -340,21 +340,21 @@ for k = 1:length(test_freqs)
   switch test_freqs(k)
     case 300
       expected_results = [ ...
-        [1.898725, 450.438353];
-        [4.638698, 837.321627];
-        [9.234268, 1323.390156];
-        [14.389069, 1685.666781];
-        [18.996855, 1860.286080];
-        [22.655307, 1900.362728];
+        [0.747350, 177.802226];
+        [1.831880, 329.698994];
+        [3.635296, 517.895480];
+        [5.666424, 656.305962];
+        [7.522566, 721.465796];
+        [9.038596, 735.407690];
         ];
     case 3000
       expected_results = [ ...
-        [0.451342, 55.626362],
-        [1.193582, 105.436554],
-        [2.704725, 186.486050],
-        [5.095018, 281.042320],
-        [7.861282, 360.665541],
-        [10.306236, 411.862087],
+        [0.198211, 29.277988];
+        [0.523911, 55.506573];
+        [1.201355, 97.977400];
+        [2.264493, 146.819176];
+        [3.465151, 187.067551];
+        [4.500863, 212.210966];
         ];
     otherwise
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
@@ -543,7 +543,7 @@ report_status(status, 'test_whole_carfac3')
 return
 
 
-function status = test_whole_carfac(do_plots, IHC_style)
+function status = test_whole_carfac(do_plots, version_string)
 % Test: Make sure that the AGC adapts to a tone. Test with open-loop
 % impulse response.
 
@@ -559,7 +559,7 @@ impulse_dur = 0.5;  % 0.25 is about enough; this is conservative.
 impulse = zeros(round(impulse_dur*fs), 1);  % For short impulse wave.
 impulse(1) = 1e-4;  % Small amplitude impulse to keep it pretty linear
 
-CF = CARFAC_Design(1, fs, IHC_style);
+CF = CARFAC_Design(1, fs, version_string);
 CF = CARFAC_Init(CF);
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -622,7 +622,7 @@ end
 
 % Test for change in peak gain after adaptation.
 % Golden data table of frequency, channel, peak frequency, delta:
-switch IHC_style
+switch version_string
   case 'one_cap'
     % Before moving ac coupling into CAR, peaks gains a little different:
     %   125, 65,   118.944255,     0.186261
@@ -653,13 +653,13 @@ switch IHC_style
       ];
   case 'do_syn'
     results = [  % Preliminary numbers to make test pass...
-      125, 72,      119.792,       -0.016
-      250, 63,      252.156,        0.576
-      500, 53,      501.438,        5.515
-      1000, 41,     1053.218,       29.887
-      2000, 30,     1998.526,       19.409
-      4000, 17,     4114.018,        5.692
-      8000,  4,     7939.317,        1.421
+      125, 64,      136.495,        8.648
+      250, 58,      264.020,       12.909
+      500, 50,      514.613,       18.320
+      1000, 40,     1030.546,       27.946
+      2000, 29,     2038.875,       25.916
+      4000, 17,     4058.882,       20.959
+      8000,  2,     8649.710,        4.715
       ];
 end
 
@@ -929,7 +929,7 @@ return
 
 
 function cf_amp_bw = find_peak_response(freqs, db_gains, bw_level)
-%Returns center frequency, amplitude at this point, and the 3dB width."""
+% Returns center frequency, amplitude at this point, and the 3dB width."""
 [~, peak_bin] = max(db_gains);
 [peak_frac, amplitude] = quadratic_peak_interpolation( ...
   db_gains(peak_bin - 1), db_gains(peak_bin), db_gains(peak_bin + 1));
