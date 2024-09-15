@@ -30,9 +30,9 @@ end  % Produce plots by default.
 % Run tests, and see if any fail (have nonzero status):
 status = 0;  % 0 for OK so far; 1 for test fail; 2 for error.
 status = status | test_CAR_freq_response(do_plots);
-status = status | test_IHC(do_plots);
-status = status | test_IHC2(do_plots);  % v2 two_cap
-status = status | test_IHC3(do_plots);  % v3 synapses
+status = status | test_IHC1(do_plots);  % one_cap, v1
+status = status | test_IHC2(do_plots);  % two_cap, v2
+status = status | test_IHC3(do_plots);  % do_syn, v3
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac1(do_plots);
@@ -196,7 +196,7 @@ end
 return
 
 
-function status = test_IHC(do_plots)
+function status = test_IHC1(do_plots)
 % Test: Make sure that IHC (inner hair cell) runs as expected.
 
 status = 0;
@@ -396,7 +396,6 @@ report_status(status, 'test_IHC3')
 return
 
 
-
 function status = test_AGC_steady_state(do_plots)
 % Test: Make sure that the AGC adapts an appropriate steady state,
 % like figure 19.7
@@ -570,6 +569,13 @@ CF.open_loop = 0;  % To let CF adapt to signal.
 CF.linear_car = 0;  % Normal mode.
 [~, CF, bm_sine] = CARFAC_Run_Segment(CF, sinusoid);
 
+% Capture AGC state response at end, for analysis later.
+num_stages = CF.AGC_params.n_stages;  % 4
+agc_response = zeros(num_stages, CF.n_ch);
+for stage = 1:num_stages
+  agc_response(stage, :) = CF.ears(1).AGC_state.AGC_memory;
+end
+
 CF.open_loop = 1;  % For measuring impulse response.
 CF.linear_car = 1;  % For measuring impulse response.
 [~, CF] = CARFAC_Run_Segment(CF, 0*impulse);  % To let ringing die out.
@@ -714,6 +720,16 @@ for j = 1:size(results, 1)
     fprintf(1, 'dB_change = %6.3f not close to expected_change %6.3f\n', ...
       dB_change, expected_change);
   end
+end
+
+%%
+% Test: Plot spatial response to match Figure 19.7
+if do_plots  % Plot final AGC state
+  figure
+  plot(agc_response')
+  title('Steady state spatial responses of the stages')
+  axis([0, CF.n_ch + 1, 0, 1])
+  drawnow
 end
 return
 

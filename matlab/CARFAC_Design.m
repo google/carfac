@@ -588,22 +588,21 @@ max_rates = max_rate * ones(1, n_cl);
 switch n_cl  % Just enough to test that both 2 and 3 can work.
   case 2
     offsets = [3, 6];
-    agc_weights_col = 0.8 * (fs/1000) * [1; 1];
+    agc_weights = (fs/1000) * [0.125; 0.6];
     res_inits = [0.2, 0.6];
     rest_output = 0.8 * (fs/1000) * 0.016;  % Subject off to get agc_in near 0 in quiet.
     n_fibers = [50, 60]
     v_half = v_widths .* [3, 6;]
   case 3
     offsets = [3, 5, 7];
-    agc_weights_col = 0.8 * (fs/1000) * [1; 1; 1];
+    agc_weights = (fs/1000) * [0.1; 0.5; 2];
     res_inits = [0.13, 0.55, 0.9]
-    rest_output = (fs/1000) * 0.016;
+    rest_output = (fs/1000) * 0.014;
     n_fibers = [50, 35, 25];
-    v_half = v_widths .* [3, 5, 7];
+    v_half = v_widths .* [3, 5, 7];  % Compute from sponts instead?
   otherwise
     error('unimplemented n_classes in in SYN_params in CARFAC_DesignSynapses');
 end
-
 
 % Copy stuff from params to coeffs and design a few things.
 SYN_coeffs = struct( ...
@@ -615,7 +614,7 @@ SYN_coeffs = struct( ...
   'v_half', col_n_ch_ones * v_half, ...  % Same units as v_width and v_recep.
   'out_rate', 0.1, ...  % Depletion can be quick (few ms).
   'recovery', 1e-3, ...  % Recovery tau about 1000 sample times.  Or 10X this?
-  'agc_weights_col', agc_weights_col/2, ... % try to make syn_out resemble ihc_out to go to agc_in.
+  'agc_weights', agc_weights, ... % try to make syn_out resemble ihc_out to go to agc_in.
   'rest_output', rest_output, ...
   'res_inits', res_inits, ...
   'lpf_coeff', 1 - exp(-1/(SYN_params.tau_lpf * fs)));
