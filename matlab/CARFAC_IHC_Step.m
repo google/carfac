@@ -16,7 +16,7 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [ihc_out, state, receptor_potential] = CARFAC_IHC_Step(bm_out, coeffs, state);
+function [ihc_out, state, v_recep] = CARFAC_IHC_Step(bm_out, coeffs, state);
 % function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
 %
 % One sample-time update of inner-hair-cell (IHC) model, including the
@@ -25,9 +25,9 @@ function [ihc_out, state, receptor_potential] = CARFAC_IHC_Step(bm_out, coeffs, 
 % receptor_potential output will be empty except in two_cap mode.  
 % Use it as input to CARFAC_SYN_Step to model synapses to get firing rates.
 
+v_recep = [];  % For cases other than two_cap and do_syn it's not used.
 if coeffs.just_hwr
   ihc_out = min(2, max(0, bm_out));  % limit it for stability
-  receptor_potential = [];
 else
   conductance = CARFAC_Detect(bm_out);  % rectifying nonlinearity
 
@@ -44,7 +44,6 @@ else
     state.lpf2_state = state.lpf2_state + coeffs.lpf_coeff * ...
       (state.lpf1_state - state.lpf2_state);
     ihc_out = state.lpf2_state - coeffs.rest_output;
-    receptor_potential = [];
   else
     % Change to 2-cap version mediated by receptor potential at cap1:
     % Geisler book fig 8.4 suggests 40 to 800 Hz corner.
@@ -68,6 +67,8 @@ else
     state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
       (ihc_out - state.lpf1_state);
     ihc_out = state.lpf1_state - coeffs.rest_output;
+    % Return a modified receptor potential that's zero at rest, for SYN.
+    v_recep = coeffs.rest_cap1 - state.cap1_voltage;
   end
 end
 

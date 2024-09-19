@@ -157,11 +157,11 @@ if CF.do_syn
   syn_state = CF.ears(1).SYN_state;
 end
 for k = 1:length(x_in)
-  [ihc_out, ihc_state, receptor_potential] = CARFAC_IHC_Step( ...
+  [ihc_out, ihc_state, v_recep] = CARFAC_IHC_Step( ...
     x_in(k), CF.ears(1).IHC_coeffs, ihc_state);
   if CF.do_syn  % ignore ihc_out and use receptor_potential.
     [syn_out, firings, syn_state] = CARFAC_SYN_Step( ...
-      receptor_potential, CF.ears(1).SYN_coeffs, syn_state);
+      v_recep, CF.ears(1).SYN_coeffs, syn_state);
     % This can go a little negative; should be zero at rest.
     neuro_output(k) = syn_out(1);
     class_firings(k, :) = firings(1, :);
@@ -237,10 +237,8 @@ for k = 1:length(test_freqs)
     expected_maxes = expected_results(:, 1)';
     expected_acs = expected_results(:, 2)';
 
-    fprintf(1, 'Golden data for Matlab test_IHC:\n');
+    fprintf(1, 'Golden data for Matlab and Python test_IHC:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_IHC:\n');
-    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
       if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
@@ -304,10 +302,8 @@ for k = 1:length(test_freqs)
     expected_maxes = expected_results(:, 1)';
     expected_acs = expected_results(:, 2)';
 
-    fprintf(1, 'Golden data for Matlab test_IHC2:\n');
+    fprintf(1, 'Golden data for Matlab and Python test_IHC2:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_IHC2:\n');
-    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
       if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
@@ -340,21 +336,21 @@ for k = 1:length(test_freqs)
   switch test_freqs(k)
     case 300
       expected_results = [ ...
-        [0.747350, 177.802226];
-        [1.831880, 329.698994];
-        [3.635296, 517.895480];
-        [5.666424, 656.305962];
-        [7.522566, 721.465796];
-        [9.038596, 735.407690];
+        [0.582030, 101.529701];
+        [1.879711, 266.366280];
+        [3.399757, 461.743150];
+        [3.911907, 527.148854];
+        [3.915707, 511.042054];
+        [3.926793, 493.685648];
         ];
     case 3000
       expected_results = [ ...
-        [0.198211, 29.277988];
-        [0.523911, 55.506573];
-        [1.201355, 97.977400];
-        [2.264493, 146.819176];
-        [3.465151, 187.067551];
-        [4.500863, 212.210966];
+        [0.092435, 13.742136];
+        [0.342293, 40.817636];
+        [1.044103, 96.671170];
+        [1.952015, 148.463834];
+        [2.701081, 167.405953];
+        [3.071866, 153.483845];
         ];
     otherwise
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
@@ -371,19 +367,19 @@ for k = 1:length(test_freqs)
     expected_maxes = expected_results(:, 1)';
     expected_acs = expected_results(:, 2)';
 
-    fprintf(1, 'Golden data for Matlab test_IHC3:\n');
+    fprintf(1, 'Golden data for Matlab and Python test_IHC3:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_IHC3:\n');
-    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
-      if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
+      % Lowered precision from 1e6 to 0.5e6 as the values are lower,
+      % and don't quite quite enough digits printed in the default format.
+      if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/0.5e6
         status = 1;
         fprintf(1, ...
           'test_IHC3 fails with i = %d, expected_max = %f, blip_max = %f\n', ...
           i, expected_maxes(i), blip_maxes(i))
       end
-      if abs(expected_acs(i) - blip_ac(i)) > expected_acs(i)/1e6
+      if abs(expected_acs(i) - blip_ac(i)) > expected_acs(i)/0.5e6
         status = 1;
         fprintf(1, ...
           'test_IHC3 fails with i = %d, expected_ac = %f, blip_ac = %f\n', ...
@@ -573,7 +569,7 @@ CF.linear_car = 0;  % Normal mode.
 num_stages = CF.AGC_params.n_stages;  % 4
 agc_response = zeros(num_stages, CF.n_ch);
 for stage = 1:num_stages
-  agc_response(stage, :) = CF.ears(1).AGC_state.AGC_memory;
+  agc_response(stage, :) = CF.ears(1).AGC_state(stage).AGC_memory;
 end
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -658,14 +654,14 @@ switch version_string
       8000,  3,     8289.883,        3.212
       ];
   case 'do_syn'
-    results = [  % Preliminary numbers to make test pass...
-      125, 64,      136.495,        8.648
-      250, 58,      264.020,       12.909
-      500, 50,      514.613,       18.320
-      1000, 40,     1030.546,       27.946
-      2000, 29,     2038.875,       25.916
-      4000, 17,     4058.882,       20.959
-      8000,  2,     8649.710,        4.715
+    results = [
+      125, 65,      119.007,        0.238
+      250, 59,      239.791,        0.942
+      500, 50,      514.613,        7.249
+      1000, 40,     1030.546,       30.843
+      2000, 29,     2038.875,       22.514
+      4000, 17,     4058.882,        7.691
+      8000,  4,     7925.624,        1.935
       ];
 end
 
@@ -723,7 +719,6 @@ for j = 1:size(results, 1)
 end
 
 %%
-% Test: Plot spatial response to match Figure 19.7
 if do_plots  % Plot final AGC state
   figure
   plot(agc_response')

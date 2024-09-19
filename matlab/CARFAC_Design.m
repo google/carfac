@@ -156,8 +156,7 @@ if num_args < 6  % Default the SYN_params.
     'fs', fs, ...
     'n_classes', n_classes, ...
     'tau_lpf', 0.000080, ...
-    'out_rate', 0.02, ...  % Depletion can be quick (few ms).
-    'recovery', 0.0001);  % Recovery tau about 1000 to 10,000 sample times?
+    'reservoir_tau', 0.020);
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
@@ -579,43 +578,71 @@ end
 
 n_ch = length(pole_freqs);
 n_cl = SYN_params.n_classes;
-col_n_ch_ones = ones(n_ch, 1);
 
-v_width = 0.05;
-v_widths = v_width * ones(1, n_cl);
-max_rate = 2500;  % % Instantaneous max at onset, per Kiang figure 5.18.
-max_rates = max_rate * ones(1, n_cl);
+sat_rates = 200;
 switch n_cl  % Just enough to test that both 2 and 3 can work.
   case 2
-    offsets = [3, 6];
-    agc_weights = (fs/1000) * [0.125; 0.6];
-    res_inits = [0.2, 0.6];
-    rest_output = 0.8 * (fs/1000) * 0.016;  % Subject off to get agc_in near 0 in quiet.
-    n_fibers = [50, 60]
-    v_half = v_widths .* [3, 6;]
+    spont_rates = [50, 5];
+    n_fibers = [50, 60];
+    agc_weights = [1.2, 2.4]';  % a column of weights
+    % Pick a sat level of reservoir state (move into params?):
+    w1 = 0.125 * [1, 1];  % How low the res gets in saturation.
   case 3
-    offsets = [3, 5, 7];
-    agc_weights = (fs/1000) * [0.1; 0.5; 2];
-    res_inits = [0.13, 0.55, 0.9]
-    rest_output = (fs/1000) * 0.014;
+    spont_rates = [50, 6, 1];
     n_fibers = [50, 35, 25];
-    v_half = v_widths .* [3, 5, 7];  % Compute from sponts instead?
+    agc_weights = [1.2, 1.2, 1.2]';  % a column of weights
+    % Pick a sat level of reservoir state (move into params?):
+    w1 = 0.2 * [1, 1, 1];  % How low the res gets in saturation.
   otherwise
     error('unimplemented n_classes in in SYN_params in CARFAC_DesignSynapses');
 end
+v_width = 0.02;
+% Plural var names indicate values for the different rate classes.
+v_widths = v_width * ones(1, n_cl);
 
-% Copy stuff from params to coeffs and design a few things.
+% Do some design.  First, gains to get sat_rate when sigmoid is 1, which
+% involves the reservoir steady-state solution.
+% Assume the sigmoid is switching between 0 and 1 at 50% duty cycle, so
+% normalized value is 0.5.
+% Most of these are not per-channel, but could be expanded that way
+% later if desired.
+
+% Mean sat prob of spike per sample per neuron, likely same for all
+% classes.
+% Use names 1 for sat and 0 for spont in some of these.
+p1 = sat_rates / fs;
+p0 = spont_rates / fs;
+
+q1 = 1 - w1;
+s1 = 0.5;  % average sigmoid output at saturation
+z1 = s1*w1;
+% solve q1 = a1*z1 for gain coeff a1:
+a1 = q1 ./ z1;
+% solve p1 = a2*z1 for gain coeff a2:
+a2 = p1 ./ z1;
+
+% Now work out how to get the desired spont.
+z0 = p0 ./ a2;
+q0 = z0 .* a1;
+w0 = 1 - q0;
+s0 = z0 ./ w0;
+% Solve for (negative) sigmoid midpoint offset that gets s0 right.
+offsets = log((1 - s0)./s0);
+
+spont_p = a2 .* w0 .* s0;  % should match p0; check it; yes it does.
+
+% Copy stuff needed at run time into coeffs.
 SYN_coeffs = struct( ...
   'n_ch', n_ch, ...
   'n_classes', n_cl, ...
-  'max_probs', max_rates / SYN_params.fs, ...
-  'n_fibers', col_n_ch_ones * n_fibers, ...  % Synaptopathy comes in here; channelize it, too.
-  'v_width', v_width, ...
-  'v_half', col_n_ch_ones * v_half, ...  % Same units as v_width and v_recep.
-  'out_rate', 0.1, ...  % Depletion can be quick (few ms).
-  'recovery', 1e-3, ...  % Recovery tau about 1000 sample times.  Or 10X this?
+  'n_fibers', ones(n_ch,1) * n_fibers, ...  % Synaptopathy comes in here.
+  'v_widths', v_widths, ...
+  'v_halfs', offsets .* v_widths, ...  % Same units as v_recep and v_widths.
+  'a1', a1, ...  % Feedback gain
+  'a2', a2, ...  % Output gain
   'agc_weights', agc_weights, ... % try to make syn_out resemble ihc_out to go to agc_in.
-  'rest_output', rest_output, ...
-  'res_inits', res_inits, ...
+  'spont_p', spont_p, ...
+  'res_lpf_inits', q0, ...
+  'res_coeff', 1 - exp(-1/(SYN_params.reservoir_tau * fs)), ...
   'lpf_coeff', 1 - exp(-1/(SYN_params.tau_lpf * fs)));
 
