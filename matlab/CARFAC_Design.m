@@ -150,13 +150,19 @@ end
 
 if num_args < 6  % Default the SYN_params.
   n_classes = 3;  % Default.  Modify params and redesign to change.
-  % Parameters could generally have columns if channel-dependent.
+  % Parameters could generally have columns if class-dependent.
   CF_SYN_params = struct( ...
     'do_syn', do_syn, ...  % This may just turn it off completely.
     'fs', fs, ...
     'n_classes', n_classes, ...
+    'n_fibers', [50, 35, 25], ...
+    'spont_rates', [50, 6, 1], ...
+    'sat_rates', 200, ...
+    'sat_reservoir', 0.2, ...
+    'v_width', 0.02, ...
     'tau_lpf', 0.000080, ...
-    'reservoir_tau', 0.020);
+    'reservoir_tau', 0.020, ...
+    'agc_weights', [1.2, 1.2, 1.2]');  % column
 end
 
 % first figure out how many filter stages (PZFC/CARFAC channels):
@@ -577,55 +583,37 @@ if ~SYN_params.do_syn
 end
 
 n_ch = length(pole_freqs);
-n_cl = SYN_params.n_classes;
+n_classes = SYN_params.n_classes;
 
-sat_rates = 200;
-switch n_cl  % Just enough to test that both 2 and 3 can work.
-  case 2
-    spont_rates = [50, 5];
-    n_fibers = [50, 60];
-    agc_weights = [1.2, 2.4]';  % a column of weights
-    % Pick a sat level of reservoir state (move into params?):
-    w1 = 0.125 * [1, 1];  % How low the res gets in saturation.
-  case 3
-    spont_rates = [50, 6, 1];
-    n_fibers = [50, 35, 25];
-    agc_weights = [1.2, 1.2, 1.2]';  % a column of weights
-    % Pick a sat level of reservoir state (move into params?):
-    w1 = 0.2 * [1, 1, 1];  % How low the res gets in saturation.
-  otherwise
-    error('unimplemented n_classes in in SYN_params in CARFAC_DesignSynapses');
-end
-v_width = 0.02;
-% Plural var names indicate values for the different rate classes.
-v_widths = v_width * ones(1, n_cl);
+v_widths = SYN_params.v_width * ones(1, n_classes);
 
 % Do some design.  First, gains to get sat_rate when sigmoid is 1, which
 % involves the reservoir steady-state solution.
-% Assume the sigmoid is switching between 0 and 1 at 50% duty cycle, so
-% normalized value is 0.5.
 % Most of these are not per-channel, but could be expanded that way
 % later if desired.
 
 % Mean sat prob of spike per sample per neuron, likely same for all
 % classes.
 % Use names 1 for sat and 0 for spont in some of these.
-p1 = sat_rates / fs;
-p0 = spont_rates / fs;
+p1 = SYN_params.sat_rates / fs;
+p0 = SYN_params.spont_rates / fs;
 
+w1 = SYN_params.sat_reservoir;
 q1 = 1 - w1;
-s1 = 0.5;  % average sigmoid output at saturation
-z1 = s1*w1;
-% solve q1 = a1*z1 for gain coeff a1:
-a1 = q1 ./ z1;
-% solve p1 = a2*z1 for gain coeff a2:
-a2 = p1 ./ z1;
+% Assume the sigmoid is switching between 0 and 1 at 50% duty cycle, so
+% normalized mean value is 0.5 at saturation.
+s1 = 0.5;
+r1 = s1*w1;
+% solve q1 = a1*r1 for gain coeff a1:
+a1 = q1 ./ r1;
+% solve p1 = a2*r1 for gain coeff a2:
+a2 = p1 ./ r1;
 
 % Now work out how to get the desired spont.
-z0 = p0 ./ a2;
-q0 = z0 .* a1;
+r0 = p0 ./ a2;
+q0 = r0 .* a1;
 w0 = 1 - q0;
-s0 = z0 ./ w0;
+s0 = r0 ./ w0;
 % Solve for (negative) sigmoid midpoint offset that gets s0 right.
 offsets = log((1 - s0)./s0);
 
@@ -634,14 +622,15 @@ spont_p = a2 .* w0 .* s0;  % should match p0; check it; yes it does.
 % Copy stuff needed at run time into coeffs.
 SYN_coeffs = struct( ...
   'n_ch', n_ch, ...
-  'n_classes', n_cl, ...
-  'n_fibers', ones(n_ch,1) * n_fibers, ...  % Synaptopathy comes in here.
+  'n_classes', n_classes, ...
+  'n_fibers', ones(n_ch,1) * SYN_params.n_fibers, ...  % Synaptopathy comes in here.
   'v_widths', v_widths, ...
   'v_halfs', offsets .* v_widths, ...  % Same units as v_recep and v_widths.
   'a1', a1, ...  % Feedback gain
   'a2', a2, ...  % Output gain
-  'agc_weights', agc_weights, ... % try to make syn_out resemble ihc_out to go to agc_in.
-  'spont_p', spont_p, ...
+  'agc_weights', SYN_params.agc_weights, ... % For making a nap out to agc in.
+  'spont_p', spont_p, ... % used only to init the output LPF
+  'spont_sub', (SYN_params.n_fibers .* spont_p) * SYN_params.agc_weights, ...
   'res_lpf_inits', q0, ...
   'res_coeff', 1 - exp(-1/(SYN_params.reservoir_tau * fs)), ...
   'lpf_coeff', 1 - exp(-1/(SYN_params.tau_lpf * fs)));
