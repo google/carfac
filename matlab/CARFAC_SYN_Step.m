@@ -4,7 +4,7 @@ function [syn_out, firings, state] = CARFAC_SYN_Step(v_recep, coeffs, state)
 % associated with the CF channel, including reductions due to synaptopathy.
 
 % Normalized offset position into neurotransmitter release sigmoid.
-x = (v_recep - coeffs.v_halfs) ./ coeffs.v_widths ;
+x = (v_recep - coeffs.v_halfs) ./ coeffs.v_widths;
 
 s = 1 ./ (1 + exp(-x));  % Between 0 and 1; positive at rest.
 q = state.reservoirs;  % aka 1 - w, between 0 and 1; positive at rest.
@@ -27,5 +27,5 @@ state.reservoirs = q + coeffs.res_coeff .* (coeffs.a1 .* r - q);
 % But it's relative to the healthy nominal spont, so could potentially go
 % a bit negative in quiet is there was loss of high-spont or medium-spont units.
 % The weight multiplication is an inner product, reducing n_classes
-% columns to 1 column.
-syn_out = (coeffs.n_fibers .* firing_probs) * coeffs.agc_weights - coeffs.spont_sub;
+% columns to 1 column (first transpose the agc_weights row to a column).
+syn_out = (coeffs.n_fibers .* firing_probs) * coeffs.agc_weights' - coeffs.spont_sub;
