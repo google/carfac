@@ -111,15 +111,30 @@ for k = 1:n_samp
       input_waves(k, ear), CF.ears(ear).CAR_coeffs, CF.ears(ear).CAR_state);
 
     % update IHC state & output on every time step, too
-    [ihc_out, CF.ears(ear).IHC_state] = CARFAC_IHC_Step( ...
+    [ihc_out, CF.ears(ear).IHC_state, v_recep] = CARFAC_IHC_Step( ...
       car_out, CF.ears(ear).IHC_coeffs, CF.ears(ear).IHC_state);
 
-    % run the AGC update step, decimating internally,
+    if CF.do_syn
+      % Use v_recep from IHC_Step to
+      % update the SYNapse state and get firings and new nap.
+      [syn_out, firings, CF.ears(ear).SYN_state] = CARFAC_SYN_Step( ...
+        v_recep, CF.ears(ear).SYN_coeffs, CF.ears(ear).SYN_state);
+      % Use sum over syn_outs classes, appropriately scaled, as nap to agc.
+      % firings always positive, unless v2 ihc_out.
+      % syn_out can go a little negative; should be zero at rest.
+      nap = syn_out;
+      % Maybe still should add a way to return firings (of the classes).
+    else
+      % v2, ihc_out already has rest_output subtracted.
+      nap = ihc_out;  % If no SYN, ihc_out goes to nap and agc as in v2.
+    end
+
+    % Use nap to run the AGC update step, decimating internally,
     [CF.ears(ear).AGC_state, AGC_updated] = CARFAC_AGC_Step( ...
-      ihc_out, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
+      nap, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
 
     % save some output data:
-    naps(k, :, ear) = ihc_out;  % output to neural activity pattern
+    naps(k, :, ear) = nap;  % output to neural activity pattern
     if do_BM
       BM(k, :, ear) = car_out;
       state = CF.ears(ear).CAR_state;
