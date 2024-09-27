@@ -375,13 +375,12 @@ def car_step(x_in: float,
 # TODO(malcolmslaney) Perhaps make one superclass?
 @dataclasses.dataclass
 class IhcJustHwrParams:
-  just_hwr: bool = True  # just a simple HWR
+  ihc_style: str = 'just_hwr'
 
 
 @dataclasses.dataclass
 class IhcOneCapParams(IhcJustHwrParams):
-  just_hwr: bool = False  # not just a simple HWR
-  one_cap: bool = True  # bool; False for new two-cap hack
+  ihc_style: str = 'one_cap'
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
   tau_in: float = 0.010  # recovery tau is slower
@@ -389,8 +388,7 @@ class IhcOneCapParams(IhcJustHwrParams):
 
 @dataclasses.dataclass
 class IhcTwoCapParams(IhcJustHwrParams):
-  just_hwr: bool = False  # not just a simple HWR
-  one_cap: bool = False  # bool; False for new two-cap hack
+  ihc_style: str = 'two_cap'
   tau_out: float = 0.0005  # depletion tau is pretty fast
   tau_in: float = 0.010  # recovery tau is slower
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
@@ -434,24 +432,27 @@ def ihc_detect(x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
 class IhcCoeffs:
   """Variables needed for the inner hair cell implementation."""
   n_ch: int
-  just_hwr: bool
   lpf_coeff: float = 0
   out1_rate: float = 0
   in1_rate: float = 0
   out2_rate: float = 0
   in2_rate: float = 0
-  one_cap: float = 0
   output_gain: float = 0
   rest_output: float = 0
   rest_cap2: float = 0
   rest_cap1: float = 0
-
   rest_cap: float = 0
   out_rate: float = 0
   in_rate: float = 0
+  # 0 is just_hwr, 1 is one_cap, 2 is two_cap
+  ihc_style: int = 0
 
 
-def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
+def design_ihc(
+    ihc_params: IhcJustHwrParams | IhcOneCapParams | IhcTwoCapParams,
+    fs: float,
+    n_ch: int,
+) -> IhcCoeffs:
   """Design the inner hair cell implementation from parameters.
 
   Args:
@@ -462,9 +463,7 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
   Returns:
     A IHC coefficient class.
   """
-  if ihc_params.just_hwr:
-    ihc_coeffs = IhcCoeffs(n_ch=n_ch, just_hwr=True)
-  elif isinstance(ihc_params, IhcOneCapParams):
+  if isinstance(ihc_params, IhcOneCapParams):
     ro = 1 / ihc_detect(10)  # output resistance at a very high level
     c = ihc_params.tau_out / ro
     ri = ihc_params.tau_in / c
@@ -476,14 +475,14 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
     cap_voltage = 1 - current * ri
     ihc_coeffs = IhcCoeffs(
         n_ch=n_ch,
-        just_hwr=False,
+        ihc_style=1,
         lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
         out_rate=ro / (ihc_params.tau_out * fs),
         in_rate=1 / (ihc_params.tau_in * fs),
-        one_cap=ihc_params.one_cap,
         output_gain=1 / (saturation_output - current),
         rest_output=current / (saturation_output - current),
-        rest_cap=cap_voltage)
+        rest_cap=cap_voltage,
+    )
   elif isinstance(ihc_params, IhcTwoCapParams):
     g1_max = ihc_detect(10)  # receptor conductance at high level
 
@@ -514,18 +513,19 @@ def design_ihc(ihc_params: IhcJustHwrParams, fs: float, n_ch: int) -> IhcCoeffs:
 
     ihc_coeffs = IhcCoeffs(
         n_ch=n_ch,
-        just_hwr=False,
+        ihc_style=2,
         lpf_coeff=1 - math.exp(-1 / (ihc_params.tau_lpf * fs)),
         out1_rate=r1min / (ihc_params.tau1_out * fs),
         in1_rate=1 / (ihc_params.tau1_in * fs),
         out2_rate=r2min / (ihc_params.tau2_out * fs),
         in2_rate=1 / (ihc_params.tau2_in * fs),
-        one_cap=ihc_params.one_cap,
         output_gain=1 / (saturation_current2 - rest_current2),
         rest_output=rest_current2 / (saturation_current2 - rest_current2),
         rest_cap2=cap2_voltage,
         rest_cap1=cap1_voltage,
     )
+  elif isinstance(ihc_params, IhcJustHwrParams):
+    ihc_coeffs = IhcCoeffs(n_ch=n_ch, ihc_style=0)
   else:
     raise NotImplementedError
   return ihc_coeffs
@@ -556,19 +556,18 @@ class IhcState:
 
   def __init__(self, coeffs, dtype=np.float32):
     n_ch = coeffs.n_ch
-    if coeffs.just_hwr:
+    if coeffs.ihc_style == 0:
       self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
+    elif coeffs.ihc_style == 1:
+      self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
+      self.cap_voltage = coeffs.rest_cap * np.ones((n_ch,), dtype=dtype)
+      self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
+      self.lpf2_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
     else:
-      if coeffs.one_cap:
-        self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
-        self.cap_voltage = coeffs.rest_cap * np.ones((n_ch,), dtype=dtype)
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
-        self.lpf2_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
-      else:
-        self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
-        self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,), dtype=dtype)
-        self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,), dtype=dtype)
-        self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
+      self.ihc_accum = np.zeros((n_ch,), dtype=dtype)
+      self.cap1_voltage = coeffs.rest_cap1 * np.ones((n_ch,), dtype=dtype)
+      self.cap2_voltage = coeffs.rest_cap2 * np.ones((n_ch,), dtype=dtype)
+      self.lpf1_state = coeffs.rest_output * np.ones((n_ch,), dtype=dtype)
 
 
 def ihc_init_state(coeffs):
@@ -614,13 +613,13 @@ def ihc_step(bm_out: np.ndarray, ihc_coeffs: IhcCoeffs,
     and the new state.
   """
 
-  if ihc_coeffs.just_hwr:
+  if ihc_coeffs.ihc_style == 0:
     ihc_out = np.min(2, np.max(0, bm_out))
     #  limit it for stability
   else:
     conductance = ihc_detect(bm_out)  # rectifying nonlinearity
 
-    if ihc_coeffs.one_cap:
+    if ihc_coeffs.ihc_style == 1:
       ihc_out = conductance * ihc_state.cap_voltage
       ihc_state.cap_voltage = (
           ihc_state.cap_voltage - ihc_out * ihc_coeffs.out_rate +
@@ -1025,8 +1024,7 @@ def design_carfac(
     ihc_params: Optional[
         Union[IhcJustHwrParams, IhcOneCapParams, IhcTwoCapParams]
     ] = None,
-    one_cap: bool = False,
-    just_hwr: bool = False,
+    ihc_style: str = 'two_cap',
     use_delay_buffer: bool = False,
 ) -> CarfacParams:
   """This function designs the CARFAC filterbank.
@@ -1051,8 +1049,9 @@ def design_carfac(
     car_params: bundles all the pole-zero filter cascade parameters
     agc_params: bundles all the automatic gain control parameters
     ihc_params: bundles all the inner hair cell parameters
-    one_cap: True for Allen model, as Lyon's book describes
-    just_hwr: False for normal/fancy IHC; True for HWR.
+    ihc_style: Type of IHC Model to use. Valid avlues are 'one_cap' for Allen
+      model, 'two_cap' for the v2 model, and 'just_hwr' for the simpler HWR
+      model.
     use_delay_buffer: Whether to use the delay buffer implementation in the CAR
       step.
 
@@ -1064,14 +1063,15 @@ def design_carfac(
   agc_params = agc_params or AgcParams()
 
   if not ihc_params:
-    if just_hwr:
-      ihc_params = IhcJustHwrParams()
-    else:
-      if one_cap:
-        ihc_params = IhcOneCapParams()
-      else:
+    match ihc_style:
+      case 'two_cap':
         ihc_params = IhcTwoCapParams()
-
+      case 'one_cap':
+        ihc_params = IhcOneCapParams()
+      case 'just_hwr':
+        ihc_params = IhcJustHwrParams()
+      case _:
+        raise ValueError(f'Unknown IHC style: {ihc_style}')
   # first figure out how many filter stages (PZFC/CARFAC channels):
   pole_hz = car_params.first_pole_theta * fs / (2 * math.pi)
   n_ch = 0

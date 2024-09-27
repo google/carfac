@@ -220,7 +220,7 @@ class CarfacTest(parameterized.TestCase):
       self.assertAlmostEqual(bw, correct_bw, delta=0.1)
       self.assertAlmostEqual(q, correct_q)
 
-  def run_ihc(self, test_freq=300, one_cap=True):
+  def run_ihc(self, test_freq=300, ihc_style='one_cap'):
     fs = 40000
     sampling_interval = 1 / fs
     tmax = 0.28  # a half second
@@ -235,7 +235,7 @@ class CarfacTest(parameterized.TestCase):
     amplitude = 0.09 * 2**stim_num
     omega = 2 * np.pi * test_freq
 
-    cfp = carfac.design_carfac(fs=fs, one_cap=one_cap)
+    cfp = carfac.design_carfac(fs=fs, ihc_style=ihc_style)
     cfp = carfac.carfac_init(cfp)
 
     quad_sin = np.sin(omega * t) * present
@@ -253,7 +253,7 @@ class CarfacTest(parameterized.TestCase):
     plt.plot(t, neuro_output)
     plt.xlabel('Seconds')
     plt.title(f'IHC Response for tone blips at {test_freq}Hz')
-    plt.savefig(f'/tmp/ihc_response_cap_{one_cap}cap_{test_freq}Hz.png')
+    plt.savefig(f'/tmp/ihc_response_cap_{ihc_style}_{test_freq}Hz.png')
     blip_maxes = []
     blip_ac = []
     for i in range(1, 7):
@@ -270,7 +270,7 @@ class CarfacTest(parameterized.TestCase):
   @parameterized.named_parameters(
       (
           'two_cap_300',
-          False,
+          'two_cap',
           300,
           [
               [2.026682, 544.901381],
@@ -283,7 +283,7 @@ class CarfacTest(parameterized.TestCase):
       ),
       (
           'two_cap_3000',
-          False,
+          'two_cap',
           3000,
           [
               [0.698303, 93.388172],
@@ -296,7 +296,7 @@ class CarfacTest(parameterized.TestCase):
       ),
       (
           'one_cap_300',
-          True,
+          'one_cap',
           300,
           [
               [2.752913, 721.001685],
@@ -309,7 +309,7 @@ class CarfacTest(parameterized.TestCase):
       ),
       (
           'one_cap_3000',
-          True,
+          'one_cap',
           3000,
           [
               [1.417657, 234.098558],
@@ -322,7 +322,7 @@ class CarfacTest(parameterized.TestCase):
       ),
   )
   def test_ihc_param(self, cap, freq, test_results):
-    blip_maxes, blip_ac = self.run_ihc(freq, one_cap=cap)
+    blip_maxes, blip_ac = self.run_ihc(freq, ihc_style=cap)
     for i, (max_val, ac) in enumerate(test_results):
       self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
       self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
@@ -428,8 +428,10 @@ class CarfacTest(parameterized.TestCase):
             f'Failed at channel {ch} for undamping {undamping}.',
         )
 
-  @parameterized.named_parameters(('two_cap', False), ('one_cap', True))
-  def test_whole_carfac(self, cap):
+  @parameterized.named_parameters(
+      ('two_cap', 'two_cap'), ('one_cap', 'one_cap')
+  )
+  def test_whole_carfac(self, ihc_style):
     # Test: Make sure that the AGC adapts to a tone. Test with open-loop impulse
     # response.
 
@@ -442,7 +444,7 @@ class CarfacTest(parameterized.TestCase):
     impulse = np.zeros(t.shape)
     impulse[0] = 1e-4
 
-    cfp = carfac.design_carfac(fs=fs, one_cap=cap)
+    cfp = carfac.design_carfac(fs=fs, ihc_style=ihc_style)
     cfp = carfac.carfac_init(cfp)
 
     _, cfp, bm_initial, _, _ = carfac.run_segment(
@@ -502,7 +504,7 @@ class CarfacTest(parameterized.TestCase):
         65: (7.765176633256488e-06, 7.573388744425412e-06),
         70: (5.994126581754244e-07, 5.919053135128626e-07),
     }
-    if not cap:
+    if ihc_style == 'two_cap':
       # The following data comes from the Numpy implementation
       max_expected_responses = {  # By channel, pre and post adaptation
           0: (9.487948409514502e-05, 9.489925609401865e-05),
@@ -588,7 +590,7 @@ class CarfacTest(parameterized.TestCase):
       return np.argmin((np.asarray(cfs) - desired)**2)
 
     results = {}
-    if cap:
+    if ihc_style == 'one_cap':
       results = {  # The Matlab test prints this data block:
           125: [64, 119.007, 0.264],
           250: [58, 239.791, 0.986],
@@ -745,7 +747,7 @@ class CarfacTest(parameterized.TestCase):
     two_chan_noise = np.zeros((len(t), 2))
     two_chan_noise[:, 0] = noise
     two_chan_noise[:, 1] = noise
-    cfp = carfac.design_carfac(fs=fs, n_ears=2, one_cap=True)
+    cfp = carfac.design_carfac(fs=fs, n_ears=2, ihc_style='one_cap')
     cfp = carfac.carfac_init(cfp)
     naps, _, _, _, _ = carfac.run_segment(cfp, two_chan_noise)
     max_abs_diff = np.amax(np.abs(naps[:, :, 0] - naps[:, :, 1]))
@@ -782,9 +784,9 @@ class CarfacTest(parameterized.TestCase):
     two_chan_noise = np.zeros((len(t), 2))
     two_chan_noise[:, 0] = c_major_chord
     # Leave the audio in channel 1 as silence.
-    cfp = carfac.design_carfac(fs=fs, n_ears=2, one_cap=True)
+    cfp = carfac.design_carfac(fs=fs, n_ears=2, ihc_style='one_cap')
     cfp = carfac.carfac_init(cfp)
-    mono_cfp = carfac.design_carfac(fs=fs, n_ears=1, one_cap=True)
+    mono_cfp = carfac.design_carfac(fs=fs, n_ears=1, ihc_style='one_cap')
     mono_cfp = carfac.carfac_init(mono_cfp)
 
     _, _, bm_binaural, _, _ = carfac.run_segment(cfp, two_chan_noise)
