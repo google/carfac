@@ -16,12 +16,16 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
+function [ihc_out, state, v_recep] = CARFAC_IHC_Step(bm_out, coeffs, state);
 % function [ihc_out, state] = CARFAC_IHC_Step(bm_out, coeffs, state);
 %
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.
+%
+% receptor_potential output will be empty except in two_cap mode.
+% Use it as input to CARFAC_SYN_Step to model synapses to get firing rates.
 
+v_recep = [];  % For cases other than two_cap and do_syn it's not used.
 if coeffs.just_hwr
   ihc_out = min(2, max(0, bm_out));  % limit it for stability
 else
@@ -63,7 +67,10 @@ else
     state.lpf1_state = state.lpf1_state + coeffs.lpf_coeff * ...
       (ihc_out - state.lpf1_state);
     ihc_out = state.lpf1_state - coeffs.rest_output;
+    % Return a modified receptor potential that's zero at rest, for SYN.
+    v_recep = coeffs.rest_cap1 - state.cap1_voltage;
   end
 end
 
+% Leaving this for v2 cochleagram compatibility, but no v3/SYN version:
 state.ihc_accum = state.ihc_accum + ihc_out;  % for where decimated output is useful

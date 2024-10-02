@@ -22,17 +22,22 @@ function status = CARFAC_Test(do_plots)
 % optional, defaults to 1 (as when executing the file as a script).
 % Run CARFAC_Test(0) to suppress plotting.
 
-if nargin < 1, do_plots = 1; end  % Produce plots by default.
+if nargin < 1,
+  do_plots = 1;
+  close ALL  % So plots don't accumulate.
+end  % Produce plots by default.
 
 % Run tests, and see if any fail (have nonzero status):
 status = 0;  % 0 for OK so far; 1 for test fail; 2 for error.
 status = status | test_CAR_freq_response(do_plots);
-status = status | test_IHC(do_plots);
-status = status | test_IHC2(do_plots);
+status = status | test_IHC1(do_plots);  % one_cap, v1
+status = status | test_IHC2(do_plots);  % two_cap, v2
+status = status | test_IHC3(do_plots);  % do_syn, v3
 status = status | test_AGC_steady_state(do_plots);
 status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac1(do_plots);
 status = status | test_whole_carfac2(do_plots);
+status = status | test_whole_carfac3(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
 status = status | test_multiaural_silent_channel_carfac(do_plots);
@@ -127,7 +132,7 @@ report_status(status, 'test_CAR_freq_response')
 return
 
 
-function [blip_maxes, blip_ac] = run_IHC(test_freq, one_cap, do_plots)
+function [blip_maxes, blip_ac] = run_IHC(test_freq, version, do_plots)
 fs = 40000;
 sampling_interval = 1 / fs;
 tmax = 0.28;
@@ -143,17 +148,26 @@ quad_sin = present .* sin(omega * t);
 quad_cos = present .* cos(omega * t);
 x_in = quad_sin .* amplitude;
 
-CF = CARFAC_Design(1, fs);
-CF.IHC_params.one_cap = one_cap;  % Potentially override default; re-Design:
-CF = CARFAC_Design(1, fs, CF.CAR_params, CF.AGC_params, CF.IHC_params);
+CF = CARFAC_Design(1, fs, version);
 CF = CARFAC_Init(CF);
 
 neuro_output = zeros(size(x_in));
 ihc_state = CF.ears(1).IHC_state;
-for i = 1:length(x_in)
-  [ihc_out, ihc_state] = CARFAC_IHC_Step( ...
-    x_in(i), CF.ears(1).IHC_coeffs, ihc_state);
-  neuro_output(i) = ihc_out(1);
+if CF.do_syn
+  syn_state = CF.ears(1).SYN_state;
+end
+for k = 1:length(x_in)
+  [ihc_out, ihc_state, v_recep] = CARFAC_IHC_Step( ...
+    x_in(k), CF.ears(1).IHC_coeffs, ihc_state);
+  if CF.do_syn  % ignore ihc_out and use receptor_potential.
+    [syn_out, firings, syn_state] = CARFAC_SYN_Step( ...
+      v_recep, CF.ears(1).SYN_coeffs, syn_state);
+    % This can go a little negative; should be zero at rest.
+    neuro_output(k) = syn_out(1);
+    class_firings(k, :) = firings(1, :);
+  else  % ignore receptor_potential and use ihc_out.
+    neuro_output(k) = ihc_out(1);
+  end
 end
 
 if do_plots
@@ -162,23 +176,27 @@ if do_plots
   xlabel('Seconds')
   title(sprintf('IHC Response for tone blips at %d Hz', test_freq))
   drawnow
+  if CF.do_syn
+    figure
+    plot(t, class_firings)
+  end
 end
 blip_maxes = [];
 blip_ac = [];
-for i = 1:6
-  blip = neuro_output .* (stim_num == i);
+for blip_num = 1:6
+  blip = neuro_output .* (stim_num == blip_num);
   blip_max = max(blip);
   carrier_power = sum(blip .* quad_sin)^2 + sum(blip .* quad_cos)^2;
   carrier_rms = sqrt(carrier_power);
   fprintf(1, 'Blip %d: Max of %f, AC rms is %f\n', ...
-    i, blip_max, carrier_rms);
+    blip_num, blip_max, carrier_rms);
   blip_maxes(end+1) = blip_max;
   blip_ac(end+1) = sqrt(carrier_power);
 end
 return
 
 
-function status = test_IHC(do_plots)
+function status = test_IHC1(do_plots)
 % Test: Make sure that IHC (inner hair cell) runs as expected.
 
 status = 0;
@@ -208,8 +226,7 @@ for k = 1:length(test_freqs)
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
         test_freqs(k));
   end
-  one_cap = 1;
-  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'one_cap', do_plots);
   num_blips = length(blip_maxes);
   if num_blips ~= size(expected_results, 1)
     fprintf(1, ...
@@ -220,10 +237,8 @@ for k = 1:length(test_freqs)
     expected_maxes = expected_results(:, 1)';
     expected_acs = expected_results(:, 2)';
 
-    fprintf(1, 'Golden data for Matlab test_IHC:\n');
+    fprintf(1, 'Golden data for Matlab and Python test_IHC:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_ihc:\n');
-    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
       if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
@@ -276,22 +291,19 @@ for k = 1:length(test_freqs)
       fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
         test_freqs(k));
   end
-  one_cap = 0;
-  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), one_cap, do_plots);
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'two_cap', do_plots);
   num_blips = length(blip_maxes);
   if num_blips ~= size(expected_results, 1)
     fprintf(1, ...
-      'Unmatched num_blips %d and expected_results rows %d in test_IHC.\n',...
+      'Unmatched num_blips %d and expected_results rows %d in test_IHC2.\n',...
       num_blips, size(expected_results, 1));
     status = 2;
   else
     expected_maxes = expected_results(:, 1)';
     expected_acs = expected_results(:, 2)';
 
-    fprintf(1, 'Golden data for Matlab test_IHC2:\n');
+    fprintf(1, 'Golden data for Matlab and Python test_IHC2:\n');
     fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
-    fprintf(1, 'Golden data for Python test_ihc2:\n');
-    fprintf(1, '        [%f, %f],\n', [blip_maxes; blip_ac])
 
     for i = 1:num_blips
       if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/1e6
@@ -310,6 +322,73 @@ for k = 1:length(test_freqs)
   end
 end
 report_status(status, 'test_IHC2')
+return
+
+
+function status = test_IHC3(do_plots)
+% Test: Make sure that IHC (inner hair cell) runs as expected.
+% Two-cap version with receptor potential; slightly different blips.
+
+status = 0;
+
+test_freqs = [300, 3000];
+for k = 1:length(test_freqs)
+  switch test_freqs(k)
+    case 300
+      expected_results = [ ...
+        [1.055837, 184.180863];
+        [3.409906, 483.204136];
+        [6.167359, 837.629296];
+        [7.096430, 956.279101];
+        [7.103324, 927.060415];
+        [7.123434, 895.574871];
+        ];
+    case 3000
+      expected_results = [ ...
+        [0.167683, 24.929044];
+        [0.620939, 74.045598];
+        [1.894064, 175.367201];
+        [3.541070, 269.322147];
+        [4.899921, 303.684269];
+        [5.572545, 278.428744];
+        ];
+    otherwise
+      fprintf(1, 'No test_results for %f Hz in test_IHC.\n', ...
+        test_freqs(k));
+  end
+  [blip_maxes, blip_ac] = run_IHC(test_freqs(k), 'do_syn', do_plots);
+  num_blips = length(blip_maxes);
+  if num_blips ~= size(expected_results, 1)
+    fprintf(1, ...
+      'Unmatched num_blips %d and expected_results rows %d in test_IHC3.\n',...
+      num_blips, size(expected_results, 1));
+    status = 2;
+  else
+    expected_maxes = expected_results(:, 1)';
+    expected_acs = expected_results(:, 2)';
+
+    fprintf(1, 'Golden data for Matlab and Python test_IHC3:\n');
+    fprintf(1, '        [%f, %f];\n', [blip_maxes; blip_ac])
+
+    for i = 1:num_blips
+      % Lowered precision from 1e6 to 0.5e6 as the values are lower,
+      % and don't quite quite enough digits printed in the default format.
+      if abs(expected_maxes(i) - blip_maxes(i)) > expected_maxes(i)/0.5e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC3 fails with i = %d, expected_max = %f, blip_max = %f\n', ...
+          i, expected_maxes(i), blip_maxes(i))
+      end
+      if abs(expected_acs(i) - blip_ac(i)) > expected_acs(i)/0.5e6
+        status = 1;
+        fprintf(1, ...
+          'test_IHC3 fails with i = %d, expected_ac = %f, blip_ac = %f\n', ...
+          i, expected_acs(i), blip_ac(i))
+      end
+    end
+  end
+end
+report_status(status, 'test_IHC3')
 return
 
 
@@ -453,7 +532,13 @@ report_status(status, 'test_whole_carfac2')
 return
 
 
-function status = test_whole_carfac(do_plots, IHC_style)
+function status = test_whole_carfac3(do_plots)
+status = test_whole_carfac(do_plots, 'do_syn')
+report_status(status, 'test_whole_carfac3')
+return
+
+
+function status = test_whole_carfac(do_plots, version_string)
 % Test: Make sure that the AGC adapts to a tone. Test with open-loop
 % impulse response.
 
@@ -469,7 +554,7 @@ impulse_dur = 0.5;  % 0.25 is about enough; this is conservative.
 impulse = zeros(round(impulse_dur*fs), 1);  % For short impulse wave.
 impulse(1) = 1e-4;  % Small amplitude impulse to keep it pretty linear
 
-CF = CARFAC_Design(1, fs, IHC_style);
+CF = CARFAC_Design(1, fs, version_string);
 CF = CARFAC_Init(CF);
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -479,6 +564,13 @@ CF.linear_car = 1;  % For measuring impulse response.
 CF.open_loop = 0;  % To let CF adapt to signal.
 CF.linear_car = 0;  % Normal mode.
 [~, CF, bm_sine] = CARFAC_Run_Segment(CF, sinusoid);
+
+% Capture AGC state response at end, for analysis later.
+num_stages = CF.AGC_params.n_stages;  % 4
+agc_response = zeros(num_stages, CF.n_ch);
+for stage = 1:num_stages
+  agc_response(stage, :) = CF.ears(1).AGC_state(stage).AGC_memory;
+end
 
 CF.open_loop = 1;  % For measuring impulse response.
 CF.linear_car = 1;  % For measuring impulse response.
@@ -532,7 +624,7 @@ end
 
 % Test for change in peak gain after adaptation.
 % Golden data table of frequency, channel, peak frequency, delta:
-switch IHC_style
+switch version_string
   case 'one_cap'
     % Before moving ac coupling into CAR, peaks gains a little different:
     %   125, 65,   118.944255,     0.186261
@@ -560,6 +652,16 @@ switch IHC_style
       2000, 29,     2038.875,       26.244
       4000, 17,     4058.882,       12.726
       8000,  3,     8289.883,        3.212
+      ];
+  case 'do_syn'
+    results = [
+      125, 65,      119.007,        0.238
+      250, 59,      239.791,        0.942
+      500, 50,      514.613,        7.249
+      1000, 40,     1030.546,       30.843
+      2000, 29,     2038.875,       22.514
+      4000, 17,     4058.882,        7.691
+      8000,  4,     7925.624,        1.935
       ];
 end
 
@@ -614,6 +716,15 @@ for j = 1:size(results, 1)
     fprintf(1, 'dB_change = %6.3f not close to expected_change %6.3f\n', ...
       dB_change, expected_change);
   end
+end
+
+%%
+if do_plots  % Plot final AGC state
+  figure
+  plot(agc_response')
+  title('Steady state spatial responses of the stages')
+  axis([0, CF.n_ch + 1, 0, 1])
+  drawnow
 end
 return
 
@@ -829,7 +940,7 @@ return
 
 
 function cf_amp_bw = find_peak_response(freqs, db_gains, bw_level)
-%Returns center frequency, amplitude at this point, and the 3dB width."""
+% Returns center frequency, amplitude at this point, and the 3dB width."""
 [~, peak_bin] = max(db_gains);
 [peak_frac, amplitude] = quadratic_peak_interpolation( ...
   db_gains(peak_bin - 1), db_gains(peak_bin), db_gains(peak_bin + 1));
