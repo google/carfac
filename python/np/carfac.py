@@ -398,6 +398,36 @@ class IhcTwoCapParams(IhcJustHwrParams):
   tau2_in: float = 0.010  # recovery tau is slower 10 ms
 
 
+@dataclasses.dataclass
+class IhcSynParams:
+  """Parameters for the IHC synapse model."""
+
+  do_syn: bool = False
+  n_classes: int = 3  # Default. Modify params and redesign to change.
+  ihcs_per_channel: dataclasses.InitVar[int] = 10  # Maybe 20 would be better?
+  healthy_n_fibers: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array([50, 35, 25])
+  )
+  spont_rates: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.array([50, 6, 1])
+  )
+  sat_rates: float = 200.0
+  sat_reservoir: float = 0.2
+  v_width: float = 0.02
+  tau_lpf: float = 0.000080
+  reservoir_tau: float = 0.02
+  # Tweaked.
+  # The weights 1.2 were picked before correctly account for sample rate
+  # and number of fibers. This way works for more different numbers.
+  agc_weights: np.ndarray = dataclasses.field(
+      default_factory=lambda: (np.array([1.2, 1.2, 1.2]) / 22050)
+  )
+
+  def __post_init__(self, ihcs_per_channel):
+    self.healthy_n_fibers *= ihcs_per_channel
+    self.agc_weights /= ihcs_per_channel
+
+
 # See Section 18.3 (A Digital IHC Model)
 def ihc_detect(x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
   """An IHC-like sigmoidal detection nonlinearity for the CARFAC.
@@ -446,6 +476,25 @@ class IhcCoeffs:
   in_rate: float = 0
   # 0 is just_hwr, 1 is one_cap, 2 is two_cap
   ihc_style: int = 0
+
+
+@dataclasses.dataclass
+class IhcSynCoeffs:
+  """Variables needed for the inner hair cell synapse implementation."""
+
+  n_ch: int
+  n_classes: int
+  n_fibers: np.ndarray
+  v_widths: np.ndarray
+  v_halfs: np.ndarray  # Same units as v_recep and v_widths.
+  a1: float  # Feedback gain
+  a2: float  # Output gain
+  agc_weights: np.ndarray  # For making a nap out to agc in.
+  spont_p: np.ndarray  # Used only to init the output LPF
+  spont_sub: np.ndarray
+  res_lpf_inits: np.ndarray
+  res_coeff: float
+  lpf_coeff: float
 
 
 def design_ihc(
@@ -531,6 +580,63 @@ def design_ihc(
   return ihc_coeffs
 
 
+def design_ihc_syn(
+    ihc_syn_params: IhcSynParams, fs: float, pole_freqs: np.ndarray
+) -> Optional[IhcSynCoeffs]:
+  """Design the inner hair cell synapse implementation from parameters."""
+  if not ihc_syn_params.do_syn:
+    return None
+  n_ch = pole_freqs.shape[0]
+  n_classes = ihc_syn_params.n_classes
+  v_widths = ihc_syn_params.v_width * np.ones((1, n_classes))
+  # Do some design.  First, gains to get sat_rate when sigmoid is 1, which
+  # involves the reservoir steady-state solution.
+  # Most of these are not per-channel, but could be expanded that way
+  # later if desired.
+  # Mean sat prob of spike per sample per neuron, likely same for all
+  # classes.
+  # Use names 1 for sat and 0 for spont in some of these.
+  p1 = ihc_syn_params.sat_rates / fs
+  p0 = ihc_syn_params.spont_rates / fs
+  w1 = ihc_syn_params.sat_reservoir
+  q1 = 1 - w1
+  # Assume the sigmoid is switching between 0 and 1 at 50% duty cycle, so
+  # normalized mean value is 0.5 at saturation.
+  s1 = 0.5
+  r1 = s1 * w1
+  # solve q1 = a1*r1 for gain coeff a1:
+  a1 = q1 / r1
+  # solve p1 = a2*r1 for gain coeff a2:
+  a2 = p1 / r1
+  # Now work out how to get the desired spont.
+  r0 = p0 / a2
+  q0 = r0 * a1
+  w0 = 1 - q0
+  s0 = r0 / w0
+  # Solve for (negative) sigmoid midpoint offset that gets s0 right.
+  offsets = np.log((1 - s0) / s0)
+  spont_p = a2 * w0 * s0  # should match p0; check it; yes it does.
+  agc_weights = fs * (ihc_syn_params.agc_weights)
+  spont_sub = (ihc_syn_params.healthy_n_fibers * spont_p) @ np.transpose(
+      agc_weights
+  )
+  return IhcSynCoeffs(
+      n_ch=n_ch,
+      n_classes=n_classes,
+      n_fibers=np.ones((n_ch, 1)) * ihc_syn_params.healthy_n_fibers,
+      v_widths=v_widths,
+      v_halfs=offsets * v_widths,
+      a1=a1,
+      a2=a2,
+      agc_weights=agc_weights,
+      spont_p=spont_p,
+      spont_sub=spont_sub,
+      res_lpf_inits=q0,
+      res_coeff=1 - np.exp(-1 / (ihc_syn_params.reservoir_tau * fs)),
+      lpf_coeff=1 - np.exp(-1 / (ihc_syn_params.tau_lpf * fs)),
+  )
+
+
 @dataclasses.dataclass
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
@@ -574,6 +680,23 @@ def ihc_init_state(coeffs):
   return IhcState(coeffs)
 
 
+@dataclasses.dataclass
+class IhcSynState:
+  """All the state variables for the synapse implementation."""
+
+  reservoirs: np.ndarray
+  lpf_state: np.ndarray
+
+  def __init__(self, coeffs: IhcSynCoeffs, dtype=np.float32):
+    n_ch = coeffs.n_ch
+    self.reservoirs = np.ones((n_ch, 1), dtype=dtype) * coeffs.res_lpf_inits
+    self.lpf_state = np.ones((n_ch, 1), dtype=dtype) * coeffs.spont_p
+
+
+def syn_init_state(coeffs: IhcSynCoeffs):
+  return IhcSynState(coeffs)
+
+
 def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
   """The outer hair cell non-linearity.
 
@@ -596,12 +719,16 @@ def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
   return nlf
 
 
-def ihc_step(bm_out: np.ndarray, ihc_coeffs: IhcCoeffs,
-             ihc_state: IhcState) -> Tuple[np.ndarray, IhcState]:
+def ihc_step(
+    bm_out: np.ndarray, ihc_coeffs: IhcCoeffs, ihc_state: IhcState
+) -> Tuple[np.ndarray, IhcState, np.ndarray]:
   """Step the inner-hair cell model with ont input sample.
 
   One sample-time update of inner-hair-cell (IHC) model, including the
   detection nonlinearity and one or two capacitor state variables.
+
+  The receptor potential output will be empty unless in two_cap mode. It's used
+  as an input for the syn_step.
 
   Args:
     bm_out: The output from the CAR filterbank
@@ -609,10 +736,10 @@ def ihc_step(bm_out: np.ndarray, ihc_coeffs: IhcCoeffs,
     ihc_state: The run-time state
 
   Returns:
-    The firing probability of the hair cells in each channel
-    and the new state.
+    The firing probability of the hair cells in each channel, the new state and
+    the receptor potential output.
   """
-
+  v_recep = np.zeros(ihc_coeffs.n_ch)
   if ihc_coeffs.ihc_style == 0:
     ihc_out = np.min(2, np.max(0, bm_out))
     #  limit it for stability
@@ -655,11 +782,14 @@ def ihc_step(bm_out: np.ndarray, ihc_coeffs: IhcCoeffs,
           ihc_out - ihc_state.lpf1_state
       )
       ihc_out = ihc_state.lpf1_state - ihc_coeffs.rest_output
+      # Return a modified receptor potential that's zero at rest, for SYN.
+      v_recep = ihc_coeffs.rest_cap1 - ihc_state.cap1_voltage
 
   # for where decimated output is useful
+  # Leaving this for v2 cochleagram compatibility, but no v3/SYN version:
   ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out
 
-  return ihc_out, ihc_state
+  return ihc_out, ihc_state, v_recep
 
 
 def ihc_model_run(input_data: np.ndarray, fs: float) -> np.ndarray:
@@ -679,9 +809,55 @@ def ihc_model_run(input_data: np.ndarray, fs: float) -> np.ndarray:
   ihc_state = cfp.ears[0].ihc_state
   for i in range(input_data.shape[0]):
     car_out = input_data[i]
-    ihc_out, ihc_state = ihc_step(car_out, cfp.ears[0].ihc_coeffs, ihc_state)
+    # does not work for SYN model.
+    ihc_out, ihc_state, _ = ihc_step(car_out, cfp.ears[0].ihc_coeffs, ihc_state)
     output[i] = ihc_out[0]
   return output
+
+
+def syn_step(
+    v_recep: np.ndarray, syn_coeffs: IhcSynCoeffs, syn_state: IhcSynState
+) -> Tuple[np.ndarray, np.ndarray, IhcSynState]:
+  """Step the synapse model with one input sample."""
+  # Drive multiple synapse classes with receptor potential from IHC,
+  # returning instantaneous spike rates per class, for a group of neurons
+  # associated with the CF channel, including reductions due to synaptopathy.
+
+  # Normalized offset position into neurotransmitter release sigmoid.
+  x = (v_recep - np.transpose(syn_coeffs.v_halfs)) / np.transpose(
+      syn_coeffs.v_widths
+  )
+  x = np.transpose(x)
+  s = 1 / (1 + np.exp(-x))  # Between 0 and 1; positive at rest.
+  q = syn_state.reservoirs  # aka 1 - w, between 0 and 1; positive at rest.
+  r = (1 - q) * s  # aka w*s, between 0 and 1, proportional to release rate.
+
+  # Smooth once with LPF (receptor potential was already smooth), after
+  # applying the gain coeff a2 to convert to firing prob per sample.
+  syn_state.lpf_state = syn_state.lpf_state + syn_coeffs.lpf_coeff * (
+      syn_coeffs.a2 * r - syn_state.lpf_state
+  )  # this is firing probs.
+  firing_probs = syn_state.lpf_state  # Poisson rate per neuron per sample.
+  # Include number of effective neurons per channel here, and interval T;
+  # so the rates (instantaneous action potentials per second) can be huge.
+  firings = syn_coeffs.n_fibers * firing_probs
+
+  # Feedback, to update reservoir state q for next time.
+  syn_state.reservoirs = q + syn_coeffs.res_coeff * (syn_coeffs.a1 * r - q)
+
+  # Make an output that resembles ihc_out, to go to agc_in
+  # (collapse over classes).
+  # Includes synaptopathy's presumed effect of reducing feedback via n_fibers.
+  # But it's relative to the healthy nominal spont, so could potentially go
+  # a bit negative in quiet is there was loss of high-spont or medium-spont
+  # units.
+  # The weight multiplication is an inner product, reducing n_classes
+  # columns to 1 column (first transpose the agc_weights row to a column).
+  syn_out = (
+      syn_coeffs.n_fibers * firing_probs
+  ) @ syn_coeffs.agc_weights - syn_coeffs.spont_sub
+
+  return syn_out, firings, syn_state
 
 
 ############################################################################
@@ -997,10 +1173,11 @@ class CarfacCoeffs:
   car_coeffs: CarCoeffs
   agc_coeffs: List[AgcCoeffs]  # One element per AGC layer (typically 4)
   ihc_coeffs: IhcCoeffs
-
+  syn_coeffs: Optional[IhcSynCoeffs] = None
   car_state: Optional[CarState] = None
   ihc_state: Optional[IhcState] = None
   agc_state: Optional[List[AgcState]] = None
+  syn_state: Optional[IhcSynState] = None
 
 
 @dataclasses.dataclass
@@ -1009,7 +1186,8 @@ class CarfacParams:
   max_channels_per_octave: float
   car_params: CarParams
   agc_params: AgcParams
-  ihc_params: Optional[IhcCoeffs]
+  ihc_params: Optional[IhcJustHwrParams | IhcOneCapParams | IhcTwoCapParams]
+  syn_params: Optional[IhcSynParams]
   n_ch: int
   pole_freqs: float
   ears: List[CarfacCoeffs]
@@ -1024,6 +1202,7 @@ def design_carfac(
     ihc_params: Optional[
         Union[IhcJustHwrParams, IhcOneCapParams, IhcTwoCapParams]
     ] = None,
+    syn_params: Optional[IhcSynParams] = None,
     ihc_style: str = 'two_cap',
     use_delay_buffer: bool = False,
 ) -> CarfacParams:
@@ -1049,9 +1228,10 @@ def design_carfac(
     car_params: bundles all the pole-zero filter cascade parameters
     agc_params: bundles all the automatic gain control parameters
     ihc_params: bundles all the inner hair cell parameters
+    syn_params: bundles all synaptopathy parameters
     ihc_style: Type of IHC Model to use. Valid avlues are 'one_cap' for Allen
-      model, 'two_cap' for the v2 model, and 'just_hwr' for the simpler HWR
-      model.
+      model, 'two_cap' for the v2 model, 'two_cap_with_syn' for the v3 model and
+      'just_hwr' for the simpler HWR model.
     use_delay_buffer: Whether to use the delay buffer implementation in the CAR
       step.
 
@@ -1064,7 +1244,7 @@ def design_carfac(
 
   if not ihc_params:
     match ihc_style:
-      case 'two_cap':
+      case 'two_cap' | 'two_cap_with_syn':
         ihc_params = IhcTwoCapParams()
       case 'one_cap':
         ihc_params = IhcOneCapParams()
@@ -1072,6 +1252,9 @@ def design_carfac(
         ihc_params = IhcJustHwrParams()
       case _:
         raise ValueError(f'Unknown IHC style: {ihc_style}')
+  if not syn_params and ihc_style == 'two_cap_with_syn':
+    syn_params = IhcSynParams(do_syn=True)
+
   # first figure out how many filter stages (PZFC/CARFAC channels):
   pole_hz = car_params.first_pole_theta * fs / (2 * math.pi)
   n_ch = 0
@@ -1098,15 +1281,28 @@ def design_carfac(
   )
   agc_coeffs = design_agc(agc_params, fs, n_ch)
   ihc_coeffs = design_ihc(ihc_params, fs, n_ch)
-
+  if syn_params:
+    syn_coeffs = design_ihc_syn(syn_params, fs, pole_freqs)
+  else:
+    syn_coeffs = None
   # Copy same designed coeffs into each ear (can do differently in the
   # future).
   ears = []
   for _ in range(n_ears):
-    ears.append(CarfacCoeffs(car_coeffs, agc_coeffs, ihc_coeffs))
+    ears.append(CarfacCoeffs(car_coeffs, agc_coeffs, ihc_coeffs, syn_coeffs))
 
-  cfp = CarfacParams(fs, max_channels_per_octave, car_params, agc_params,
-                     ihc_params, n_ch, pole_freqs, ears, n_ears)
+  cfp = CarfacParams(
+      fs,
+      max_channels_per_octave,
+      car_params,
+      agc_params,
+      ihc_params,
+      syn_params,
+      n_ch,
+      pole_freqs,
+      ears,
+      n_ears,
+  )
   return cfp
 
 
@@ -1128,7 +1324,8 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
     cfp.ears[ear].car_state = car_init_state(cfp.ears[ear].car_coeffs)
     cfp.ears[ear].ihc_state = ihc_init_state(cfp.ears[ear].ihc_coeffs)
     cfp.ears[ear].agc_state = agc_init_state(cfp.ears[ear].agc_coeffs)
-
+    if cfp.syn_params:
+      cfp.ears[ear].syn_state = syn_init_state(cfp.ears[ear].syn_coeffs)
   return cfp
 
 
@@ -1329,17 +1526,26 @@ def run_segment(
           linear=linear_car)
 
       # update IHC state & output on every time step, too
-      [ihc_out,
-       cfp.ears[ear].ihc_state] = ihc_step(car_out, cfp.ears[ear].ihc_coeffs,
-                                           cfp.ears[ear].ihc_state)
+      [ihc_out, cfp.ears[ear].ihc_state, v_recep] = ihc_step(
+          car_out, cfp.ears[ear].ihc_coeffs, cfp.ears[ear].ihc_state
+      )
+
+      if cfp.syn_params and cfp.syn_params.do_syn:
+        # We don't use the firings yet.
+        [ihc_syn_out, _, cfp.ears[ear].syn_state] = syn_step(
+            v_recep, cfp.ears[ear].syn_coeffs, cfp.ears[ear].syn_state
+        )
+        nap = ihc_syn_out
+      else:
+        nap = ihc_out
 
       # run the AGC update step, decimating internally,
-      [agc_updated,
-       cfp.ears[ear].agc_state] = agc_step(ihc_out, cfp.ears[ear].agc_coeffs,
-                                           cfp.ears[ear].agc_state)
+      [agc_updated, cfp.ears[ear].agc_state] = agc_step(
+          nap, cfp.ears[ear].agc_coeffs, cfp.ears[ear].agc_state
+      )
 
       # save some output data:
-      naps[k, :, ear] = ihc_out  # output to neural activity pattern
+      naps[k, :, ear] = nap  # output to neural activity pattern
       if do_bm:
         bm[k, :, ear] = car_out
         state = cfp.ears[ear].car_state

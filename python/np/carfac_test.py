@@ -237,16 +237,26 @@ class CarfacTest(parameterized.TestCase):
 
     cfp = carfac.design_carfac(fs=fs, ihc_style=ihc_style)
     cfp = carfac.carfac_init(cfp)
+    syn_state = None
+    if cfp.syn_params and cfp.syn_params.do_syn:
+      syn_state = cfp.ears[0].syn_state
 
     quad_sin = np.sin(omega * t) * present
     quad_cos = np.cos(omega * t) * present
     x_in = quad_sin * amplitude
     neuro_output = np.zeros(x_in.shape)
     for i in range(x_in.shape[0]):
-      [ihc_out,
-       cfp.ears[0].ihc_state] = carfac.ihc_step(x_in[i], cfp.ears[0].ihc_coeffs,
-                                                cfp.ears[0].ihc_state)
-      neuro_output[i] = ihc_out[0]
+      [ihc_out, cfp.ears[0].ihc_state, v_recep] = carfac.ihc_step(
+          x_in[i], cfp.ears[0].ihc_coeffs, cfp.ears[0].ihc_state
+      )
+      # Ignore ihc_out and use receptor potential.
+      if cfp.syn_params and cfp.syn_params.do_syn:
+        [ihc_syn_out, _, syn_state] = carfac.syn_step(
+            v_recep, cfp.ears[0].syn_coeffs, syn_state
+        )
+        neuro_output[i] = ihc_syn_out[0]
+      else:
+        neuro_output[i] = ihc_out[0]
 
     plt.figure()
     plt.clf()
@@ -268,6 +278,32 @@ class CarfacTest(parameterized.TestCase):
 
   # all test results from the matlab test.
   @parameterized.named_parameters(
+      (
+          'two_cap_with_syn_300',
+          'two_cap_with_syn',
+          300,
+          [
+              [1.055837, 184.180863],
+              [3.409906, 483.204136],
+              [6.167359, 837.629296],
+              [7.096430, 956.279101],
+              [7.103324, 927.060415],
+              [7.123434, 895.574871],
+          ],
+      ),
+      (
+          'two_cap_with_syn_3000',
+          'two_cap_with_syn',
+          3000,
+          [
+              [0.167683, 24.929044],
+              [0.620939, 74.045598],
+              [1.894064, 175.367201],
+              [3.541070, 269.322147],
+              [4.899921, 303.684269],
+              [5.572545, 278.428744],
+          ],
+      ),
       (
           'two_cap_300',
           'two_cap',
