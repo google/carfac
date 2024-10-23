@@ -7,6 +7,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import jax
 import jax.numpy as jnp
+from jax.tree_util import tree_flatten
+from jax.tree_util import tree_unflatten
 
 import sys
 sys.path.insert(0, '..')
@@ -20,6 +22,17 @@ class CarfacJaxTest(parameterized.TestCase):
     super().setUp()
     # The default tolerance used in `assertAlmostEqual` etc.
     self.default_delta = 1e-6
+
+  def test_post_init_syn_params(self):
+    # We add this test since SynDesignParameters contains a __post_init__ that
+    # we want to make sure does not interfere.
+    syn = carfac_jax.SynDesignParameters()
+    treedef, leaves = tree_flatten(syn)
+    reconstituted_syn = tree_unflatten(leaves, treedef)
+    self.assertLess(
+        jnp.max(abs(syn.healthy_n_fibers - reconstituted_syn.healthy_n_fibers)),
+        self.default_delta,
+    )
 
   def test_hypers_hash(self):
     # Tests hyperparameter objects can be hashed. This is needed by `jax.jit`
@@ -108,7 +121,7 @@ class CarfacJaxTest(parameterized.TestCase):
             msg='failed comparison on key item %s' % (k),
         )
 
-  @parameterized.parameters(['one_cap', 'two_cap'])
+  @parameterized.parameters(['one_cap', 'two_cap', 'two_cap_with_syn'])
   def test_equal_design(self, ihc_style):
     # Test: the designs are similar.
     cfp = carfac_np.design_carfac(ihc_style=ihc_style)
@@ -192,9 +205,16 @@ class CarfacJaxTest(parameterized.TestCase):
       # Ihc params very specific for one cap, only a subset is used, so for
       # now we only check these one by one. We could add tests for 2 cap
       # similarly.
-      self.assertEqual(
-          cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
-      )
+      if ihc_style == 'two_cap_with_syn':
+        # on the numpy side, we keep the IHC as two cap name.
+        self.assertEqual('two_cap', cfp.ihc_params.ihc_style)
+        self.assertEqual(
+            'two_cap_with_syn', params_jax.ears[ear_idx].ihc.ihc_style
+        )
+      else:
+        self.assertEqual(
+            cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
+        )
 
       self.assertEqual(
           cfp.ihc_params.tau_in, params_jax.ears[ear_idx].ihc.tau_in
@@ -221,6 +241,40 @@ class CarfacJaxTest(parameterized.TestCase):
           weights_jax.ears[ear_idx].car, ear_params_np.car_coeffs
       )
 
+      if ihc_style == 'two_cap_with_syn':
+        self.container_comparison(
+            weights_jax.ears[ear_idx].syn,
+            ear_params_np.syn_coeffs,
+            exclude_keys=['n_fibers', 'v_widths', 'v_halfs'],
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.n_fibers
+                    - ear_params_np.syn_coeffs.n_fibers
+                )
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.v_widths
+                    - ear_params_np.syn_coeffs.v_widths
+                )
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.v_halfs
+                    - ear_params_np.syn_coeffs.v_halfs
+                ),
+            ),
+            self.default_delta,
+        )
+
       # Test AGC parameters for each stage.
       for stage_idx, ear_agc_coeffs_np in enumerate(ear_params_np.agc_coeffs):
         logging.info('running stage idx %d', stage_idx)
@@ -245,7 +299,7 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(5)],
-      ihc_style=['one_cap', 'two_cap'],
+      ihc_style=['one_cap', 'two_cap', 'two_cap_with_syn'],
   )
   def test_chunked_naps_same_as_jit(self, random_seed, ihc_style):
     """Tests whether `run_segment` produces the same results as np version."""
@@ -289,7 +343,7 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(20)],
-      ihc_style=['one_cap', 'two_cap'],
+      ihc_style=['one_cap', 'two_cap', 'two_cap_with_syn'],
       n_ears=[1, 2],
       delay_buffer=[False, True],
   )

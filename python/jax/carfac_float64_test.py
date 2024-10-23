@@ -36,7 +36,7 @@ class CarfacJaxFloat64Test(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(20)],
-      ihc_style=['one_cap', 'two_cap'],
+      ihc_style=['one_cap', 'two_cap', 'two_cap_with_syn'],
       n_ears=[1, 2],
   )
   def test_backward_pass(self, random_seed, ihc_style, n_ears):
@@ -68,8 +68,9 @@ class CarfacJaxFloat64Test(parameterized.TestCase):
     # Computes gradients by `jax.grad`.
     gfunc = jax.grad(loss, has_aux=True)
     params_jax = carfac_jax.CarfacDesignParameters(n_ears=n_ears)
-    params_jax.ears[0].ihc.ihc_style = ihc_style
-    params_jax.ears[0].car.linear_car = False
+    for ear in range(n_ears):
+      params_jax.ears[ear].ihc.ihc_style = ihc_style
+      params_jax.ears[ear].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
         params_jax
     )
