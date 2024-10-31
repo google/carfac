@@ -2345,6 +2345,7 @@ def run_segment(
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
   [n_samp, n_ears] = input_waves.shape
+  n_fibertypes = SynDesignParameters.n_classes
 
   # TODO(honglinyu): add more assertions using checkify.
   # if n_ears != cfp.n_ears:
@@ -2354,7 +2355,7 @@ def run_segment(
 
   n_ch = hypers.ears[0].car.n_ch
   naps = jnp.zeros((n_samp, n_ch, n_ears))  # allocate space for result
-  naps_fibers = jnp.zeros((n_samp, n_ch, 3, n_ears))
+  naps_fibers = jnp.zeros((n_samp, n_ch, n_fibertypes, n_ears))
   bm = jnp.zeros((n_samp, n_ch, n_ears))
   seg_ohc = jnp.zeros((n_samp, n_ch, n_ears))
   seg_agc = jnp.zeros((n_samp, n_ch, n_ears))
@@ -2393,7 +2394,7 @@ def run_segment(
         )
         naps_fibers = naps_fibers.at[k, :, :, ear].set(firings)
       else:
-          naps_fibers = naps_fibers.at[k, :, :, ear].set(jnp.zeros([jnp.shape(ihc_out)[0], 3]))
+          naps_fibers = naps_fibers.at[k, :, :, ear].set(jnp.zeros([jnp.shape(ihc_out)[0], n_fibertypes]))
 
       # run the AGC update step, decimating internally,
       agc_updated, state.ears[ear].agc = agc_step(
