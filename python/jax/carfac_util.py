@@ -39,6 +39,7 @@ def run_multiple_segment_states_shmap(
 ) -> Sequence[
     Tuple[
         jnp.ndarray,
+        jnp.ndarray,
         carfac_jax.CarfacState,
         jnp.ndarray,
         jnp.ndarray,
@@ -88,23 +89,31 @@ def run_multiple_segment_states_shmap(
     """
     input_waves = input_waves[0]
     state = jax.tree_util.tree_map(lambda x: jnp.squeeze(x, axis=0), state)
-    naps, ret_state, bm, seg_ohc, seg_agc = carfac_jax.run_segment_jit(
-        input_waves, hypers, weights, state, open_loop
+    naps, naps_fibers, ret_state, bm, seg_ohc, seg_agc = (
+        carfac_jax.run_segment_jit(
+            input_waves, hypers, weights, state, open_loop
+        )
     )
     ret_state = jax.tree_util.tree_map(
         lambda x: jnp.asarray(x).reshape((1, -1)), ret_state
     )
     return (
         naps[None],
+        naps_fibers[None],
         ret_state,
         bm[None],
         seg_ohc[None],
         seg_agc[None],
     )
 
-  stacked_naps, stacked_states, stacked_bm, stacked_ohc, stacked_agc = (
-      parallel_helper(input_waves_array, batch_state)
-  )
+  (
+      stacked_naps,
+      stacked_naps_fibers,
+      stacked_states,
+      stacked_bm,
+      stacked_ohc,
+      stacked_agc,
+  ) = parallel_helper(input_waves_array, batch_state)
   output_states = _tree_unstack(stacked_states)
   output = []
   # TODO(robsc): Modify this for loop to a jax.lax loop, and then JIT the
@@ -112,6 +121,7 @@ def run_multiple_segment_states_shmap(
   for i, output_state in enumerate(output_states):
     tup = (
         stacked_naps[i],
+        stacked_naps_fibers[i],
         output_state,
         stacked_bm[i],
         stacked_ohc[i],
@@ -130,6 +140,7 @@ def run_multiple_segment_pmap(
     open_loop: bool = False,
 ) -> Sequence[
     Tuple[
+        jnp.ndarray,
         jnp.ndarray,
         carfac_jax.CarfacState,
         jnp.ndarray,
@@ -155,15 +166,21 @@ def run_multiple_segment_pmap(
       in_axes=(0, None, None, None, None),
       static_broadcasted_argnums=[1, 4],
   )
-  stacked_naps, stacked_states, stacked_bm, stacked_ohc, stacked_agc = pmapped(
-      input_waves_array, hypers, weights, state, open_loop
-  )
+  (
+      stacked_naps,
+      stacked_naps_fibers,
+      stacked_states,
+      stacked_bm,
+      stacked_ohc,
+      stacked_agc,
+  ) = pmapped(input_waves_array, hypers, weights, state, open_loop)
 
   output_states = _tree_unstack(stacked_states)
   output = []
   for i, output_state in enumerate(output_states):
     tup = (
         stacked_naps[i],
+        stacked_naps_fibers[i],
         output_state,
         stacked_bm[i],
         stacked_ohc[i],

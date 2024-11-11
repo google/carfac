@@ -179,7 +179,7 @@ def bench_jax_grad(state: google_benchmark.State):
       weights: carfac_jax.CarfacWeights,
       state: carfac_jax.CarfacState,
   ):
-    nap_output, _, _, _, _ = carfac_jax.run_segment(
+    nap_output, _, _, _, _, _ = carfac_jax.run_segment(
         audio, hypers, weights, state
     )
     return jnp.sum(nap_output), nap_output
@@ -242,7 +242,7 @@ def bench_jit_compile_time(state: google_benchmark.State):
     # that this benchmark is appropriate.
     n_samp += 1
     state.resume_timing()
-    naps_jax, state_jax, _, _, _ = carfac_jax.run_segment_jit(
+    naps_jax, _, state_jax, _, _, _ = carfac_jax.run_segment_jit(
         run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
     naps_jax.block_until_ready()
@@ -295,7 +295,7 @@ def bench_jax_in_slices(state: google_benchmark.State):
   for _, segment in enumerate(silence_slices):
     if segment.shape not in compiled_shapes:
       compiled_shapes.add(segment.shape)
-      naps_jax, _, _, _, _ = carfac_jax.run_segment_jit(
+      naps_jax, _, _, _, _, _ = carfac_jax.run_segment_jit(
           segment, hypers_jax, weights_jax, state_jax, open_loop=False
       )
       naps_jax.block_until_ready()
@@ -316,7 +316,7 @@ def bench_jax_in_slices(state: google_benchmark.State):
     jax_loop_state = state_jax
     state.resume_timing()
     for _, segment in enumerate(run_seg_slices):
-      seg_naps, jax_loop_state, seg_bm, seg_ohc, seg_agc = (
+      seg_naps, _, jax_loop_state, seg_bm, seg_ohc, seg_agc = (
           carfac_jax.run_segment_jit(
               segment, hypers_jax, weights_jax, jax_loop_state, open_loop=False
           )
@@ -389,7 +389,7 @@ def bench_jax(state: google_benchmark.State):
       params_jax
   )
   short_silence = jnp.zeros(shape=(n_samp, n_ears))
-  naps_jax, state_jax, _, _, _ = run_segment_function(
+  naps_jax, _, state_jax, _, _, _ = run_segment_function(
       short_silence, hypers_jax, weights_jax, state_jax, open_loop=False
   )
   # This block ensures calculation.
@@ -404,7 +404,7 @@ def bench_jax(state: google_benchmark.State):
         jax.random.normal(random_generator, (n_samp, n_ears)) * _NOISE_FACTOR
     ).block_until_ready()
     state.resume_timing()
-    naps_jax, state_jax, _, _, _ = run_segment_function(
+    naps_jax, _, state_jax, _, _, _ = run_segment_function(
         run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
     if state.range(0) != 1:

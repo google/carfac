@@ -2301,7 +2301,9 @@ def run_segment(
     weights: CarfacWeights,
     state: CarfacState,
     open_loop: bool = False,
-) -> Tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """This function runs the entire CARFAC model.
 
   That is, filters a 1 or more channel
@@ -2335,6 +2337,8 @@ def run_segment(
 
   Returns:
     naps: neural activity pattern
+    naps_fibers: neural activity of different fibers
+        (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
     seg_ohc & seg_agc are optional extra outputs useful for seeing what the
@@ -2343,6 +2347,7 @@ def run_segment(
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
   [n_samp, n_ears] = input_waves.shape
+  n_fibertypes = SynDesignParameters.n_classes
 
   # TODO(honglinyu): add more assertions using checkify.
   # if n_ears != cfp.n_ears:
@@ -2352,6 +2357,7 @@ def run_segment(
 
   n_ch = hypers.ears[0].car.n_ch
   naps = jnp.zeros((n_samp, n_ch, n_ears))  # allocate space for result
+  naps_fibers = jnp.zeros((n_samp, n_ch, n_fibertypes, n_ears))
   bm = jnp.zeros((n_samp, n_ch, n_ears))
   seg_ohc = jnp.zeros((n_samp, n_ch, n_ears))
   seg_agc = jnp.zeros((n_samp, n_ch, n_ears))
@@ -2370,7 +2376,7 @@ def run_segment(
   # Note that we can use naive for loops here because it will make gradient
   # computation very slow.
   def run_segment_scan_helper(carry, k):
-    naps, state, bm, seg_ohc, seg_agc, input_waves = carry
+    naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves = carry
     agc_updated = False
     for ear in range(n_ears):
       # This would be cleaner if we could just get and use a reference to
@@ -2385,8 +2391,13 @@ def run_segment(
       )
 
       if hypers.ears[ear].syn.do_syn:
-        ihc_out, _, state.ears[ear].syn = syn_step(
+        ihc_out, firings, state.ears[ear].syn = syn_step(
             v_recep, ear, weights, state.ears[ear].syn
+        )
+        naps_fibers = naps_fibers.at[k, :, :, ear].set(firings)
+      else:
+        naps_fibers = naps_fibers.at[k, :, :, ear].set(
+            jnp.zeros([jnp.shape(ihc_out)[0], n_fibertypes])
         )
 
       # run the AGC update step, decimating internally,
@@ -2420,11 +2431,11 @@ def run_segment(
         state,
     )
 
-    return (naps, state, bm, seg_ohc, seg_agc, input_waves), None
+    return (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves), None
 
   return jax.lax.scan(
       run_segment_scan_helper,
-      (naps, state, bm, seg_ohc, seg_agc, input_waves),
+      (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves),
       jnp.arange(n_samp),
   )[0][:-1]
 
@@ -2442,7 +2453,9 @@ def run_segment_jit(
     weights: CarfacWeights,
     state: CarfacState,
     open_loop: bool = False,
-) -> Tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """A JITted version of run_segment for convenience.
 
   Care should be taken with the hyper parameters in hypers. If the hypers object
@@ -2468,6 +2481,8 @@ def run_segment_jit(
 
   Returns:
     naps: neural activity pattern
+    naps_fibers: neural activity of the different fiber types
+        (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
     seg_ohc & seg_agc are optional extra outputs useful for seeing what the
@@ -2483,7 +2498,9 @@ def run_segment_jit_in_chunks_notraceable(
     state: CarfacState,
     open_loop: bool = False,
     segment_chunk_length: int = 32 * 48000,
-) -> tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """Runs the jitted segment runner in segment groups.
 
   Running CARFAC on an audio segment this way is most useful when running
@@ -2526,6 +2543,7 @@ def run_segment_jit_in_chunks_notraceable(
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
   naps_out = []
+  naps_fibers_out = []
   bm_out = []
   ohc_out = []
   agc_out = []
@@ -2534,10 +2552,11 @@ def run_segment_jit_in_chunks_notraceable(
     [n_samp, _] = input_waves.shape
     if n_samp >= segment_length:
       [current_waves, input_waves] = jnp.split(input_waves, [segment_length], 0)
-      naps_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = run_segment_jit(
-          current_waves, hypers, weights, state, open_loop
+      naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+          run_segment_jit(current_waves, hypers, weights, state, open_loop)
       )
       naps_out.append(naps_jax)
+      naps_fibers_out.append(naps_fibers_jax)
       bm_out.append(bm_jax)
       ohc_out.append(seg_ohc_jax)
       agc_out.append(seg_agc_jax)
@@ -2546,15 +2565,17 @@ def run_segment_jit_in_chunks_notraceable(
   [n_samp, _] = input_waves.shape
   # Take the last few items and just run them.
   if n_samp > 0:
-    naps_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = run_segment_jit(
-        input_waves, hypers, weights, state, open_loop
+    naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+        run_segment_jit(input_waves, hypers, weights, state, open_loop)
     )
     naps_out.append(naps_jax)
+    naps_fibers_out.append(naps_fibers_jax)
     bm_out.append(bm_jax)
     ohc_out.append(seg_ohc_jax)
     agc_out.append(seg_agc_jax)
   naps_out = np.concatenate(naps_out, 0)
+  naps_fibers_out = np.concatenate(naps_fibers_out, 0)
   bm_out = np.concatenate(bm_out, 0)
   ohc_out = np.concatenate(ohc_out, 0)
   agc_out = np.concatenate(agc_out, 0)
-  return naps_out, state, bm_out, ohc_out, agc_out
+  return naps_out, naps_fibers_out, state, bm_out, ohc_out, agc_out
