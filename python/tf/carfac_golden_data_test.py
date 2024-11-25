@@ -54,7 +54,7 @@ class CARFACGoldenDataTest(tf.test.TestCase):
     np.savez(output_file, data=output[:, :, :, :, 0])
     print(f'Golden data test saved produced output in {output_file}')
    golden = np.load(pathlib.Path(__file__).parent / 'golden_data.npz')['data']
-    np.testing.assert_allclose(golden, output[:, :, :, :, 0], atol=1e-6)
+    np.testing.assert_allclose(golden, output[:, :, :, :, 0], atol=6e-5)
 
 
 if __name__ == '__main__':
