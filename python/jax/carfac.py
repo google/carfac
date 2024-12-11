@@ -2534,7 +2534,7 @@ def run_segment_jit_in_chunks_notraceable(
     RuntimeError: If this function is being JITTed, which it should not be.
   """
   # We add a check for tracer, until a superior fix is fixed. Tracked in
-  # https://github.com/google/jax/issues/18544 .
+  # https://github.com/jax-ml/jax/issues/18544 .
   if isinstance(input_waves, jax.core.Tracer) or isinstance(
       weights, jax.core.Tracer
   ):
