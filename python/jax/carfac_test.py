@@ -324,7 +324,7 @@ class CarfacJaxTest(parameterized.TestCase):
     state_jax_copied = copy.deepcopy(state_jax)
 
     # Only tests the JITted version because this is what we will use.
-    naps_jax, _, _, bm_jax, ohc_jax, agc_jax = (
+    naps_jax, _, _, _, bm_jax, ohc_jax, agc_jax, agc_memory_jax = (
         carfac_jax.run_segment_jit(
             run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
         )
@@ -333,9 +333,11 @@ class CarfacJaxTest(parameterized.TestCase):
         naps_jax_chunked,
         _,
         _,
+        _,
         bm_chunked,
         ohc_chunked,
         agc_chunked,
+        agc_memory_chunked,
     ) = carfac_jax.run_segment_jit_in_chunks_notraceable(
         run_seg_input,
         hypers_jax,
@@ -387,7 +389,7 @@ class CarfacJaxTest(parameterized.TestCase):
     run_seg_input = jax.random.normal(random_generator, (n_samp, n_ears))
 
     # Only tests the JITted version because this is what we will use.
-    naps_jax, _, state_jax, bm_jax, seg_ohc_jax, seg_agc_jax = (
+    naps_jax, _, _, state_jax, bm_jax, seg_ohc_jax, seg_agc_jax, seg_agc_memory_jax, = (
         carfac_jax.run_segment_jit(
             run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
         )
