@@ -46,7 +46,7 @@ class CarfacJaxFloat64Test(parameterized.TestCase):
       # A loss function for tests. Note that we shouldn't use `run_segment_jit`
       # here because it will donate the `state` which causes unnecessary
       # inconvenience for tests.
-      naps_jax, _, state_jax, _, _, _ = carfac_jax.run_segment(
+      naps_jax, _, _, state_jax, _, _, _, _= carfac_jax.run_segment(
           input_waves, hypers, weights, state, open_loop=False
       )
       # For testing, just fit `naps` to 1.
