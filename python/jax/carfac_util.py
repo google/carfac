@@ -40,9 +40,7 @@ def run_multiple_segment_states_shmap(
     Tuple[
         jnp.ndarray,
         jnp.ndarray,
-        jnp.ndarray,
         carfac_jax.CarfacState,
-        jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
@@ -91,7 +89,7 @@ def run_multiple_segment_states_shmap(
     """
     input_waves = input_waves[0]
     state = jax.tree_util.tree_map(lambda x: jnp.squeeze(x, axis=0), state)
-    naps, naps_fibers, receptor_pot, ret_state, bm, seg_ohc, seg_agc, seg_agc_memory = (
+    naps, naps_fibers, ret_state, bm, seg_ohc, seg_agc = (
         carfac_jax.run_segment_jit(
             input_waves, hypers, weights, state, open_loop
         )
@@ -102,23 +100,19 @@ def run_multiple_segment_states_shmap(
     return (
         naps[None],
         naps_fibers[None],
-        receptor_pot[None],
         ret_state,
         bm[None],
         seg_ohc[None],
         seg_agc[None],
-        seg_agc_memory[None],
     )
 
   (
       stacked_naps,
       stacked_naps_fibers,
-      stacked_receptor_pot,
       stacked_states,
       stacked_bm,
       stacked_ohc,
       stacked_agc,
-      stacked_agc_memory,
   ) = parallel_helper(input_waves_array, batch_state)
   output_states = _tree_unstack(stacked_states)
   output = []
@@ -128,12 +122,10 @@ def run_multiple_segment_states_shmap(
     tup = (
         stacked_naps[i],
         stacked_naps_fibers[i],
-        stacked_receptor_pot[i],
         output_state,
         stacked_bm[i],
         stacked_ohc[i],
         stacked_agc[i],
-        stacked_agc_memory[i],
     )
     output.append(tup)
   return output
@@ -150,9 +142,7 @@ def run_multiple_segment_pmap(
     Tuple[
         jnp.ndarray,
         jnp.ndarray,
-        jnp.ndarray,
         carfac_jax.CarfacState,
-        jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
@@ -179,12 +169,10 @@ def run_multiple_segment_pmap(
   (
       stacked_naps,
       stacked_naps_fibers,
-      stacked_receptor_pot,
       stacked_states,
       stacked_bm,
       stacked_ohc,
       stacked_agc,
-      stacked_agc_memory,
   ) = pmapped(input_waves_array, hypers, weights, state, open_loop)
 
   output_states = _tree_unstack(stacked_states)
@@ -193,12 +181,10 @@ def run_multiple_segment_pmap(
     tup = (
         stacked_naps[i],
         stacked_naps_fibers[i],
-        stacked_receptor_pot[i],
         output_state,
         stacked_bm[i],
         stacked_ohc[i],
         stacked_agc[i],
-        stacked_agc_memory[i],
     )
     output.append(tup)
   return output
