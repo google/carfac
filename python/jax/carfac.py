@@ -2499,7 +2499,6 @@ def run_segment_jit(
     seg_ohc & seg_agc are optional extra outputs useful for seeing what the
       ohc nonlinearity and agc are doing; both in terms of extra damping.
     seg_agc_memory is an optional extra that gives the actual agc activity.
-
   """
   return run_segment(input_waves, hypers, weights, state, open_loop)
 
