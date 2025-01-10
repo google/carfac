@@ -44,6 +44,8 @@ def run_multiple_segment_states_shmap(
         jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
+        jnp.ndarray,
+        jnp.ndarray,
     ]
 ]:
   """Run multiple equal-length, segments in carfac, Jitted, in parallel.
@@ -89,7 +91,7 @@ def run_multiple_segment_states_shmap(
     """
     input_waves = input_waves[0]
     state = jax.tree_util.tree_map(lambda x: jnp.squeeze(x, axis=0), state)
-    naps, naps_fibers, ret_state, bm, seg_ohc, seg_agc = (
+    naps, naps_fibers, ret_state, bm, receptor_pot, seg_ohc, seg_agc = (
         carfac_jax.run_segment_jit(
             input_waves, hypers, weights, state, open_loop
         )
@@ -102,6 +104,7 @@ def run_multiple_segment_states_shmap(
         naps_fibers[None],
         ret_state,
         bm[None],
+        receptor_pot[None],
         seg_ohc[None],
         seg_agc[None],
     )
@@ -111,6 +114,7 @@ def run_multiple_segment_states_shmap(
       stacked_naps_fibers,
       stacked_states,
       stacked_bm,
+      stacked_receptor_pot,
       stacked_ohc,
       stacked_agc,
   ) = parallel_helper(input_waves_array, batch_state)
@@ -124,6 +128,7 @@ def run_multiple_segment_states_shmap(
         stacked_naps_fibers[i],
         output_state,
         stacked_bm[i],
+        stacked_receptor_pot[i],
         stacked_ohc[i],
         stacked_agc[i],
     )
@@ -143,6 +148,7 @@ def run_multiple_segment_pmap(
         jnp.ndarray,
         jnp.ndarray,
         carfac_jax.CarfacState,
+        jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
         jnp.ndarray,
@@ -171,6 +177,7 @@ def run_multiple_segment_pmap(
       stacked_naps_fibers,
       stacked_states,
       stacked_bm,
+      stacked_receptor_pot,
       stacked_ohc,
       stacked_agc,
   ) = pmapped(input_waves_array, hypers, weights, state, open_loop)
@@ -183,6 +190,7 @@ def run_multiple_segment_pmap(
         stacked_naps_fibers[i],
         output_state,
         stacked_bm[i],
+        stacked_receptor_pot[i],
         stacked_ohc[i],
         stacked_agc[i],
     )

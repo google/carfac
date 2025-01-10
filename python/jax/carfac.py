@@ -2302,7 +2302,7 @@ def run_segment(
     state: CarfacState,
     open_loop: bool = False,
 ) -> Tuple[
-    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray,
 ]:
   """This function runs the entire CARFAC model.
 
@@ -2341,8 +2341,9 @@ def run_segment(
         (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
-    seg_ohc & seg_agc are optional extra outputs useful for seeing what the
-      ohc nonlinearity and agc are doing; both in terms of extra damping.
+    receptor_pot: receptor potential of ihc (optional extra)
+    seg_ohc: za_memory parameter to observe ohc nonlinearity (optional extra)
+    seg_agc:  agc output (stage 1) parameter to observe agc activity (optional extra)
   """
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
@@ -2356,9 +2357,11 @@ def run_segment(
   #       (n_ears, cfp.n_ears))
 
   n_ch = hypers.ears[0].car.n_ch
+  n_agc_stages = jnp.shape(state.ears[0].agc)[0]
   naps = jnp.zeros((n_samp, n_ch, n_ears))  # allocate space for result
   naps_fibers = jnp.zeros((n_samp, n_ch, n_fibertypes, n_ears))
   bm = jnp.zeros((n_samp, n_ch, n_ears))
+  receptor_pot = jnp.zeros((n_samp, n_ch, n_ears))
   seg_ohc = jnp.zeros((n_samp, n_ch, n_ears))
   seg_agc = jnp.zeros((n_samp, n_ch, n_ears))
 
@@ -2376,7 +2379,7 @@ def run_segment(
   # Note that we can use naive for loops here because it will make gradient
   # computation very slow.
   def run_segment_scan_helper(carry, k):
-    naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves = carry
+    naps, naps_fibers, state, bm, receptor_pot, seg_ohc, seg_agc, input_waves = carry
     agc_updated = False
     for ear in range(n_ears):
       # This would be cleaner if we could just get and use a reference to
@@ -2406,10 +2409,11 @@ def run_segment(
       )
       # save some output data:
       naps = naps.at[k, :, ear].set(ihc_out)
+      receptor_pot = receptor_pot.at[k, :, ear].set(v_recep)
       bm = bm.at[k, :, ear].set(car_out)
       car_state = state.ears[ear].car
       seg_ohc = seg_ohc.at[k, :, ear].set(car_state.za_memory)
-      seg_agc = seg_agc.at[k, :, ear].set(car_state.zb_memory)
+      seg_agc = seg_agc.at[k, :, ear].set(state.ears[ear].agc[0].agc_memory)
 
     def close_agc_loop_helper(
         hypers: CarfacHypers, weights: CarfacWeights, state: CarfacState
@@ -2431,11 +2435,11 @@ def run_segment(
         state,
     )
 
-    return (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves), None
+    return (naps, naps_fibers, state, bm, receptor_pot, seg_ohc, seg_agc, input_waves), None
 
   return jax.lax.scan(
       run_segment_scan_helper,
-      (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves),
+      (naps, naps_fibers, state, bm, receptor_pot, seg_ohc, seg_agc, input_waves),
       jnp.arange(n_samp),
   )[0][:-1]
 
@@ -2454,7 +2458,7 @@ def run_segment_jit(
     state: CarfacState,
     open_loop: bool = False,
 ) -> Tuple[
-    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray,
 ]:
   """A JITted version of run_segment for convenience.
 
@@ -2463,11 +2467,11 @@ def run_segment_jit(
   way to account for this is to always make a deep copy of the hypers and modify
   those. Example usage if modifying the hypers (which most users should not):
 
-  naps, _, _, _, _ = run_segment_jit(input, hypers, weights, state)
+  naps, _, _, _, _, _, _, _ = run_segment_jit(input, hypers, weights, state)
 
   hypers_copy = copy.deepcopy(hypers)
   hypers_jax2.ears[0].car.r1_coeffs /= 2.0
-  naps, _, _, _, _ = run_segment_jit(input, hypers_copy, weights, state)
+  naps, _, _, _, _, _, _, _ = run_segment_jit(input, hypers_copy, weights, state)
 
   If no modifications to the CarfacHypers are made, the same hypers object
   should be reused.
@@ -2485,9 +2489,10 @@ def run_segment_jit(
         (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
-    seg_ohc & seg_agc are optional extra outputs useful for seeing what the
-      ohc nonlinearity and agc are doing; both in terms of extra damping.
-  """
+    receptor_pot: receptor potential of ihc (optional extra)
+    seg_ohc: za_memory parameter to observe ohc nonlinearity (optional extra)
+    seg_agc:  agc output (stage 1) parameter to observe agc activity (optional extra)
+\  """
   return run_segment(input_waves, hypers, weights, state, open_loop)
 
 
@@ -2499,7 +2504,7 @@ def run_segment_jit_in_chunks_notraceable(
     open_loop: bool = False,
     segment_chunk_length: int = 32 * 48000,
 ) -> tuple[
-    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray,
 ]:
   """Runs the jitted segment runner in segment groups.
 
@@ -2524,11 +2529,14 @@ def run_segment_jit_in_chunks_notraceable(
       largest chunk.
 
   Returns:
-    naps: Neural activity pattern as a numpy array.
+    naps_out: Neural activity pattern as a numpy array.
+    naps_fibers_out: neural activity of the different fiber types
+        (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: The updated state of the CARFAC model.
-    BM: The basilar membrane motion as a numpy array.
-    seg_ohc & seg_agc are optional extra outputs useful for seeing what the
-      ohc nonlinearity and agc are doing; both in terms of extra damping.
+    bm_out: The basilar membrane motion as a numpy array.
+    v_recep_out: receptor potential of ihc (optional extra)
+    ohc_out za_memory parameter to observe ohc nonlinearity (optional extra)
+    agc_out: agc output (stage 1) to observe agc activity (optional extra)
 
   Raises:
     RuntimeError: If this function is being JITTed, which it should not be.
@@ -2545,19 +2553,22 @@ def run_segment_jit_in_chunks_notraceable(
   naps_out = []
   naps_fibers_out = []
   bm_out = []
+  v_recep_out = []
   ohc_out = []
   agc_out = []
+  agc_memory_out = []
   # NOMUTANTS -- This is a performance optimization.
   while segment_length > 16:
     [n_samp, _] = input_waves.shape
     if n_samp >= segment_length:
       [current_waves, input_waves] = jnp.split(input_waves, [segment_length], 0)
-      naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+      naps_jax, naps_fibers_jax, state, bm_jax, receptor_pot_jax, seg_ohc_jax, seg_agc_jax, = (
           run_segment_jit(current_waves, hypers, weights, state, open_loop)
       )
       naps_out.append(naps_jax)
       naps_fibers_out.append(naps_fibers_jax)
       bm_out.append(bm_jax)
+      v_recep_out.append(receptor_pot_jax)
       ohc_out.append(seg_ohc_jax)
       agc_out.append(seg_agc_jax)
     else:
@@ -2565,17 +2576,19 @@ def run_segment_jit_in_chunks_notraceable(
   [n_samp, _] = input_waves.shape
   # Take the last few items and just run them.
   if n_samp > 0:
-    naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+    naps_jax, naps_fibers_jax, state, bm_jax, receptor_pot_jax, seg_ohc_jax, seg_agc_jax, = (
         run_segment_jit(input_waves, hypers, weights, state, open_loop)
     )
     naps_out.append(naps_jax)
     naps_fibers_out.append(naps_fibers_jax)
+    v_recep_out.append(receptor_pot_jax)
     bm_out.append(bm_jax)
     ohc_out.append(seg_ohc_jax)
     agc_out.append(seg_agc_jax)
   naps_out = np.concatenate(naps_out, 0)
   naps_fibers_out = np.concatenate(naps_fibers_out, 0)
   bm_out = np.concatenate(bm_out, 0)
+  v_recep_out = np.concatenate(v_recep_out, 0)
   ohc_out = np.concatenate(ohc_out, 0)
   agc_out = np.concatenate(agc_out, 0)
-  return naps_out, naps_fibers_out, state, bm_out, ohc_out, agc_out
+  return naps_out, naps_fibers_out, state, bm_out, v_recep_out, ohc_out, agc_out,
