@@ -59,7 +59,7 @@ class CarfacUtilTest(absltest.TestCase):
         ],
         axis=0,
     )
-    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, receptor_pot_a, ohc_out_a, agc_out_a, agc_memory_out_a = (
+    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, receptor_pot_a, ohc_out_a, agc_out_a = (
         carfac.run_segment_jit(
             self.sample_a,
             self.hypers,
@@ -68,7 +68,7 @@ class CarfacUtilTest(absltest.TestCase):
             self.open_loop,
         )
     )
-    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, receptor_pot_b, ohc_out_b, agc_out_b, agc_memory_out_b = (
+    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, receptor_pot_b, ohc_out_b, agc_out_b = (
         carfac.run_segment_jit(
             self.sample_b,
             self.hypers,
@@ -96,8 +96,6 @@ class CarfacUtilTest(absltest.TestCase):
     self.assertTrue((combined_output[1][5] == ohc_out_b).all())
     self.assertTrue((combined_output[0][6] == agc_out_a).all())
     self.assertTrue((combined_output[1][6] == agc_out_b).all())
-    self.assertTrue((combined_output[0][7] == agc_memory_out_a).all())
-    self.assertTrue((combined_output[1][7] == agc_memory_out_b).all())
     self.assertTrue(
         jax.tree_util.tree_all(
             jax.tree.map(jnp.allclose, state_out_a, combined_output[0][2])
@@ -118,7 +116,7 @@ class CarfacUtilTest(absltest.TestCase):
         axis=0,
     )
 
-    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, receptor_pot_a,, ohc_out_a, agc_out_a, agc_memory_out_a, = (
+    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, receptor_pot_a, ohc_out_a, agc_out_a, = (
         carfac.run_segment_jit(
             self.sample_a,
             self.hypers,
@@ -138,7 +136,7 @@ class CarfacUtilTest(absltest.TestCase):
         self.open_loop,
     )
 
-    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, receptor_pot_b, ohc_out_b, agc_out_b, agc_memory_out_b, = (
+    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, receptor_pot_b, ohc_out_b, agc_out_b, = (
         carfac.run_segment_jit(
             self.sample_b,
             self.hypers,
@@ -166,8 +164,6 @@ class CarfacUtilTest(absltest.TestCase):
     self.assertTrue((combined_output[1][5] == ohc_out_b).all())
     self.assertTrue((combined_output[0][6] == agc_out_a).all())
     self.assertTrue((combined_output[1][6] == agc_out_b).all())
-    self.assertTrue((combined_output[0][6] == agc_memory_out_a).all())
-    self.assertTrue((combined_output[1][6] == agc_memory_out_b).all())
 
     self.assertTrue(
         jax.tree_util.tree_all(
