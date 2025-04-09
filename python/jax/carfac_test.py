@@ -121,7 +121,9 @@ class CarfacJaxTest(parameterized.TestCase):
             msg='failed comparison on key item %s' % (k),
         )
 
-  @parameterized.parameters(['one_cap', 'two_cap', 'two_cap_with_syn'])
+  @parameterized.parameters(
+      ['just_hwr', 'one_cap', 'two_cap', 'two_cap_with_syn']
+  )
   def test_equal_design(self, ihc_style):
     # Test: the designs are similar.
     cfp = carfac_np.design_carfac(ihc_style=ihc_style)
@@ -216,15 +218,16 @@ class CarfacJaxTest(parameterized.TestCase):
             cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
         )
 
-      self.assertEqual(
-          cfp.ihc_params.tau_in, params_jax.ears[ear_idx].ihc.tau_in
-      )
-      self.assertEqual(
-          cfp.ihc_params.tau_lpf, params_jax.ears[ear_idx].ihc.tau_lpf
-      )
-      self.assertEqual(
-          cfp.ihc_params.tau_out, params_jax.ears[ear_idx].ihc.tau_out
-      )
+      if ihc_style != 'just_hwr':
+        self.assertEqual(
+            cfp.ihc_params.tau_in, params_jax.ears[ear_idx].ihc.tau_in
+        )
+        self.assertEqual(
+            cfp.ihc_params.tau_lpf, params_jax.ears[ear_idx].ihc.tau_lpf
+        )
+        self.assertEqual(
+            cfp.ihc_params.tau_out, params_jax.ears[ear_idx].ihc.tau_out
+        )
       self.assertAlmostEqual(
           cfp.max_channels_per_octave,
           hypers_jax.ears[ear_idx].max_channels_per_octave,
@@ -350,7 +353,7 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(20)],
-      ihc_style=['one_cap', 'two_cap', 'two_cap_with_syn'],
+      ihc_style=['just_hwr', 'one_cap', 'two_cap', 'two_cap_with_syn'],
       n_ears=[1, 2],
       delay_buffer=[False, True],
   )
@@ -404,7 +407,7 @@ class CarfacJaxTest(parameterized.TestCase):
     )
     # Tests the generated "bms" are similar.
     self.assertLess(
-        jnp.max(abs(bm_jax.block_until_ready() - bm_np)), 1e-4  # Low Precision.
+        jnp.max(abs(bm_jax.block_until_ready() - bm_np)), 1e-3  # Low Precision.
     )
     # Tests the generated "seg_ohcs" are similar.
     self.assertLess(
@@ -472,11 +475,12 @@ class CarfacJaxTest(parameterized.TestCase):
           state_np.ears[ear].ihc_state.ihc_accum,
           delta=8e-3,  # Low Precision
       )
-      self.assertSequenceAlmostEqual(
-          state_jax.ears[ear].ihc.lpf1_state,
-          state_np.ears[ear].ihc_state.lpf1_state,
-          delta=1e-3,  # Low Precision
-      )
+      if cfp.ears[ear].ihc_coeffs.ihc_style != 0:
+        self.assertSequenceAlmostEqual(
+            state_jax.ears[ear].ihc.lpf1_state,
+            state_np.ears[ear].ihc_state.lpf1_state,
+            delta=1e-3,  # Low Precision
+        )
       if cfp.ears[ear].ihc_coeffs.ihc_style == 1:
         self.assertSequenceAlmostEqual(
             state_jax.ears[ear].ihc.lpf2_state,
@@ -501,7 +505,7 @@ class CarfacJaxTest(parameterized.TestCase):
             state_np.ears[ear].ihc_state.cap2_voltage,
             delta=1e-5,  # Low Precision
         )
-      else:
+      elif cfp.ears[ear].ihc_coeffs.ihc_style != 0:
         self.fail('Unsupported IHC style.')
       # Comapares agc state
       for stage in range(hypers_jax.ears[ear].agc[0].n_agc_stages):

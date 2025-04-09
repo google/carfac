@@ -741,7 +741,7 @@ def ihc_step(
   """
   v_recep = np.zeros(ihc_coeffs.n_ch)
   if ihc_coeffs.ihc_style == 0:
-    ihc_out = np.min(2, np.max(0, bm_out))
+    ihc_out = np.minimum(2, np.maximum(0, bm_out))
     #  limit it for stability
   else:
     conductance = ihc_detect(bm_out)  # rectifying nonlinearity

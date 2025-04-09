@@ -1967,7 +1967,7 @@ def ihc_step(
   ihc_hypers = hypers.ears[ear].ihc
   v_recep = jnp.zeros(hypers.ears[ear].car.n_ch)
   if ihc_hypers.ihc_style == 0:
-    ihc_out = jnp.minimum(2, jnp.maximum(0, bm_out))  # pytype: disable=wrong-arg-types  # jnp-type
+    ihc_out = jnp.minimum(2, jnp.maximum(0, bm_out))
     #  limit it for stability
   else:
     conductance = ihc_detect(bm_out)  # rectifying nonlinearity
