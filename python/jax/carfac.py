@@ -121,7 +121,7 @@ class CarDesignParameters:
   erb_break_freq: float = 165.3  # Greenwood map's break freq.
   erb_q: float = 1000 / (24.7 * 4.37)  # Glasberg and Moore's high-cf ratio
   use_delay_buffer: bool = False
-  linear_car: bool = True
+  linear_car: bool = False
   ac_corner_hz: float = 20  # AC couple at 20 Hz corner
 
   # The following 2 functions are boiler code required by pytree.
