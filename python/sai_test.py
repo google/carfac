@@ -19,8 +19,9 @@
 
 """Tests for carfac.python.sai."""
 
-import os
+import functools
 import pathlib
+import tempfile
 import unittest
 
 import numpy as np
@@ -37,8 +38,15 @@ def LoadMatrix(filename, rows, columns):
   return matrix
 
 
+@functools.lru_cache(maxsize=None)
+def _TestOutputDir() -> pathlib.Path:
+  directory = pathlib.Path(tempfile.mkdtemp(prefix="carfac"))
+  print(f"Created temporary directory for test output: {directory}")
+  return directory
+
+
 def WriteMatrix(filename, matrix):
-  np.savetxt(os.path.join(_TEST_DATA_DIR, filename), matrix, fmt="%0.12f")
+  np.savetxt(_TestOutputDir().joinpath(filename), matrix, fmt="%0.12f")
 
 
 def CreatePulseTrain(num_channels, num_samples, period, leading_zeros=0):
