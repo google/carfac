@@ -20,18 +20,19 @@
 """Tests for carfac.python.sai."""
 
 import os
+import pathlib
 import unittest
 
 import numpy as np
 
 import sai as pysai
 
-_TEST_DATA_DIR = "../test_data"
+_TEST_DATA_DIR = pathlib.Path("../test_data")
 
 
 def LoadMatrix(filename, rows, columns):
   """Reads a matrix with shape (rows, columns) matrix from a text file."""
-  matrix = np.loadtxt(os.path.join(_TEST_DATA_DIR, filename))
+  matrix = np.loadtxt(_TEST_DATA_DIR.joinpath(filename))
   assert matrix.shape == (rows, columns)
   return matrix
 
