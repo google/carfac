@@ -22,10 +22,13 @@
 
 import pathlib
 import tempfile
+
 import numpy as np
 import tensorflow as tf
 
 from . import carfac
+
+_TF_DIR = pathlib.Path(__file__).parent
 
 
 class CARFACGoldenDataTest(tf.test.TestCase):
@@ -53,7 +56,8 @@ class CARFACGoldenDataTest(tf.test.TestCase):
                    'tf_carfac_golden_data_output.npz')
     np.savez(output_file, data=output[:, :, :, :, 0])
     print(f'Golden data test saved produced output in {output_file}')
-   golden = np.load(pathlib.Path(__file__).parent / 'golden_data.npz')['data']
+
+    golden = np.load(_TF_DIR / 'golden_data.npz')['data']
     np.testing.assert_allclose(golden, output[:, :, :, :, 0], atol=6e-5)
 
 
