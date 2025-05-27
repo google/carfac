@@ -18,10 +18,10 @@
 """Test utilities for Python CARFAC."""
 
 
-from typing import Callable
-import numpy as np
-
 import pathlib
+from typing import Callable
+
+import numpy as np
 
 
 def _read_test_file(full_name: str) -> np.ndarray:
