@@ -18,10 +18,10 @@
 """Test utilities for Python CARFAC."""
 
 
-from typing import Callable
-import numpy as np
-
 import pathlib
+from typing import Callable
+
+import numpy as np
 
 
 def _read_test_file(full_name: str) -> np.ndarray:
@@ -32,9 +32,9 @@ def _read_test_file(full_name: str) -> np.ndarray:
   Returns:
     The content of the file as an np.ndarray.
   """
-with open(pathlib.Path(__file__).parent /
-          '..' / 'test_data' / full_name) as f:
-  data = f.read()
+  with open(pathlib.Path(__file__).parent /
+            '..' / 'test_data' / full_name) as f:
+    data = f.read()
   res = []
   for row in data.decode('utf-8').split('\n'):
     if not row.strip():
@@ -75,4 +75,3 @@ def assert_matlab_compatibility(test_name: str,
   np.testing.assert_allclose(output[:, 0, :, 1], nap1, rtol=rtol, atol=atol)
   np.testing.assert_allclose(output[:, 1, :, 0], bm2, rtol=rtol, atol=atol)
   np.testing.assert_allclose(output[:, 1, :, 1], nap2, rtol=rtol, atol=atol)
-
