@@ -14,10 +14,8 @@ import jax
 import jax.flatten_util
 import jax.numpy as jnp
 
-import sys
-sys.path.insert(0, '.')
-import carfac as carfac_jax
-import utils
+from carfac.jax import carfac as carfac_jax
+from carfac.jax import utils
 
 
 class CarfacJaxFloat64Test(parameterized.TestCase):

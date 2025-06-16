@@ -10,11 +10,8 @@ import jax.numpy as jnp
 from jax.tree_util import tree_flatten
 from jax.tree_util import tree_unflatten
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac_jax
-import np.carfac as carfac_np
+from carfac.jax import carfac as carfac_jax
+from carfac.np import carfac as carfac_np
 
 
 class CarfacJaxTest(parameterized.TestCase):

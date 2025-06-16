@@ -3,9 +3,7 @@ import jax
 import jax.flatten_util
 import jax.numpy as jnp
 
-import sys
-sys.path.insert(0, '.')
-import utils as jax_utils
+from carfac.jax import utils as jax_utils
 
 
 class CarfacJaxUtilsTest(absltest.TestCase):

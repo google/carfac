@@ -18,10 +18,12 @@
 """Test utilities for Python CARFAC."""
 
 
-import pathlib
+import importlib.resources
 from typing import Callable
 
 import numpy as np
+
+_TEST_DATA_PACKAGE = 'carfac.test_data'
 
 
 def _read_test_file(full_name: str) -> np.ndarray:
@@ -29,12 +31,15 @@ def _read_test_file(full_name: str) -> np.ndarray:
 
   Args:
     full_name: The name of the test file to load.
+
   Returns:
     The content of the file as an np.ndarray.
   """
-  with open(pathlib.Path(__file__).parent /
-            '..' / 'test_data' / full_name) as f:
-    data = f.read()
+  data = (
+      importlib.resources.files(_TEST_DATA_PACKAGE)
+      .joinpath(full_name)
+      .read_bytes()
+  )
   res = []
   for row in data.decode('utf-8').split('\n'):
     if not row.strip():

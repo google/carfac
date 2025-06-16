@@ -26,8 +26,8 @@ import numpy as np
 from parameterized import parameterized
 import tensorflow as tf
 
-from .. import testing as carfac_testing
-from . import carfac
+import carfac.testing as carfac_testing
+from carfac.tf import carfac
 
 
 class _TestCallable:

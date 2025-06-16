@@ -20,15 +20,17 @@
 
 """Tests for carfac.python.tf.carfac."""
 
+import importlib.resources
 import pathlib
 import tempfile
 
 import numpy as np
 import tensorflow as tf
 
-from . import carfac
+from carfac.tf import carfac
 
-_TF_DIR = pathlib.Path(__file__).parent
+_TF_PACKAGE = 'carfac.tf'
+_TF_DIR = importlib.resources.files(_TF_PACKAGE)
 
 
 class CARFACGoldenDataTest(tf.test.TestCase):

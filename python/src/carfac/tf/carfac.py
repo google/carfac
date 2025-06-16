@@ -30,11 +30,12 @@ from collections.abc import Callable
 import dataclasses
 import enum
 from typing import Any, Mapping, Optional, Sequence, TypeVar
+
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-from . import pz
+from carfac.tf import pz
 
 
 @dataclasses.dataclass

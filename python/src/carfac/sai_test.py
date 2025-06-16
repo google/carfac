@@ -20,15 +20,17 @@
 """Tests for carfac.python.sai."""
 
 import functools
+import importlib.resources
 import pathlib
 import tempfile
 import unittest
 
 import numpy as np
 
-import sai as pysai
+import carfac.sai as pysai
 
-_TEST_DATA_DIR = pathlib.Path("../test_data")
+_TEST_DATA_PACKAGE = "carfac.test_data"
+_TEST_DATA_DIR = importlib.resources.files(_TEST_DATA_PACKAGE)
 
 
 def LoadMatrix(filename, rows, columns):
