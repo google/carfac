@@ -1872,7 +1872,7 @@ def car_step(
     zy = hypers.ears[ear].car.h_coeffs * z2  # partial output
     in_out = x_in
     # Copied from @malcolmslaney's version.
-    _, zy = jax.lax.scan(
+    _, zy = jax.lax.scan(  # pytype: disable=wrong-arg-types  # lax-types
         ear_ch_scan, (g, zy, in_out), jnp.arange(g.shape[-1])
     )
     z1 += jnp.hstack((x_in, zy[:-1]))
