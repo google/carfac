@@ -166,9 +166,6 @@ class SAI(_SAIBase):
   CARFAC filterbank.
   """
 
-  def __init__(self, params):
-    super().__init__(params)
-
   def Reset(self):
     """Resets the internal state."""
     self._input_buffer = np.zeros((self.params.num_channels,
