@@ -351,16 +351,16 @@ class AgcDesignParameters:
   """All the parameters set manually to design the AGC filters."""
   n_stages: int = 4
   time_constants: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 0.002 * 4**jnp.arange(4)
+      default_factory=lambda: 0.002 * 4.0**jnp.arange(4, dtype=float)
   )
   agc_stage_gain: float = 2.  # gain from each stage to next slower stage
   # how often to update the AGC states
   decimation: Tuple[int, ...] = (8, 2, 2, 2)
   agc1_scales: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 1.0 * jnp.sqrt(2)**jnp.arange(4)  # 1 per channel
+      default_factory=lambda: 1.0 * math.sqrt(2)**jnp.arange(4, dtype=float)  # 1 per channel
   )
   agc2_scales: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 1.65 * math.sqrt(2)**jnp.arange(4)
+      default_factory=lambda: 1.65 * math.sqrt(2)**jnp.arange(4, dtype=float)
   )
   agc_mix_coeffs: float = 0.5
 
@@ -407,10 +407,10 @@ class AgcHypers:
   agc_spatial_iterations: int = 0
   agc_spatial_n_taps: int = 0
   reverse_cumulative_decimation: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([64, 32, 16, 8])
+      default_factory=lambda: jnp.array([64, 32, 16, 8], dtype=int)
   )
   max_cumulative_decimation: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(64)
+      default_factory=lambda: jnp.array(64, dtype=int)
   )
 
   # The following 2 functions are boiler code required by pytree.
@@ -564,10 +564,10 @@ class SynDesignParameters:
   n_classes: int = 3  # Default. Modify params and redesign to change.
   ihcs_per_channel: dataclasses.InitVar[int] = 10  # Maybe 20 would be better?
   healthy_n_fibers: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (jnp.array([50, 35, 25]))
+      default_factory=lambda: (jnp.array([50.0, 35.0, 25.0], dtype=float))
   )
   spont_rates: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([50, 6, 1])
+      default_factory=lambda: (jnp.array([50.0, 6.0, 1.0], dtype=float))
   )
   sat_rates: float = 200.0
   sat_reservoir: float = 0.2
@@ -578,7 +578,7 @@ class SynDesignParameters:
   # The weights 1.2 were picked before correctly account for sample rate
   # and number of fibers. This way works for more different numbers.
   agc_weights: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (jnp.array([1.2, 1.2, 1.2]) / (22050))
+      default_factory=lambda: (jnp.array([1.2, 1.2, 1.2], dtype=float) / (float(22050)))
   )
 
   def __post_init__(self, ihcs_per_channel):
@@ -813,23 +813,23 @@ class IhcWeights:
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
   ihc_accum: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   cap_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   lpf1_state: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   lpf2_state: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
 
   cap1_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   cap2_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
 
   # The following 2 functions are boiler code required by pytree.
@@ -893,7 +893,7 @@ class EarHypers:
   """Hyperparameters (tagged as static in `jax.jit`) of 1 ear."""
   n_ch: int = 0
   pole_freqs: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([])
+      default_factory=lambda: jnp.array([], dtype=float)
   )
   max_channels_per_octave: float = 0.
   car: Optional[CarHypers] = None
@@ -1322,7 +1322,7 @@ def design_and_init_ihc_syn(
     return hypers, None, None
 
   hypers = SynHypers(do_syn=True)
-  fs = params.fs
+  fs = float(params.fs)
   n_ch = ear_hypers.pole_freqs.shape[0]
   n_classes = syn_params.n_classes
   v_widths = syn_params.v_width * jnp.ones((1, n_classes))
@@ -1358,9 +1358,9 @@ def design_and_init_ihc_syn(
       agc_weights
   )
   weights = SynWeights(
-      n_fibers=jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers,
+      n_fibers=jnp.ones((n_ch,1)) * syn_params.healthy_n_fibers[None, :],
       v_widths=v_widths,
-      v_halfs=offsets * v_widths,
+      v_halfs= offsets[None,:] * v_widths,
       a1=a1,
       a2=a2,
       agc_weights=agc_weights,
@@ -1371,8 +1371,8 @@ def design_and_init_ihc_syn(
       lpf_coeff=1 - math.exp(-1 / (syn_params.tau_lpf * fs)),
   )
   state = SynState(
-      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits,
-      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p,
+      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None,:],
+      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None,:],
   )
   return hypers, weights, state
 
@@ -1905,7 +1905,7 @@ def syn_step(
   # returning instantaneous spike rates per class, for a group of neurons
   # associated with the CF channel, including reductions due to synaptopathy.
   # Normalized offset position into neurotransmitter release sigmoid.
-  x = (v_recep - jnp.transpose(syn_weights.v_halfs)) / jnp.transpose(
+  x = (v_recep[None,:] - jnp.transpose(syn_weights.v_halfs)) / jnp.transpose(
       syn_weights.v_widths
   )
   x = jnp.transpose(x)
