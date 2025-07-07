@@ -1680,11 +1680,6 @@ def design_and_init_carfac(
   state = CarfacState()
 
   for ear, ear_params in enumerate(params.ears):
-    ear_hypers = EarHypers()
-    ear_weights = EarWeights()
-    ear_state = EarState()
-    hypers.ears.append(ear_hypers)
-
     # first figure out how many filter stages (PZFC/CARFAC channels):
     pole_hz = ear_params.car.first_pole_theta * params.fs / (2 * math.pi)
     n_ch = 0
@@ -1707,10 +1702,6 @@ def design_and_init_carfac(
     # Now we have n_ch, the number of channels, and pole_freqs array.
     max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 
-    ear_hypers.n_ch = n_ch
-    ear_hypers.pole_freqs = pole_freqs
-    ear_hypers.max_channels_per_octave = max_channels_per_octave
-
     # Convert to include an ear_array, each w coeffs and state...
     car_hypers, car_weights, car_state = design_and_init_filters(
         ear, params, pole_freqs
@@ -1721,20 +1712,28 @@ def design_and_init_carfac(
         ear, params, n_ch
     )
 
+    ear_hypers = EarHypers()
+    ear_hypers.n_ch = n_ch
+    ear_hypers.pole_freqs = pole_freqs
+    ear_hypers.max_channels_per_octave = max_channels_per_octave
     ear_hypers.car = car_hypers
-    ear_weights.car = car_weights
-    ear_state.car = car_state
     ear_hypers.agc = agc_hypers
-    ear_weights.agc = agc_weights
-    ear_state.agc = agc_state
     ear_hypers.ihc = ihc_hypers
-    ear_weights.ihc = ihc_weights
-    ear_state.ihc = ihc_state
     ear_hypers.syn = syn_hypers
-    ear_weights.syn = syn_weights
-    ear_state.syn = syn_state
+    hypers.ears.append(ear_hypers)
 
+    ear_weights = EarWeights()
+    ear_weights.car = car_weights
+    ear_weights.agc = agc_weights
+    ear_weights.ihc = ihc_weights
+    ear_weights.syn = syn_weights
     weights.ears.append(ear_weights)
+
+    ear_state = EarState()
+    ear_state.car = car_state
+    ear_state.agc = agc_state
+    ear_state.ihc = ihc_state
+    ear_state.syn = syn_state
     state.ears.append(ear_state)
 
   return hypers, weights, state
