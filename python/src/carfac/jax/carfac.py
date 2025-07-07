@@ -1128,24 +1128,22 @@ def hz_to_erb(cf_hz: Union[float, jnp.ndarray],
 
 
 def design_and_init_filters(
-    ear: int, params: CarfacDesignParameters, hypers: CarfacHypers
+    ear: int, params: CarfacDesignParameters, pole_freqs: jnp.ndarray
 ) -> Tuple[CarHypers, CarWeights, CarState]:
   """Design the actual CAR filters.
 
   Args:
     ear: the index of the ear to be designed and initialised.
     params: The design parameters.
-    hypers: The hyperparameters. This is needed because things like `n_ch`
-    are not in `DesignParameters`.
+    pole_freqs: Where to put the poles for each channel.
 
   Returns:
     The CAR coefficient structure which allows the filters be computed quickly.
   """
 
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
-  n_ch = len(ear_hypers.pole_freqs)
+  n_ch = len(pole_freqs)
 
   # Declares return values.
   car_hypers = CarHypers(
@@ -1167,7 +1165,7 @@ def design_and_init_filters(
 
   # Make pole positions, s and c coeffs, h and g coeffs, etc.,
   # which mostly depend on the pole angle theta:
-  theta = ear_hypers.pole_freqs * (2 * math.pi / params.fs)
+  theta = pole_freqs * (2 * math.pi / params.fs)
 
   c0 = jnp.sin(theta)
   a0 = jnp.cos(theta)
@@ -1188,11 +1186,11 @@ def design_and_init_filters(
   # 25% of the way toward hz_to_erb/pole_freqs (close to 0.1 at high f)
   min_zetas = min_zeta + 0.25 * (
       hz_to_erb(
-          ear_hypers.pole_freqs,
+          pole_freqs,
           ear_params.car.erb_break_freq,
           ear_params.car.erb_q,
       )
-      / ear_hypers.pole_freqs
+      / pole_freqs
       - min_zeta
   )
   car_hypers.zr_coeffs = zr_coeffs * (max_zeta - min_zetas)
@@ -1297,7 +1295,7 @@ def ihc_detect(x: Union[float, jnp.ndarray]) -> Union[float, jnp.ndarray]:
 
 
 def design_and_init_ihc_syn(
-    ear: int, params: CarfacDesignParameters, hypers: CarfacHypers
+    ear: int, params: CarfacDesignParameters, n_ch: int
 ) -> Tuple[SynHypers, Optional[SynWeights], Optional[SynState]]:
   """Design the IHC Synapse Hypers/Weights/State.
 
@@ -1307,14 +1305,13 @@ def design_and_init_ihc_syn(
   Args:
     ear: the index of the ear.
     params: all the design parameters
-    hypers: all the hyper parameters.
+    n_ch: How many channels there are in the filterbank.
 
   Returns:
     A tuple containing the newly created and initialised synapse coefficients,
     weights and state.
   """
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
   ihc_params = ear_params.ihc
   syn_params = ear_params.syn
   if ihc_params.ihc_style != 'two_cap_with_syn':
@@ -1323,7 +1320,6 @@ def design_and_init_ihc_syn(
 
   hypers = SynHypers(do_syn=True)
   fs = params.fs
-  n_ch = ear_hypers.pole_freqs.shape[0]
   n_classes = syn_params.n_classes
   v_widths = syn_params.v_width * jnp.ones((1, n_classes))
   # Do some design.  First, gains to get sat_rate when sigmoid is 1, which
@@ -1378,27 +1374,23 @@ def design_and_init_ihc_syn(
 
 
 def design_and_init_ihc(
-    ear: int,
-    params: CarfacDesignParameters,
-    hypers: CarfacHypers) -> Tuple[IhcHypers, IhcWeights, IhcState]:
+    ear: int, params: CarfacDesignParameters, n_ch: int
+) -> Tuple[IhcHypers, IhcWeights, IhcState]:
   """Design the inner hair cell implementation from parameters.
 
   Args:
     ear: the index of the ear.
     params: all the design parameters
-    hypers: all the coefficients. This is needed because things like `n_ch` is
-    not in `Parameters`.
+    n_ch: How many channels there are in the filterbank.
 
   Returns:
     A tuple containing the newly created and initialised IHC coefficients,
     weights and state.
   """
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
   ihc_params = ear_params.ihc
 
-  n_ch = ear_hypers.n_ch
   ihc_style_num = 0
   if ihc_params.ihc_style == 'just_hwr':
     ihc_style_num = 0
@@ -1549,24 +1541,21 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
 
 
 def design_and_init_agc(
-    ear: int, params: CarfacDesignParameters, hypers: CarfacHypers
+    ear: int, params: CarfacDesignParameters, n_ch: int
 ) -> Tuple[List[AgcHypers], List[AgcWeights], List[AgcState]]:
   """Design the AGC implementation from the parameters.
 
   Args:
     ear: the index of the ear.
     params: all the design parameters.
-    hypers: all the coefficients. This is needed because things like `n_ch` is
-      not in `Parameters`.
+    n_ch: How many channels there are in the filterbank.
 
   Returns:
     The coefficients for all the stages.
   """
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
   fs = params.fs
-  n_ch = ear_hypers.n_ch
 
   n_agc_stages = ear_params.agc.n_stages
 
@@ -1724,16 +1713,12 @@ def design_and_init_carfac(
 
     # Convert to include an ear_array, each w coeffs and state...
     car_hypers, car_weights, car_state = design_and_init_filters(
-        ear, params, hypers
+        ear, params, pole_freqs
     )
-    agc_hypers, agc_weights, agc_state = design_and_init_agc(
-        ear, params, hypers
-    )
-    ihc_hypers, ihc_weights, ihc_state = design_and_init_ihc(
-        ear, params, hypers
-    )
+    agc_hypers, agc_weights, agc_state = design_and_init_agc(ear, params, n_ch)
+    ihc_hypers, ihc_weights, ihc_state = design_and_init_ihc(ear, params, n_ch)
     syn_hypers, syn_weights, syn_state = design_and_init_ihc_syn(
-        ear, params, hypers
+        ear, params, n_ch
     )
 
     ear_hypers.car = car_hypers
