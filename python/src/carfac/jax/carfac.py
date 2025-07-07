@@ -891,17 +891,13 @@ class EarDesignParameters:
 @dataclasses.dataclass
 class EarHypers:
   """Hyperparameters (tagged as static in `jax.jit`) of 1 ear."""
-  n_ch: int = 0
-  pole_freqs: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([])
-  )
-  max_channels_per_octave: float = 0.
-  car: Optional[CarHypers] = None
-  agc: Optional[List[AgcHypers]] = dataclasses.field(
-      default_factory=list  # One element per AGC layer.
-  )
-  ihc: Optional[IhcHypers] = None
-  syn: Optional[SynHypers] = None
+  n_ch: int
+  pole_freqs: jnp.ndarray
+  max_channels_per_octave: float
+  car: CarHypers
+  agc: List[AgcHypers]  # One element per AGC layer.
+  ihc: IhcHypers
+  syn: SynHypers
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -954,10 +950,10 @@ class EarHypers:
 @dataclasses.dataclass
 class EarWeights:
   """Trainable weights of 1 ear."""
-  car: Optional[CarWeights] = None
-  agc: Optional[List[AgcWeights]] = None
-  ihc: Optional[IhcWeights] = None
-  syn: Optional[SynWeights] = None
+  car: CarWeights
+  agc: List[AgcWeights]
+  ihc: IhcWeights
+  syn: SynWeights
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -975,10 +971,10 @@ class EarWeights:
 @dataclasses.dataclass
 class EarState:
   """The state of 1 ear."""
-  car: Optional[CarState] = None
-  ihc: Optional[IhcState] = None
-  agc: Optional[List[AgcState]] = None
-  syn: Optional[SynState] = None
+  car: CarState
+  ihc: IhcState
+  agc: List[AgcState]
+  syn: SynState
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -1712,28 +1708,31 @@ def design_and_init_carfac(
         ear, params, n_ch
     )
 
-    ear_hypers = EarHypers()
-    ear_hypers.n_ch = n_ch
-    ear_hypers.pole_freqs = pole_freqs
-    ear_hypers.max_channels_per_octave = max_channels_per_octave
-    ear_hypers.car = car_hypers
-    ear_hypers.agc = agc_hypers
-    ear_hypers.ihc = ihc_hypers
-    ear_hypers.syn = syn_hypers
+    ear_hypers = EarHypers(
+        n_ch=n_ch,
+        pole_freqs=pole_freqs,
+        max_channels_per_octave=max_channels_per_octave,
+        car=car_hypers,
+        agc=agc_hypers,
+        ihc=ihc_hypers,
+        syn=syn_hypers,
+    )
     hypers.ears.append(ear_hypers)
 
-    ear_weights = EarWeights()
-    ear_weights.car = car_weights
-    ear_weights.agc = agc_weights
-    ear_weights.ihc = ihc_weights
-    ear_weights.syn = syn_weights
+    ear_weights = EarWeights(
+        car=car_weights,
+        agc=agc_weights,
+        ihc=ihc_weights,
+        syn=syn_weights,
+    )
     weights.ears.append(ear_weights)
 
-    ear_state = EarState()
-    ear_state.car = car_state
-    ear_state.agc = agc_state
-    ear_state.ihc = ihc_state
-    ear_state.syn = syn_state
+    ear_state = EarState(
+        car=car_state,
+        agc=agc_state,
+        ihc=ihc_state,
+        syn=syn_state,
+    )
     state.ears.append(ear_state)
 
   return hypers, weights, state
