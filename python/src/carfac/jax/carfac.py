@@ -2156,11 +2156,9 @@ def agc_step(
 
   agc_in = agc_weights[0].detect_scale * detects
 
-  def _build_branch_fn(d, n, e):
-    return lambda w, a, s: _agc_step_jit_helper(d, n, e, hypers, w, a, s)
-
   branch_fns = [
-      _build_branch_fn(i, n_agc_stages, ear) for i in range(n_agc_stages + 1)
+      functools.partial(_agc_step_jit_helper, i, n_agc_stages, ear, hypers)
+      for i in range(n_agc_stages + 1)
   ]
   state = jax.lax.switch(depth, branch_fns, weights, agc_in, state)
 
