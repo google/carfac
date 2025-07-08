@@ -443,7 +443,7 @@ class CarfacTest(parameterized.TestCase):
       )
 
       print(
-          f'AGC Stage {i}: Peak at channel {cf}, value is {amp},width is'
+          f'AGC Stage {i}: Peak at channel {cf}, value is {amp}, width is'
           f' {bw} channels'
       )
 
@@ -522,7 +522,7 @@ class CarfacTest(parameterized.TestCase):
     plt.savefig('/tmp/whole_carfac_bm_initial.png')
     plt.savefig(f'/tmp/whole_channel_{plot_channel}_response.png')
     print(
-        f'Max value of bm_inital channel {plot_channel} is'
+        f'Max value of bm_initial channel {plot_channel} is'
         f' {np.max(bm_initial[:1500, plot_channel, 0])} '
     )
 
