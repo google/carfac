@@ -35,20 +35,11 @@ class CarfacJaxTest(parameterized.TestCase):
     # Tests hyperparameter objects can be hashed. This is needed by `jax.jit`
     # because hyperparameters are tagged `static`.
     hypers = carfac_jax.CarfacHypers()
-    hypers.ears = [
-        carfac_jax.EarHypers(
-            n_ch=0,
-            pole_freqs=jnp.array([]),
-            max_channels_per_octave=0.0,
-            car=carfac_jax.CarHypers(),
-            agc=[
-                carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
-                carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
-            ],
-            ihc=carfac_jax.IhcHypers(n_ch=1, ihc_style=1),
-            syn=carfac_jax.SynHypers(),
-        )
-    ]
+    hypers.ears = [carfac_jax.EarHypers()]
+    hypers.ears[0].car = carfac_jax.CarHypers()
+    hypers.ears[0].agc = [carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
+                          carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2)]
+    hypers.ears[0].ihc = carfac_jax.IhcHypers(n_ch=1, ihc_style=1)
     h1 = hash(hypers)
     hypers.ears[0].car.n_ch += 1
     h2 = hash(hypers)
