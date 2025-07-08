@@ -36,14 +36,17 @@ class CARFACCanDisableAGCTest(tf.test.TestCase):
     num_samples = int(8000)
     sound_data = np.reshape(
         np.sin(np.linspace(0, 2 * sample_rate * np.pi, num_samples)),
-        (1, num_samples, 1, 1))
+        (1, num_samples, 1, 1),
+    )
     carfac_cell_with_agc = carfac.CARFACCell(
         num_ears=1,
         car_params=carfac.CARParams(sample_rate_hz=tf.constant(sample_rate)),
-        outputs=(carfac.CARFACOutput.AGC,))
+        outputs=(carfac.CARFACOutput.AGC,),
+    )
     carfac_cell_with_agc.call = tf.function(carfac_cell_with_agc.call)
-    layer_with_agc = tf.keras.layers.RNN(carfac_cell_with_agc,
-                                         return_sequences=True)
+    layer_with_agc = tf.keras.layers.RNN(
+        carfac_cell_with_agc, return_sequences=True
+    )
     layer_with_agc = tf.function(layer_with_agc)
     agc_enabled_output = layer_with_agc(sound_data).numpy()
 
@@ -53,26 +56,41 @@ class CARFACCanDisableAGCTest(tf.test.TestCase):
         # Setting open_loop=True should have the same effect.
         agc_params=carfac.AGCParams(decimation=tf.zeros([], tf.float32)),
         car_params=carfac.CARParams(sample_rate_hz=tf.constant(sample_rate)),
-        outputs=(carfac.CARFACOutput.AGC,))
+        outputs=(carfac.CARFACOutput.AGC,),
+    )
     carfac_cell_without_agc.call = tf.function(carfac_cell_without_agc.call)
-    layer_without_agc = tf.keras.layers.RNN(carfac_cell_without_agc,
-                                            return_sequences=True)
+    layer_without_agc = tf.keras.layers.RNN(
+        carfac_cell_without_agc, return_sequences=True
+    )
     layer_without_agc = tf.function(layer_without_agc)
     agc_disabled_output = layer_without_agc(sound_data).numpy()
 
-    self.assertEqual(agc_enabled_output.shape, agc_disabled_output.shape,
-                     'AGC enabled output shape != AGC disabled output shape')
-    self.assertTrue(np.any(agc_enabled_output != agc_disabled_output),
-                    'AGC enabled output == AGC disabled output')
+    self.assertEqual(
+        agc_enabled_output.shape,
+        agc_disabled_output.shape,
+        'AGC enabled output shape != AGC disabled output shape',
+    )
+    self.assertTrue(
+        np.any(agc_enabled_output != agc_disabled_output),
+        'AGC enabled output == AGC disabled output',
+    )
     for channel in range(agc_disabled_output.shape[3]):
       # With the AGC disabled, the agc output for a given channel
       # should be identical at all times.
-      self.assertTrue(np.all(agc_disabled_output[0, :, 0, channel, 0] ==
-                             agc_disabled_output[0, 0, 0, channel, 0]),
-                      f'AGC disabled output for chan {channel} is not constant')
-      self.assertTrue(np.any(agc_enabled_output[0, :, 0, channel, 0] !=
-                             agc_enabled_output[0, 0, 0, channel, 0]),
-                      f'AGC enabled output for chan {channel} is constant')
+      self.assertTrue(
+          np.all(
+              agc_disabled_output[0, :, 0, channel, 0]
+              == agc_disabled_output[0, 0, 0, channel, 0]
+          ),
+          f'AGC disabled output for chan {channel} is not constant',
+      )
+      self.assertTrue(
+          np.any(
+              agc_enabled_output[0, :, 0, channel, 0]
+              != agc_enabled_output[0, 0, 0, channel, 0]
+          ),
+          f'AGC enabled output for chan {channel} is constant',
+      )
 
 
 if __name__ == '__main__':

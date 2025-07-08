@@ -63,11 +63,13 @@ def CreatePulseTrain(num_channels, num_samples, period, leading_zeros=0):
 
 def CreateSAIParams(sai_width, num_triggers_per_frame=2, **kwargs):
   """Fills an SAIParams object using reasonable defaults for some fields."""
-  return pysai.SAIParams(sai_width=sai_width,
-                         # Half of the SAI should come from the future.
-                         future_lags=sai_width // 2,
-                         num_triggers_per_frame=num_triggers_per_frame,
-                         **kwargs)
+  return pysai.SAIParams(
+      sai_width=sai_width,
+      # Half of the SAI should come from the future.
+      future_lags=sai_width // 2,
+      num_triggers_per_frame=num_triggers_per_frame,
+      **kwargs,
+  )
 
 
 def HasPeakAt(frame, index):
@@ -79,14 +81,17 @@ def HasPeakAt(frame, index):
 
 
 class PeriodicInputTest(unittest.TestCase):
+
   def _RunMultiChannelPulseTrainTest(self, period, num_channels):
     input_segment_width = 38
     segment = CreatePulseTrain(num_channels, input_segment_width, period)
 
-    sai_params = CreateSAIParams(num_channels=num_channels,
-                                 input_segment_width=input_segment_width,
-                                 trigger_window_width=input_segment_width,
-                                 sai_width=15)
+    sai_params = CreateSAIParams(
+        num_channels=num_channels,
+        input_segment_width=input_segment_width,
+        trigger_window_width=input_segment_width,
+        sai_width=15,
+    )
     sai_params.future_lags = 0  # Only compute past lags.
 
     sai = pysai.SAI(sai_params)
@@ -110,16 +115,21 @@ class PeriodicInputTest(unittest.TestCase):
 
 
 class SAITest(unittest.TestCase):
+
   def testInputSegmentWidthIsLargerThanBuffer(self):
-    params = CreateSAIParams(num_channels=2, sai_width=10,
-                             input_segment_width=200,
-                             trigger_window_width=200)
+    params = CreateSAIParams(
+        num_channels=2,
+        sai_width=10,
+        input_segment_width=200,
+        trigger_window_width=200,
+    )
     sai = pysai.SAI(params)
 
     params.trigger_window_width = params.input_segment_width // 10
-    self.assertGreater(params.input_segment_width,
-                       params.num_triggers_per_frame *
-                       params.trigger_window_width)
+    self.assertGreater(
+        params.input_segment_width,
+        params.num_triggers_per_frame * params.trigger_window_width,
+    )
     self.assertRaises(AssertionError, sai.Redesign, params)
 
   def testInputWidthDoesntMatchInputSegmentWidth(self):
@@ -133,7 +143,8 @@ class SAITest(unittest.TestCase):
         num_channels=num_channels,
         sai_width=sai_width,
         input_segment_width=expected_input_segment_width,
-        trigger_window_width=sai_width + 1)
+        trigger_window_width=sai_width + 1,
+    )
     self.assertNotEqual(sai_params.input_segment_width, input_segment_width)
     sai = pysai.SAI(sai_params)
     self.assertRaises(AssertionError, sai.RunSegment, segment)
@@ -147,20 +158,24 @@ class SAITest(unittest.TestCase):
 
     num_frames = 4
     input_segment_width = total_input_samples // num_frames
-    sai_params = CreateSAIParams(num_channels=num_channels,
-                                 input_segment_width=input_segment_width,
-                                 trigger_window_width=total_input_samples,
-                                 sai_width=15)
-    self.assertLess(sai_params.input_segment_width,
-                    sai_params.trigger_window_width)
+    sai_params = CreateSAIParams(
+        num_channels=num_channels,
+        input_segment_width=input_segment_width,
+        trigger_window_width=total_input_samples,
+        sai_width=15,
+    )
+    self.assertLess(
+        sai_params.input_segment_width, sai_params.trigger_window_width
+    )
     sai_params.future_lags = 0  # Only compute past lags.
 
     self.assertGreaterEqual(period, input_segment_width)
 
     sai = pysai.SAI(sai_params)
     for i in range(num_frames):
-      segment = (
-          full_input[:, i * input_segment_width:(i+1) * input_segment_width])
+      segment = full_input[
+          :, i * input_segment_width : (i + 1) * input_segment_width
+      ]
       sai_frame = sai.RunSegment(segment)
 
       print("Frame {}\nInput\n{}\nOutput\n{}".format(i, segment, sai_frame))
@@ -175,8 +190,11 @@ class SAITest(unittest.TestCase):
         # Since the pulse train period is larger than the input segment
         # size, the first input segment will only see a single impulse,
         # most of the SAI will be zero.
-        np.testing.assert_allclose(sai_channel[:len(sai_channel) - 1],
-                                   np.zeros(len(sai_channel) - 1), 1e-9)
+        np.testing.assert_allclose(
+            sai_channel[: len(sai_channel) - 1],
+            np.zeros(len(sai_channel) - 1),
+            1e-9,
+        )
 
       if i == num_frames - 1:
         # By the last frame, the SAI's internal buffer will have
@@ -190,18 +208,21 @@ class SAITest(unittest.TestCase):
     input_segment_width = 882
     num_channels = 71
     # The Matlab CARFAC output is transposed compared to the C++.
-    input_segment = LoadMatrix(test_name + "-matlab-nap1.txt",
-                               input_segment_width,
-                               num_channels).transpose()
+    input_segment = LoadMatrix(
+        test_name + "-matlab-nap1.txt", input_segment_width, num_channels
+    ).transpose()
 
-    sai_params = CreateSAIParams(num_channels=num_channels,
-                                 input_segment_width=input_segment_width,
-                                 trigger_window_width=input_segment_width,
-                                 sai_width=500)
+    sai_params = CreateSAIParams(
+        num_channels=num_channels,
+        input_segment_width=input_segment_width,
+        trigger_window_width=input_segment_width,
+        sai_width=500,
+    )
     sai = pysai.SAI(sai_params)
     sai_frame = sai.RunSegment(input_segment)
-    expected_sai_frame = LoadMatrix(test_name + "-matlab-sai1.txt",
-                                    num_channels, sai_params.sai_width)
+    expected_sai_frame = LoadMatrix(
+        test_name + "-matlab-sai1.txt", num_channels, sai_params.sai_width
+    )
     np.testing.assert_allclose(expected_sai_frame, sai_frame, rtol=1e-5)
 
     WriteMatrix(test_name + "-py-sai1.txt", sai_frame)

@@ -109,6 +109,7 @@ class CarDesignParameters:
   the user. It is the input to the design/init functions and shouldn't be used
   in any model functions.
   """
+
   velocity_scale: float = 0.1  # for the velocity nonlinearity
   v_offset: float = 0.04  # offset gives a quadratic part
   min_zeta: float = 0.10  # minimum damping factor in mid-freq channels
@@ -127,34 +128,38 @@ class CarDesignParameters:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.velocity_scale,
-                self.v_offset,
-                self.min_zeta,
-                self.max_zeta,
-                self.first_pole_theta,
-                self.zero_ratio,
-                self.high_f_damping_compression,
-                self.erb_per_step,
-                self.min_pole_hz,
-                self.erb_break_freq,
-                self.erb_q,
-                self.use_delay_buffer,
-                self.linear_car,
-                self.ac_corner_hz)
-    aux_data = ('velocity_scale',
-                'v_offset',
-                'min_zeta',
-                'max_zeta',
-                'first_pole_theta',
-                'zero_ratio',
-                'high_f_damping_compression',
-                'erb_per_step',
-                'min_pole_hz',
-                'erb_break_freq',
-                'erb_q',
-                'use_delay_buffer',
-                'linear_car',
-                'ac_corner_hz')
+    children = (
+        self.velocity_scale,
+        self.v_offset,
+        self.min_zeta,
+        self.max_zeta,
+        self.first_pole_theta,
+        self.zero_ratio,
+        self.high_f_damping_compression,
+        self.erb_per_step,
+        self.min_pole_hz,
+        self.erb_break_freq,
+        self.erb_q,
+        self.use_delay_buffer,
+        self.linear_car,
+        self.ac_corner_hz,
+    )
+    aux_data = (
+        'velocity_scale',
+        'v_offset',
+        'min_zeta',
+        'max_zeta',
+        'first_pole_theta',
+        'zero_ratio',
+        'high_f_damping_compression',
+        'erb_per_step',
+        'min_pole_hz',
+        'erb_break_freq',
+        'erb_q',
+        'use_delay_buffer',
+        'linear_car',
+        'ac_corner_hz',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -173,6 +178,7 @@ class CarHypers:
   parameters that would change the structure of the graph, and thus are
   undifferentiable.
   """
+
   n_ch: int = 0
   use_delay_buffer: bool = False
   linear_car: bool = False
@@ -256,6 +262,7 @@ class CarWeights:
   As part of the `CarfacWeights`, it will be passed to the model functions but
   shouldn't be modified in the model computations.
   """
+
   velocity_scale: float = 0.0
   v_offset: float = 0.0
 
@@ -307,6 +314,7 @@ class CarWeights:
 @dataclasses.dataclass
 class CarState:
   """All the state variables for the CAR filterbank."""
+
   z1_memory: jnp.ndarray
   z2_memory: jnp.ndarray
   za_memory: jnp.ndarray
@@ -320,24 +328,28 @@ class CarState:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.z1_memory,
-                self.z2_memory,
-                self.za_memory,
-                self.zb_memory,
-                self.dzb_memory,
-                self.zy_memory,
-                self.g_memory,
-                self.dg_memory,
-                self.ac_coupler)
-    aux_data = ('z1_memory',
-                'z2_memory',
-                'za_memory',
-                'zb_memory',
-                'dzb_memory',
-                'zy_memory',
-                'g_memory',
-                'dg_memory',
-                'ac_coupler')
+    children = (
+        self.z1_memory,
+        self.z2_memory,
+        self.za_memory,
+        self.zb_memory,
+        self.dzb_memory,
+        self.zy_memory,
+        self.g_memory,
+        self.dg_memory,
+        self.ac_coupler,
+    )
+    aux_data = (
+        'z1_memory',
+        'z2_memory',
+        'za_memory',
+        'zb_memory',
+        'dzb_memory',
+        'zy_memory',
+        'g_memory',
+        'dg_memory',
+        'ac_coupler',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -349,17 +361,19 @@ class CarState:
 @dataclasses.dataclass
 class AgcDesignParameters:
   """All the parameters set manually to design the AGC filters."""
+
   n_stages: int = 4
   time_constants: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 0.002 * 4.0**jnp.arange(4, dtype=float)
+      default_factory=lambda: 0.002 * 4.0 ** jnp.arange(4, dtype=float)
   )
-  agc_stage_gain: float = 2.  # gain from each stage to next slower stage
+  agc_stage_gain: float = 2.0  # gain from each stage to next slower stage
   # how often to update the AGC states
   decimation: Tuple[int, ...] = (8, 2, 2, 2)
   agc1_scales: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 1.0 * math.sqrt(2)**jnp.arange(4, dtype=float)  # 1 per channel
+      default_factory=lambda: 1.0 * math.sqrt(2) ** jnp.arange(4, dtype=float)  # 1 per channel
   )
   agc2_scales: jnp.ndarray = dataclasses.field(
+      default_factory=lambda: 1.65 * math.sqrt(2) ** jnp.arange(4)
       default_factory=lambda: 1.65 * math.sqrt(2)**jnp.arange(4, dtype=float)
   )
   agc_mix_coeffs: float = 0.5
@@ -367,12 +381,24 @@ class AgcDesignParameters:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.n_stages, self.time_constants, self.agc_stage_gain,
-                self.decimation, self.agc1_scales, self.agc2_scales,
-                self.agc_mix_coeffs)
-    aux_data = ('n_stages', 'time_constants', 'agc_stage_gain',
-                'decimation', 'agc1_scales', 'agc2_scales',
-                'agc_mix_coeffs')
+    children = (
+        self.n_stages,
+        self.time_constants,
+        self.agc_stage_gain,
+        self.decimation,
+        self.agc1_scales,
+        self.agc2_scales,
+        self.agc_mix_coeffs,
+    )
+    aux_data = (
+        'n_stages',
+        'time_constants',
+        'agc_stage_gain',
+        'decimation',
+        'agc1_scales',
+        'agc2_scales',
+        'agc_mix_coeffs',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -397,10 +423,11 @@ class AgcHypers:
     agc_spatial_iterations: how many times FIR smoothings will be run.
     agc_spatial_n_taps: number of taps of the FIR filter.
     reverse_cumulative_decimation: the cumulative decimation of each stage in
-    reverse order.
+      reverse order.
     max_cumulative_decimation: the maximum cumulative decimation across all AGC
-    stages.
+      stages.
   """
+
   n_ch: int
   n_agc_stages: int
   decimation: int = 0
@@ -416,16 +443,24 @@ class AgcHypers:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.n_ch, self.n_agc_stages,
-                self.decimation, self.agc_spatial_iterations,
-                self.agc_spatial_n_taps,
-                self.reverse_cumulative_decimation,
-                self.max_cumulative_decimation)
-    aux_data = ('n_ch', 'n_agc_stages',
-                'decimation', 'agc_spatial_iterations',
-                'agc_spatial_n_taps',
-                'reverse_cumulative_decimation',
-                'max_cumulative_decimation')
+    children = (
+        self.n_ch,
+        self.n_agc_stages,
+        self.decimation,
+        self.agc_spatial_iterations,
+        self.agc_spatial_n_taps,
+        self.reverse_cumulative_decimation,
+        self.max_cumulative_decimation,
+    )
+    aux_data = (
+        'n_ch',
+        'n_agc_stages',
+        'decimation',
+        'agc_spatial_iterations',
+        'agc_spatial_n_taps',
+        'reverse_cumulative_decimation',
+        'max_cumulative_decimation',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -457,6 +492,7 @@ class AgcHypers:
 @dataclasses.dataclass
 class AgcWeights:
   """Trainable weights of the AGC step."""
+
   agc_epsilon: float = 0.0
   agc_stage_gain: float = 0.0
   agc_spatial_fir: Optional[List[Union[float, jnp.ndarray]]] = None
@@ -497,6 +533,7 @@ class AgcWeights:
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
+
   decim_phase: int
   agc_memory: jnp.ndarray
   input_accum: jnp.ndarray
@@ -517,6 +554,7 @@ class AgcState:
 @dataclasses.dataclass
 class IhcDesignParameters:
   """Variables needed for the inner hair cell implementation."""
+
   ihc_style: str = 'two_cap'
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
@@ -726,6 +764,7 @@ class SynState:
 @dataclasses.dataclass
 class IhcHypers:
   """Hyperparameters for the inner hair cell. Tagged `static` in `jax.jit`."""
+
   n_ch: int
   # 0 is just_hwr, 1 is one_cap, 2 is two_cap.
   ihc_style: int
@@ -754,6 +793,7 @@ class IhcHypers:
 @dataclasses.dataclass
 class IhcWeights:
   """Trainable weights of the IHC step."""
+
   lpf_coeff: float = 0.0
   out1_rate: Union[float, jnp.ndarray] = 0.0
   in1_rate: float = 0.0
@@ -812,6 +852,7 @@ class IhcWeights:
 @dataclasses.dataclass
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
+
   ihc_accum: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.array(0, dtype=float)
   )
@@ -862,6 +903,7 @@ class IhcState:
 @dataclasses.dataclass
 class EarDesignParameters:
   """Parameters manually set to design Carfac for 1 ear."""
+
   car: CarDesignParameters = dataclasses.field(
       default_factory=CarDesignParameters
   )
@@ -891,17 +933,14 @@ class EarDesignParameters:
 @dataclasses.dataclass
 class EarHypers:
   """Hyperparameters (tagged as static in `jax.jit`) of 1 ear."""
-  n_ch: int = 0
-  pole_freqs: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([], dtype=float)
-  )
-  max_channels_per_octave: float = 0.
-  car: Optional[CarHypers] = None
-  agc: Optional[List[AgcHypers]] = dataclasses.field(
-      default_factory=list  # One element per AGC layer.
-  )
-  ihc: Optional[IhcHypers] = None
-  syn: Optional[SynHypers] = None
+
+  n_ch: int
+  pole_freqs: jnp.ndarray
+  max_channels_per_octave: float
+  car: CarHypers
+  agc: List[AgcHypers]  # One element per AGC layer.
+  ihc: IhcHypers
+  syn: SynHypers
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -954,6 +993,7 @@ class EarHypers:
 @dataclasses.dataclass
 class EarWeights:
   """Trainable weights of 1 ear."""
+
   car: CarWeights
   agc: List[AgcWeights]
   ihc: IhcWeights
@@ -975,6 +1015,7 @@ class EarWeights:
 @dataclasses.dataclass
 class EarState:
   """The state of 1 ear."""
+
   car: CarState
   ihc: IhcState
   agc: List[AgcState]
@@ -996,6 +1037,7 @@ class EarState:
 @dataclasses.dataclass
 class CarfacDesignParameters:
   """All the parameters set manually for designing CARFAC."""
+
   fs: float = 22050.0
   n_ears: int = 1
   ears: List[EarDesignParameters] = dataclasses.field(
@@ -1033,6 +1075,7 @@ class CarfacDesignParameters:
 @dataclasses.dataclass
 class CarfacHypers:
   """All the static variables (tagged as `static` in jax.jit)."""
+
   ears: List[EarHypers] = dataclasses.field(default_factory=list)
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -1059,6 +1102,7 @@ class CarfacHypers:
 @dataclasses.dataclass
 class CarfacWeights:
   """All the trainable weights."""
+
   ears: List[EarWeights] = dataclasses.field(default_factory=list)
 
   # The following 2 functions are boiler code required by pytree.
@@ -1077,6 +1121,7 @@ class CarfacWeights:
 @dataclasses.dataclass
 class CarfacState:
   """All the state variables."""
+
   ears: List[EarState] = dataclasses.field(default_factory=list)
 
   # The following 2 functions are boiler code required by pytree.
@@ -1103,9 +1148,11 @@ class CarfacState:
 # "init" into separate functions?
 
 
-def hz_to_erb(cf_hz: Union[float, jnp.ndarray],
-              erb_break_freq: float = 1000 / 4.37,
-              erb_q: float = 1000 / (24.7 * 4.37)):
+def hz_to_erb(
+    cf_hz: Union[float, jnp.ndarray],
+    erb_break_freq: float = 1000 / 4.37,
+    erb_q: float = 1000 / (24.7 * 4.37),
+):
   """Auditory filter nominal Equivalent Rectangular Bandwidth.
 
   Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
@@ -1149,7 +1196,8 @@ def design_and_init_filters(
   car_hypers = CarHypers(
       n_ch=n_ch,
       use_delay_buffer=ear_params.car.use_delay_buffer,
-      linear_car=ear_params.car.linear_car)
+      linear_car=ear_params.car.linear_car,
+  )
   car_weights = CarWeights()
   car_weights.velocity_scale = ear_params.car.velocity_scale
   car_weights.v_offset = ear_params.car.v_offset
@@ -1247,8 +1295,8 @@ def design_stage_g(
   Args:
     car_hypers: The hyperparameters for the filterbank.
     relative_undamping:  The r variable, defined in section 17.4 of Lyon's book
-    to be  (1-b) * NLF(v). The first term is undamping (because b is the
-    gain).
+      to be  (1-b) * NLF(v). The first term is undamping (because b is the
+      gain).
 
   Returns:
     A float vector with the gain for each AGC stage.
@@ -1528,10 +1576,12 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
     ok = fir[2 - 1] >= 0.25
   elif n_taps == 5:
     # based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((delay_variance + mean_delay * mean_delay) * 2 / 5 -
-         mean_delay * 2 / 3) / 2
-    b = ((delay_variance + mean_delay * mean_delay) * 2 / 5 +
-         mean_delay * 2 / 3) / 2
+    a = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 - mean_delay * 2 / 3
+    ) / 2
+    b = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 + mean_delay * 2 / 3
+    ) / 2
     # first and last coeffs are implicitly duplicated to make 5-point FIR:
     fir = [a / 2, 1 - a - b, b / 2]
     ok = fir[2 - 1] >= 0.15
@@ -1577,9 +1627,13 @@ def design_and_init_agc(
   for stage in range(n_agc_stages):
     agc_hypers.append(AgcHypers(n_ch=n_ch, n_agc_stages=n_agc_stages))
     agc_weights.append(AgcWeights())
-    agc_states.append(AgcState(decim_phase=0,
-                               agc_memory=jnp.zeros((n_ch,)),
-                               input_accum=jnp.zeros((n_ch,))))
+    agc_states.append(
+        AgcState(
+            decim_phase=0,
+            agc_memory=jnp.zeros((n_ch,)),
+            input_accum=jnp.zeros((n_ch,)),
+        )
+    )
 
     agc_hypers[stage].decimation = ear_params.agc.decimation[stage]
     tau = ear_params.agc.time_constants[stage]
@@ -1598,7 +1652,7 @@ def design_and_init_agc(
     # response as a distribution to be convolved ntimes:
     # TODO(dicklyon): specify spread and delay instead of scales?
     delay = (agc2_scales[stage] - agc1_scales[stage]) / ntimes
-    spread_sq = (agc1_scales[stage]**2 + agc2_scales[stage]**2) / ntimes
+    spread_sq = (agc1_scales[stage] ** 2 + agc2_scales[stage] ** 2) / ntimes
 
     # get pole positions to better match intended spread and delay of
     # [[geometric distribution]] in each direction (see wikipedia)
@@ -1632,8 +1686,9 @@ def design_and_init_agc(
         # and in Design_fir_coeffs
         raise ValueError('Bad n_taps (%d) in design_agc' % n_taps)
 
-      [agc_spatial_fir, done] = design_fir_coeffs(n_taps, spread_sq, delay,
-                                                  n_iterations)
+      [agc_spatial_fir, done] = design_fir_coeffs(
+          n_taps, spread_sq, delay, n_iterations
+      )
 
     # When done, store the resulting FIR design in coeffs:
     agc_hypers[stage].agc_spatial_iterations = n_iterations
@@ -1652,7 +1707,7 @@ def design_and_init_agc(
 
     # TODO(dicklyon) -- is this the best binaural mixing plan?
     if stage == 0:
-      agc_weights[stage].agc_mix_coeffs = 0.
+      agc_weights[stage].agc_mix_coeffs = 0.0
     else:
       agc_weights[stage].agc_mix_coeffs = ear_params.agc.agc_mix_coeffs / (
           tau * (fs / decim)
@@ -1687,7 +1742,8 @@ def design_and_init_carfac(
     while pole_hz > ear_params.car.min_pole_hz:
       n_ch = n_ch + 1
       pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
-          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q)
+          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
+      )
 
     # Now we have n_ch, the number of channels, so can make the array
     # and compute all the frequencies again to put into it:
@@ -1699,7 +1755,8 @@ def design_and_init_carfac(
       else:
         pole_freqs[ch] = pole_hz
       pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
-          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q)
+          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
+      )
     # Now we have n_ch, the number of channels, and pole_freqs array.
     max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 

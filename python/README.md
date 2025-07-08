@@ -42,3 +42,9 @@ need to re-install the package to see any updates in `carfac.test_data` despite
 the package being installed as editable.
 
 [dependency groups]: https://packaging.python.org/en/latest/specifications/dependency-groups/
+
+## Formatting
+
+All code must be formatted with `pyink`, which can either be run using `uv` with
+`uv run pyink src` or in a virtualenv with `pyink src`. `pyink` should
+automatically be installed as part of the `dev` dependency group.

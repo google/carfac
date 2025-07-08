@@ -24,7 +24,32 @@ dev = [
     "absl-py >=1.4.0",
     "google-benchmark >=1.9.4",
     "parameterized >=0.9.0",
+    "pyink[jupyter] >=24.10.1",
 ]
+
+[tool.pyink]
+# Formatting configuration to follow Google style-guide
+line-length = 80
+unstable = true
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+pyink-annotation-pragmas = [
+  "noqa",
+  "pylint:",
+  "type: ignore",
+  "pytype:",
+  "mypy:",
+  "pyright:",
+  "pyre-",
+  "@title",
+  "@param",
+  "@markdown",
+  "@tidy",
+  "@test",
+]
+pyink-ipynb-indentation = 2
+pyink-ipynb-unicode-escape = true
+target-version = []
 
 [build-system]
 requires = ["hatchling"]

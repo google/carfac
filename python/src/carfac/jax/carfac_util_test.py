@@ -11,9 +11,8 @@ from carfac.jax import carfac
 from carfac.jax import carfac_util
 
 import os
-os.environ["XLA_FLAGS"] = (
-   "--xla_force_host_platform_device_count=2"
-)
+
+os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=2'
 
 _NOISE_FACTOR = 1e-2
 
