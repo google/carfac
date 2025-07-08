@@ -17,6 +17,33 @@ import jax.tree_util as jtu
 
 from carfac.jax import carfac as carfac_jax
 
+@jax.tree_util.register_pytree_node_class
+class ScanGradHypers:
+  exactlen: bool = (
+      False  # whether chunk_num*chunk_length should equal stimulus length exactly
+  )
+  chunk_num: int = 100  # number of chunks in stacked stimulus
+
+  def tree_flatten(self):
+    children = (self.exactlen, self.chunk_num)
+    aux_data = ("exactlen", "chunk_num")
+    return (children, aux_data)
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
+
+  def __hash__(self):
+    return hash(
+      (
+        self.exactlen,
+        self.chunk_num,
+      )
+    )
+
+  def __eq__(self, other):
+    return carfac_jax._are_two_equal_hypers(self, other)
+
 
 def _tree_unstack(tree):
   leaves, treedef = jtu.tree_flatten(tree)
@@ -185,3 +212,59 @@ def run_multiple_segment_pmap(
     )
     output.append(tup)
   return output
+
+
+## output_states is the unstacked list of carfac_states and can be directly applied to run_multiple_segments_states_shmap
+
+
+def run_scan_for_grad(
+    input_wave: jnp.array,
+    hypers: carfac_jax.CarfacHypers,
+    weights: carfac_jax.CarfacWeights,
+    state: carfac_jax.CarfacState,
+    scan_grad_hypers: ScanGradHypers,
+):
+    """This function chunks single audio stimulus and runs this through CARFAC using lax.scan.
+
+    Args:
+      input_wave: Single audio stimulus.
+      hypers: Shared hypers for use in input.
+      weights: Shared weights to use in input.
+      state: Shared state to use as input.
+      scan_grad_hypers: This includes the chunk number for using as static_argnums in jitted function.
+
+    Returns:
+      nap_output: NAP output reconstructed as if complete audio stimulus presented
+      final_recon_input_wave: This is the input_wave reconstructed from stimulus_stacked
+
+    """
+
+    def __run_carfac_scan(carry, k):
+      nap, weights, state, input = carry
+      nap, _, state, _, _, _ = carfac_jax.run_segment(
+          input[:, k], hypers, weights, state, open_loop=False
+      )
+      return (nap, weights, state, input), nap
+
+    chunk_length = len(input_wave) // scan_grad_hypers.chunk_num
+    length_to_test = chunk_length * scan_grad_hypers.chunk_num
+    stimnum_to_test = jnp.arange(scan_grad_hypers.chunk_num)
+    nap = jnp.zeros([chunk_length, hypers.ears[0].n_ch, 1])
+
+    if (scan_grad_hypers.exactlen) and (length_to_test != len(input_wave)):
+        raise Exception("Chunk_length * Chunk_number does not equal stimulus length")
+    ### generate stimulus_stack with jnp.split
+    stimulus_stacked = input_wave[:length_to_test].reshape(
+        scan_grad_hypers.chunk_num, chunk_length
+    )
+    ### run CARFAC for stimulus stack with lax.scan
+    (_, _, _, _), nap_final = jax.lax.scan(
+        __run_carfac_scan, (nap, weights, state, stimulus_stacked.T), stimnum_to_test
+    )
+    ### reconstruct stacked NAP output as one long output
+    nap_output = jnp.reshape(
+        nap_final,
+        [jnp.shape(nap_final)[0] * jnp.shape(nap_final)[1], hypers.ears[0].n_ch, 1],
+    )
+    final_recon_input = jnp.hstack(stimulus_stacked)
+    return nap_output, final_recon_input
