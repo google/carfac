@@ -15,6 +15,7 @@ from carfac.np import carfac as carfac_np
 
 
 class CarfacJaxTest(parameterized.TestCase):
+
   def setUp(self):
     super().setUp()
     # The default tolerance used in `assertAlmostEqual` etc.
@@ -174,7 +175,7 @@ class CarfacJaxTest(parameterized.TestCase):
       # Linear car is named differently in plain numpy,
       self.assertEqual(
           ear_params_np.car_coeffs.linear,
-          hypers_jax.ears[ear_idx].car.linear_car
+          hypers_jax.ears[ear_idx].car.linear_car,
       )
       self.container_comparison(
           state_jax.ears[ear_idx].car, ear_params_np.car_state
@@ -333,10 +334,8 @@ class CarfacJaxTest(parameterized.TestCase):
     state_jax_copied = copy.deepcopy(state_jax)
 
     # Only tests the JITted version because this is what we will use.
-    naps_jax, _, _, bm_jax, ohc_jax, agc_jax = (
-        carfac_jax.run_segment_jit(
-            run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
-        )
+    naps_jax, _, _, bm_jax, ohc_jax, agc_jax = carfac_jax.run_segment_jit(
+        run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
     (
         naps_jax_chunked,

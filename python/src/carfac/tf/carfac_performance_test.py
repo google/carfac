@@ -71,24 +71,30 @@ class CARFACPerformanceTest(tf.test.TestCase):
     ### Graph mode: False, convolver: concat_add
     ### Build + run: 15.797059059143066s => 1.0
     ### Run: 15.797059774398804s => 1.0
-    def run(expander: carfac.RecurrenceExpansionCallable,
-            convolver: carfac.ConvolverCallable,
-            graph_mode: bool) -> Tuple[float, float]:
+    def run(
+        expander: carfac.RecurrenceExpansionCallable,
+        convolver: carfac.ConvolverCallable,
+        graph_mode: bool,
+    ) -> Tuple[float, float]:
       ihc_params = carfac.IHCParams()
       car_params = carfac.CARParams()
       car_params.erb_per_step = tf.constant(3.0)
-      carfac_cell = carfac.CARFACCell(ihc_params=ihc_params,
-                                      car_params=car_params,
-                                      num_ears=3,
-                                      recurrence_expander=expander,
-                                      convolver=convolver)
+      carfac_cell = carfac.CARFACCell(
+          ihc_params=ihc_params,
+          car_params=car_params,
+          num_ears=3,
+          recurrence_expander=expander,
+          convolver=convolver,
+      )
       carfac_layer = tf.keras.layers.RNN(carfac_cell)
       model = tf.keras.Sequential([carfac_layer])
       impulse: np.ndarray = np.zeros([1, 128, 3, 1], dtype=np.float32)
       impulse[:, 0, 0, :] = 1
+
       @tf.function
       def graph_compute(data):
         return model(data)
+
       if graph_mode:
         total_start = time.time()
         o = graph_compute(impulse)
@@ -104,22 +110,27 @@ class CARFACPerformanceTest(tf.test.TestCase):
         run_done = time.time()
       self.assertEqual(o.shape, tf.TensorShape((1, 3, 12, 1)))
       return (total_done - total_start, run_done - run_start)
+
     for graph_mode in [True, False]:
       total_times: Dict[str, float] = {}
       run_times: Dict[str, float] = {}
       for name, expander in carfac.recurrence_expansion_methods.items():
-        total_t, run_t = run(expander=expander,
-                             graph_mode=graph_mode,
-                             convolver=carfac.conv1d_convolver)
+        total_t, run_t = run(
+            expander=expander,
+            graph_mode=graph_mode,
+            convolver=carfac.conv1d_convolver,
+        )
         total_times[name] = total_t
         run_times[name] = run_t
       total_m = np.max(list(total_times.values()))
       run_m = np.max(list(run_times.values()))
       for name in carfac.recurrence_expansion_methods.keys():
-        desc = (f'Graph mode: {graph_mode}, expander: {name}')
+        desc = f'Graph mode: {graph_mode}, expander: {name}'
         print(f'### {desc}')
-        print(f'### Build + run: {total_times[name]}s => '
-              f'{total_times[name] / total_m}')
+        print(
+            f'### Build + run: {total_times[name]}s =>'
+            f' {total_times[name] / total_m}'
+        )
         print(f'### Run: {run_times[name]}s => {run_times[name] / run_m}')
     for graph_mode in [True, False]:
       total_times: Dict[str, float] = {}
@@ -128,16 +139,19 @@ class CARFACPerformanceTest(tf.test.TestCase):
         total_t, run_t = run(
             expander=carfac.recurrence_relation_recurrence_expansion,
             graph_mode=graph_mode,
-            convolver=convolver)
+            convolver=convolver,
+        )
         total_times[name] = total_t
         run_times[name] = run_t
       total_m = np.max(list(total_times.values()))
       run_m = np.max(list(run_times.values()))
       for name in carfac.convolution_methods.keys():
-        desc = (f'Graph mode: {graph_mode}, convolver: {name}')
+        desc = f'Graph mode: {graph_mode}, convolver: {name}'
         print(f'### {desc}')
-        print(f'### Build + run: {total_times[name]}s => '
-              f'{total_times[name] / total_m}')
+        print(
+            f'### Build + run: {total_times[name]}s =>'
+            f' {total_times[name] / total_m}'
+        )
         print(f'### Run: {run_times[name]}s => {run_times[name] / run_m}')
 
 

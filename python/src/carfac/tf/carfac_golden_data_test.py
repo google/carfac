@@ -45,17 +45,20 @@ class CARFACGoldenDataTest(tf.test.TestCase):
     carfac_cell = carfac.CARFACCell(
         num_ears=3,
         convolver=carfac.conv1d_convolver,
-        recurrence_expander=carfac.recurrence_relation_recurrence_expansion)
-    carfac_layer = tf.keras.layers.RNN(carfac_cell, return_sequences=True,
-                                       dtype=tf.float32)
+        recurrence_expander=carfac.recurrence_relation_recurrence_expansion,
+    )
+    carfac_layer = tf.keras.layers.RNN(
+        carfac_cell, return_sequences=True, dtype=tf.float32
+    )
     model = tf.keras.Sequential([carfac_layer])
     impulse = np.zeros([1, 512, 3, 1], dtype=np.float32)
     impulse[:, 0, 0, :] = 1
     impulse[:, 10, 1, :] = 1
     impulse[:, 20, 2, :] = 1
     output = model(impulse).numpy()
-    output_file = (pathlib.Path(tempfile.gettempdir()) /
-                   'tf_carfac_golden_data_output.npz')
+    output_file = (
+        pathlib.Path(tempfile.gettempdir()) / 'tf_carfac_golden_data_output.npz'
+    )
     np.savez(output_file, data=output[:, :, :, :, 0])
     print(f'Golden data test saved produced output in {output_file}')
 
