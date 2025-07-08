@@ -48,10 +48,12 @@ def _read_test_file(full_name: str) -> np.ndarray:
   return np.array(res)
 
 
-def assert_matlab_compatibility(test_name: str,
-                                fun: Callable[[np.ndarray], np.ndarray],
-                                rtol: float = 0,
-                                atol: float = 7e-3):
+def assert_matlab_compatibility(
+    test_name: str,
+    fun: Callable[[np.ndarray], np.ndarray],
+    rtol: float = 0,
+    atol: float = 7e-3,
+):
   """Asserts that the provided function conforms to the Matlab CARFAC.
 
   Use this function to verify that the output from a (CARFAC) function returns
@@ -69,7 +71,7 @@ def assert_matlab_compatibility(test_name: str,
     atol: Absolute tolerarance of differences between precomputed Matlab results
       and the tested function. Defaults to 0 just like the C++ tests does for
       float32 testing.
-  """
+  """  # fmt: skip
   audio = _read_test_file(f'{test_name}-audio.txt')
   nap1 = _read_test_file(f'{test_name}-matlab-nap1.txt')
   nap2 = _read_test_file(f'{test_name}-matlab-nap2.txt')

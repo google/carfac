@@ -1,6 +1,5 @@
 """Implement Dick Lyon's cascade of asymmetric resonators.
 
-
 Copyright 2012 The CARFAC Authors. All Rights Reserved.
 Author: Richard F. Lyon
 
@@ -51,6 +50,7 @@ import numpy as np
 @dataclasses.dataclass
 class CarParams:
   """All the parameters needed to define the CAR filters."""
+
   velocity_scale: float = 0.1  # for the velocity nonlinearity
   v_offset: float = 0.04  # offset gives a quadratic part
   min_zeta: float = 0.10  # minimum damping factor in mid-freq channels
@@ -68,6 +68,7 @@ class CarParams:
 @dataclasses.dataclass
 class CarCoeffs:
   """Coefficients used by the CAR filter signal-graph implementation."""
+
   n_ch: int
   velocity_scale: float
   v_offset: float
@@ -104,9 +105,11 @@ class CarCoeffs:
   )
 
 
-def hz_to_erb(cf_hz: Union[float, np.ndarray],
-              erb_break_freq: float = 1000 / 4.37,
-              erb_q: float = 1000 / (24.7 * 4.37)):
+def hz_to_erb(
+    cf_hz: Union[float, np.ndarray],
+    erb_break_freq: float = 1000 / 4.37,
+    erb_q: float = 1000 / (24.7 * 4.37),
+):
   """Auditory filter nominal Equivalent Rectangular Bandwidth.
 
   Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
@@ -178,14 +181,17 @@ def design_filters(
   zr_coeffs = math.pi * (x - ff * x**3)  # when ff is 0, this is just theta,
   #                       and when ff is 1 it goes to zero at theta = pi.
   max_zeta = car_params.max_zeta
-  car_coeffs.r1_coeffs = (1 - zr_coeffs * max_zeta
-                         )  # "r1" for the max-damping condition
+  car_coeffs.r1_coeffs = (
+      1 - zr_coeffs * max_zeta
+  )  # "r1" for the max-damping condition
   min_zeta = car_params.min_zeta
   # Increase the min damping where channels are spaced out more, by pulling
   # 25% of the way toward hz_to_erb/pole_freqs (close to 0.1 at high f)
   min_zetas = min_zeta + 0.25 * (
-      hz_to_erb(pole_freqs, car_params.erb_break_freq, car_params.erb_q) /
-      pole_freqs - min_zeta)
+      hz_to_erb(pole_freqs, car_params.erb_break_freq, car_params.erb_q)
+      / pole_freqs
+      - min_zeta
+  )
   car_coeffs.zr_coeffs = zr_coeffs * (max_zeta - min_zetas)
   # how r relates to undamping
 
@@ -266,6 +272,7 @@ def stage_g(car_coeffs: CarCoeffs, undamping: float) -> np.ndarray:
 @dataclasses.dataclass
 class CarState:
   """All the state variables for the CAR filterbank."""
+
   z1_memory: np.ndarray
   z2_memory: np.ndarray
   za_memory: np.ndarray
@@ -293,10 +300,12 @@ def car_init_state(coeffs: CarCoeffs) -> CarState:
   return CarState(coeffs)
 
 
-def car_step(x_in: float,
-             car_coeffs: CarCoeffs,
-             car_state: CarState,
-             linear: bool = False):
+def car_step(
+    x_in: float,
+    car_coeffs: CarCoeffs,
+    car_state: CarState,
+    linear: bool = False,
+):
   """One sample-time update step for the filter part of the CARFAC.
 
   Most of the update is parallel; finally we ripple inputs at the end.
@@ -326,12 +335,14 @@ def car_step(x_in: float,
 
   #  now reduce car_state by r and rotate with the fixed cos/sin coeffs:
   z1 = r * (
-      car_coeffs.a0_coeffs * car_state.z1_memory -
-      car_coeffs.c0_coeffs * car_state.z2_memory)
+      car_coeffs.a0_coeffs * car_state.z1_memory
+      - car_coeffs.c0_coeffs * car_state.z2_memory
+  )
   #  z1 = z1 + inputs
   z2 = r * (
-      car_coeffs.c0_coeffs * car_state.z1_memory +
-      car_coeffs.a0_coeffs * car_state.z2_memory)
+      car_coeffs.c0_coeffs * car_state.z1_memory
+      + car_coeffs.a0_coeffs * car_state.z2_memory
+  )
 
   if car_coeffs.use_delay_buffer:
     # Optional fully-parallel update uses a delay per stage.
@@ -461,6 +472,7 @@ def ihc_detect(x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
 @dataclasses.dataclass
 class IhcCoeffs:
   """Variables needed for the inner hair cell implementation."""
+
   n_ch: int
   lpf_coeff: float = 0
   out1_rate: float = 0
@@ -640,6 +652,7 @@ def design_ihc_syn(
 @dataclasses.dataclass
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
+
   ihc_accum: np.ndarray = dataclasses.field(
       default_factory=lambda: np.array(0)
   )  # Placeholders
@@ -714,7 +727,8 @@ def ohc_nlf(velocities: np.ndarray, car_coeffs: CarCoeffs) -> np.ndarray:
   """
 
   nlf = 1.0 / (
-      1 + (velocities * car_coeffs.velocity_scale + car_coeffs.v_offset)**2)
+      1 + (velocities * car_coeffs.velocity_scale + car_coeffs.v_offset) ** 2
+  )
 
   return nlf
 
@@ -749,16 +763,18 @@ def ihc_step(
     if ihc_coeffs.ihc_style == 1:
       ihc_out = conductance * ihc_state.cap_voltage
       ihc_state.cap_voltage = (
-          ihc_state.cap_voltage - ihc_out * ihc_coeffs.out_rate +
-          (1 - ihc_state.cap_voltage) * ihc_coeffs.in_rate)
+          ihc_state.cap_voltage
+          - ihc_out * ihc_coeffs.out_rate
+          + (1 - ihc_state.cap_voltage) * ihc_coeffs.in_rate
+      )
       #  smooth it twice with LPF:
       ihc_out = ihc_out * ihc_coeffs.output_gain
-      ihc_state.lpf1_state = (
-          ihc_state.lpf1_state + ihc_coeffs.lpf_coeff *
-          (ihc_out - ihc_state.lpf1_state))
-      ihc_state.lpf2_state = (
-          ihc_state.lpf2_state + ihc_coeffs.lpf_coeff *
-          (ihc_state.lpf1_state - ihc_state.lpf2_state))
+      ihc_state.lpf1_state = ihc_state.lpf1_state + ihc_coeffs.lpf_coeff * (
+          ihc_out - ihc_state.lpf1_state
+      )
+      ihc_state.lpf2_state = ihc_state.lpf2_state + ihc_coeffs.lpf_coeff * (
+          ihc_state.lpf1_state - ihc_state.lpf2_state
+      )
       ihc_out = ihc_state.lpf2_state - ihc_coeffs.rest_output
     else:
       # Change to 2-cap version mediated by receptor potential at cap1:
@@ -868,6 +884,7 @@ def syn_step(
 @dataclasses.dataclass
 class AgcParams:
   """All the parameters needed to define the behavior of the AGC filters."""
+
   n_stages: int = 4
   time_constants: np.ndarray = dataclasses.field(
       default_factory=lambda: 0.002 * 4 ** np.arange(4)
@@ -939,10 +956,12 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
     ok = fir[2 - 1] >= 0.25
   elif n_taps == 5:
     # based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((delay_variance + mean_delay * mean_delay) * 2 / 5 -
-         mean_delay * 2 / 3) / 2
-    b = ((delay_variance + mean_delay * mean_delay) * 2 / 5 +
-         mean_delay * 2 / 3) / 2
+    a = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 - mean_delay * 2 / 3
+    ) / 2
+    b = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 + mean_delay * 2 / 3
+    ) / 2
     # first and last coeffs are implicitly duplicated to make 5-point FIR:
     fir = [a / 2, 1 - a - b, b / 2]
     ok = fir[2 - 1] >= 0.15
@@ -995,7 +1014,7 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
     # response as a distribution to be convolved ntimes:
     # TODO(dicklyon): specify spread and delay instead of scales?
     delay = (agc2_scales[stage] - agc1_scales[stage]) / ntimes
-    spread_sq = (agc1_scales[stage]**2 + agc2_scales[stage]**2) / ntimes
+    spread_sq = (agc1_scales[stage] ** 2 + agc2_scales[stage] ** 2) / ntimes
 
     # get pole positions to better match intended spread and delay of
     # [[geometric distribution]] in each direction (see wikipedia)
@@ -1028,8 +1047,9 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
         # and in Design_fir_coeffs
         raise ValueError('Bad n_taps (%d) in design_agc' % n_taps)
 
-      [agc_spatial_fir, done] = design_fir_coeffs(n_taps, spread_sq, delay,
-                                                  n_iterations)
+      [agc_spatial_fir, done] = design_fir_coeffs(
+          n_taps, spread_sq, delay, n_iterations
+      )
 
     # When done, store the resulting FIR design in coeffs:
     agc_coeffs[stage].agc_spatial_iterations = n_iterations
@@ -1037,7 +1057,7 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
     agc_coeffs[stage].agc_spatial_n_taps = n_taps
 
     # accumulate DC gains from all the stages, accounting for stage_gain:
-    total_dc_gain = total_dc_gain + agc_params.agc_stage_gain**(stage)
+    total_dc_gain = total_dc_gain + agc_params.agc_stage_gain ** (stage)
 
     # TODO(dicklyon) -- is this the best binaural mixing plan?
     if stage == 0:
@@ -1056,6 +1076,7 @@ def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
+
   agc_memory: np.ndarray
   input_accum: np.ndarray
   decim_phase: int = 0
@@ -1076,8 +1097,9 @@ def agc_init_state(coeffs: List[AgcCoeffs]) -> List[AgcState]:
   return state
 
 
-def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
-                state: List[AgcState]) -> Tuple[bool, List[AgcState]]:
+def agc_recurse(
+    coeffs: List[AgcCoeffs], agc_in, stage: int, state: List[AgcState]
+) -> Tuple[bool, List[AgcState]]:
   """Compute the AGC output for one stage, doing the recursion.
 
   Args:
@@ -1093,14 +1115,20 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
 
   # Design consistency checks
   if len(coeffs) != len(state):
-    raise ValueError('Length of coeffs (%d) and state (%d) do not agree.' %
-                     (len(coeffs), len(state)))
+    raise ValueError(
+        'Length of coeffs (%d) and state (%d) do not agree.'
+        % (len(coeffs), len(state))
+    )
   if len(state[stage].agc_memory) != coeffs[stage].n_ch:
-    raise ValueError('Width of agc_memory (%d) and n_ch (%d) do not agree.' %
-                     (len(state[stage].agc_memory), coeffs[stage].n_ch))
+    raise ValueError(
+        'Width of agc_memory (%d) and n_ch (%d) do not agree.'
+        % (len(state[stage].agc_memory), coeffs[stage].n_ch)
+    )
   if len(agc_in) != coeffs[stage].n_ch:
-    raise ValueError('Width of AGC (%d) and n_ch (%d) do not agree.' %
-                     (len(agc_in), coeffs[stage].n_ch))
+    raise ValueError(
+        'Width of AGC (%d) and n_ch (%d) do not agree.'
+        % (len(agc_in), coeffs[stage].n_ch)
+    )
   assert len(agc_in) == coeffs[stage].n_ch
 
   # decim factor for this stage, relative to input or prev. stage:
@@ -1126,13 +1154,15 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
     if stage < coeffs[0].n_agc_stages - 1:
       updated, state = agc_recurse(coeffs, agc_in, stage + 1, state)
       # and add its output to this stage input, whether it updated or not:
-      agc_in = agc_in + coeffs[stage].agc_stage_gain * state[stage +
-                                                             1].agc_memory
+      agc_in = (
+          agc_in + coeffs[stage].agc_stage_gain * state[stage + 1].agc_memory
+      )
 
     agc_stage_state = state[stage].agc_memory
     # first-order recursive smoothing filter update, in time:
     agc_stage_state = agc_stage_state + coeffs[stage].agc_epsilon * (
-        agc_in - agc_stage_state)
+        agc_in - agc_stage_state
+    )
     # spatial smooth:
     agc_stage_state = spatial_smooth(coeffs[stage], agc_stage_state)
     # and store the state back (in C++, do it all in place?)
@@ -1145,8 +1175,9 @@ def agc_recurse(coeffs: List[AgcCoeffs], agc_in, stage: int,
   return updated, state
 
 
-def agc_step(detects: np.ndarray, coeffs: List[AgcCoeffs],
-             state: List[AgcState]) -> Tuple[bool, List[AgcState]]:
+def agc_step(
+    detects: np.ndarray, coeffs: List[AgcCoeffs], state: List[AgcState]
+) -> Tuple[bool, List[AgcState]]:
   """One time step of the AGC state update; decimates internally.
 
   Args:
@@ -1261,7 +1292,8 @@ def design_carfac(
   while pole_hz > car_params.min_pole_hz:
     n_ch = n_ch + 1
     pole_hz = pole_hz - car_params.erb_per_step * hz_to_erb(
-        pole_hz, car_params.erb_break_freq, car_params.erb_q)
+        pole_hz, car_params.erb_break_freq, car_params.erb_q
+    )
 
   # Now we have n_ch, the number of channels, so can make the array
   # and compute all the frequencies again to put into it:
@@ -1270,7 +1302,8 @@ def design_carfac(
   for ch in range(n_ch):
     pole_freqs[ch] = pole_hz
     pole_hz = pole_hz - car_params.erb_per_step * hz_to_erb(
-        pole_hz, car_params.erb_break_freq, car_params.erb_q)
+        pole_hz, car_params.erb_break_freq, car_params.erb_q
+    )
   # Now we have n_ch, the number of channels, and pole_freqs array.
 
   max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
@@ -1361,21 +1394,26 @@ def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
     if coeffs.agc_spatial_n_taps == 3:
       for _ in range(n_iterations):
         stage_state = (
-            fir_coeffs[0] * shift_right(stage_state, 1) +
-            fir_coeffs[1] * shift_right(stage_state, 0) +
-            fir_coeffs[2] * shift_right(stage_state, -1))
+            fir_coeffs[0] * shift_right(stage_state, 1)
+            + fir_coeffs[1] * shift_right(stage_state, 0)
+            + fir_coeffs[2] * shift_right(stage_state, -1)
+        )
 
     #  5-tap smoother duplicates first and last coeffs
     elif coeffs.agc_spatial_n_taps == 5:
       for _ in range(n_iterations):
         stage_state = (
-            fir_coeffs[0] *
-            (shift_right(stage_state, 2) + shift_right(stage_state, 1)) +
-            fir_coeffs[1] * shift_right(stage_state, 0) + fir_coeffs[2] *
-            (shift_right(stage_state, -1) + shift_right(stage_state, -2)))
+            fir_coeffs[0]
+            * (shift_right(stage_state, 2) + shift_right(stage_state, 1))
+            + fir_coeffs[1] * shift_right(stage_state, 0)
+            + fir_coeffs[2]
+            * (shift_right(stage_state, -1) + shift_right(stage_state, -2))
+        )
     else:
-      raise ValueError('Bad agc_spatial_n_taps (%d) in spatial_smooth' %
-                       coeffs.agc_spatial_n_taps)
+      raise ValueError(
+          'Bad agc_spatial_n_taps (%d) in spatial_smooth'
+          % coeffs.agc_spatial_n_taps
+      )
   else:
     # use IIR method, back-and-forth first-order smoothers:
     raise NotImplementedError
@@ -1403,10 +1441,12 @@ def close_agc_loop(cfp: CarfacParams) -> CarfacParams:
     new_g = stage_g(cfp.ears[ear].car_coeffs, undamping)
     # set the deltas needed to get to the new damping:
     cfp.ears[ear].car_state.dzb_memory = (
-        (cfp.ears[ear].car_coeffs.zr_coeffs * undamping -
-         cfp.ears[ear].car_state.zb_memory) / decim1)
+        cfp.ears[ear].car_coeffs.zr_coeffs * undamping
+        - cfp.ears[ear].car_state.zb_memory
+    ) / decim1
     cfp.ears[ear].car_state.dg_memory = (
-        new_g - cfp.ears[ear].car_state.g_memory) / decim1
+        new_g - cfp.ears[ear].car_state.g_memory
+    ) / decim1
   return cfp
 
 
@@ -1449,7 +1489,7 @@ def run_segment(
     cfp: CarfacParams,
     input_waves: np.ndarray,
     open_loop: bool = False,
-    linear_car: bool = False
+    linear_car: bool = False,
 ) -> Tuple[np.ndarray, CarfacParams, np.ndarray, np.ndarray, np.ndarray]:
   """This function runs the entire CARFAC model.
 
@@ -1496,8 +1536,9 @@ def run_segment(
 
   if n_ears != cfp.n_ears:
     raise ValueError(
-        'Bad number of input_waves channels (%d vs %d) passed to Run' %
-        (n_ears, cfp.n_ears))
+        'Bad number of input_waves channels (%d vs %d) passed to Run'
+        % (n_ears, cfp.n_ears)
+    )
 
   n_ch = cfp.n_ch
   naps = np.zeros((n_samp, n_ch, n_ears))  # allocate space for result
@@ -1523,7 +1564,8 @@ def run_segment(
           input_waves[k, ear],
           cfp.ears[ear].car_coeffs,
           cfp.ears[ear].car_state,
-          linear=linear_car)
+          linear=linear_car,
+      )
 
       # update IHC state & output on every time step, too
       [ihc_out, cfp.ears[ear].ihc_state, v_recep] = ihc_step(
