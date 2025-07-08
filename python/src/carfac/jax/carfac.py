@@ -374,7 +374,7 @@ class AgcDesignParameters:
   )
   agc2_scales: jnp.ndarray = dataclasses.field(
       default_factory=lambda: 1.65 * math.sqrt(2) ** jnp.arange(4)
-      default_factory=lambda: 1.65 * math.sqrt(2)**jnp.arange(4, dtype=float)
+      default_factory=lambda: 1.65 * math.sqrt(2) ** jnp.arange(4, dtype=float)
   )
   agc_mix_coeffs: float = 0.5
 
