@@ -14,12 +14,10 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac_jax
-import carfac_util
-import np.carfac as carfac_np
+from carfac.jax import carfac as carfac_jax
+from carfac.jax import carfac_util
+from carfac.np import carfac as carfac_np
+
 import os
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=2048"
 

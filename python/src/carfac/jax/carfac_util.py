@@ -15,10 +15,7 @@ import jax.numpy as jnp
 import jax.sharding as jsharding
 import jax.tree_util as jtu
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac_jax
+from carfac.jax import carfac as carfac_jax
 
 
 def _tree_unstack(tree):

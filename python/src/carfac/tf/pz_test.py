@@ -21,11 +21,12 @@
 
 from typing import Callable
 import unittest
+
 from absl import app
 import numpy as np
 import tensorflow as tf
 
-from . import pz
+from carfac.tf import pz
 
 
 class CoeffTest(unittest.TestCase):

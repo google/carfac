@@ -7,11 +7,9 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac
-import carfac_util as carfac_util
+from carfac.jax import carfac
+from carfac.jax import carfac_util
+
 import os
 os.environ["XLA_FLAGS"] = (
    "--xla_force_host_platform_device_count=2"

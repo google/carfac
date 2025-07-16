@@ -22,10 +22,11 @@
 
 import time
 from typing import Dict, Tuple
+
 import numpy as np
 import tensorflow as tf
 
-from . import carfac
+from carfac.tf import carfac
 
 
 class CARFACPerformanceTest(tf.test.TestCase):
