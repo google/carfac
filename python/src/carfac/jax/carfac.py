@@ -602,10 +602,10 @@ class SynDesignParameters:
   n_classes: int = 3  # Default. Modify params and redesign to change.
   ihcs_per_channel: dataclasses.InitVar[int] = 10  # Maybe 20 would be better?
   healthy_n_fibers: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (jnp.array([50.0, 35.0, 25.0], dtype=float))
+      default_factory=lambda: jnp.array([50.0, 35.0, 25.0], dtype=float)
   )
   spont_rates: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (jnp.array([50.0, 6.0, 1.0], dtype=float))
+      default_factory=lambda: jnp.array([50.0, 6.0, 1.0], dtype=float)
   )
   sat_rates: float = 200.0
   sat_reservoir: float = 0.2
@@ -617,7 +617,7 @@ class SynDesignParameters:
   # and number of fibers. This way works for more different numbers.
   agc_weights: jnp.ndarray = dataclasses.field(
       default_factory=lambda: (
-          jnp.array([1.2, 1.2, 1.2], dtype=float) / (float(22050))
+          jnp.array([1.2, 1.2, 1.2], dtype=float) / 22050.0
       )
   )
 
