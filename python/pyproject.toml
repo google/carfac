@@ -3,26 +3,27 @@ name = "carfac"
 version = "0.0.1"
 description = "Python implementation of Cascade of Asymmetric Resonators with Fast-Acting Compression (CARFAC)"
 readme = "../README.md"
-requires-python = ">=3.12"
+# The lower bound of these versions come from Colab as of 2025-06-20.
+requires-python = ">=3.11"
 dependencies = [
-    "matplotlib~=3.9.1",
-    "numpy~=2.1.3",
+    "matplotlib >=3.9.1",
+    "numpy >=2.0.2",
 ]
 
 [project.optional-dependencies]
 tf = [
-    "tensorflow~=2.19.0",
-    "tf-keras~=2.19.0",
+    "tensorflow >=2.18.0",
+    "tf-keras >=2.18.0",
 ]
 jax = [
-    "jax~=0.6.0",
+    "jax >=0.5.1",
 ]
 
 [dependency-groups]
 dev = [
-    "absl-py~=2.2.2",
-    "google-benchmark~=1.9.4",
-    "parameterized~=0.9.0",
+    "absl-py >=1.4.0",
+    "google-benchmark >=1.9.4",
+    "parameterized >=0.9.0",
 ]
 
 [build-system]

@@ -1773,9 +1773,13 @@ class CARFACCell(tf.keras.layers.Layer):
     if (not self._open_loop and
         not self._linear and
         self.agc_params.decimation.shape.as_list()):
-      agc_state, agc_memory_updated = self._agc_step(agc_coeffs,
-                                                     agc_state,
-                                                     ihc_state)
+      # `agc_coeffs` and `agc_state` are defined iff
+      # `agc_params.decimation.shape.as_list()`, which is true in this branch.
+      agc_state, agc_memory_updated = self._agc_step(
+          agc_coeffs,
+          agc_state,  # pylint: disable=used-before-assignment
+          ihc_state,
+      )
       def agc_was_updated(car_state: _CARStateET,
                           agc_state: _AGCStateET) -> tuple[_CARStateET,
                                                            _AGCStateET]:
