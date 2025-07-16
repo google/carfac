@@ -616,7 +616,9 @@ class SynDesignParameters:
   # The weights 1.2 were picked before correctly account for sample rate
   # and number of fibers. This way works for more different numbers.
   agc_weights: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (jnp.array([1.2, 1.2, 1.2], dtype=float) / (float(22050)))
+      default_factory=lambda: (
+          jnp.array([1.2, 1.2, 1.2], dtype=float) / (float(22050))
+      )
   )
 
   def __post_init__(self, ihcs_per_channel):
@@ -1402,9 +1404,9 @@ def design_and_init_ihc_syn(
       agc_weights
   )
   weights = SynWeights(
-      n_fibers=jnp.ones((n_ch,1)) * syn_params.healthy_n_fibers[None, :],
+      n_fibers=jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :],
       v_widths=v_widths,
-      v_halfs= offsets[None,:] * v_widths,
+      v_halfs=offsets[None, :] * v_widths,
       a1=a1,
       a2=a2,
       agc_weights=agc_weights,
@@ -1415,8 +1417,8 @@ def design_and_init_ihc_syn(
       lpf_coeff=1 - math.exp(-1 / (syn_params.tau_lpf * fs)),
   )
   state = SynState(
-      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None,:],
-      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None,:],
+      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None, :],
+      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None, :],
   )
   return hypers, weights, state
 
@@ -1949,7 +1951,7 @@ def syn_step(
   # returning instantaneous spike rates per class, for a group of neurons
   # associated with the CF channel, including reductions due to synaptopathy.
   # Normalized offset position into neurotransmitter release sigmoid.
-  x = (v_recep[None,:] - jnp.transpose(syn_weights.v_halfs)) / jnp.transpose(
+  x = (v_recep[None, :] - jnp.transpose(syn_weights.v_halfs)) / jnp.transpose(
       syn_weights.v_widths
   )
   x = jnp.transpose(x)
