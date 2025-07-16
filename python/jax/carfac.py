@@ -177,9 +177,9 @@ class CarHypers:
   use_delay_buffer: bool = False
   linear_car: bool = False
 
-  # After cl/536107240, `r1_coeffs`, `a0_coeffs`, `c0_coeffs`, `h_coeffs`,
-  # `g0_coeffs` and `zr_coeffs` are not used in model computation so they are
-  # moved to `CarHypers`.
+  # After https://github.com/google/carfac/commit/559a2f83, `r1_coeffs`,
+  # `a0_coeffs`, `c0_coeffs`, `h_coeffs`, `g0_coeffs` and `zr_coeffs` are not
+  # used in model computation so they are moved to `CarHypers`.
   r1_coeffs: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.zeros(())
   )
@@ -1207,7 +1207,8 @@ def design_and_init_filters(
   car_hypers.h_coeffs = h
 
   # Efficient approximation with g as quadratic function of undamping.
-  # First get g at both ends and the half-way point. (ref: cl/536107240)
+  # First get g at both ends and the half-way point. (ref:
+  # https://github.com/google/carfac/commit/559a2f83)
   undamping = 0.0
   g0 = design_stage_g(car_hypers, undamping)
   undamping = 1.0
