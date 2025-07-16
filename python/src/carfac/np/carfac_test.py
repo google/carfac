@@ -29,8 +29,9 @@ def linear_interp(x: np.ndarray, pos: float) -> float:
 
 # From:
 # https://ccrma.stanford.edu/~jos/sasp/Quadratic_Interpolation_Spectral_Peaks.html
-def quadratic_peak_interpolation(alpha: float, beta: float,
-                                 gamma: float) -> Tuple[float, float]:
+def quadratic_peak_interpolation(
+    alpha: float, beta: float, gamma: float
+) -> Tuple[float, float]:
   location = 1 / 2 * (alpha - gamma) / (alpha - 2 * beta + gamma)
   amplitude = beta - 1.0 / 4 * (alpha - gamma) * location
   return location, amplitude
@@ -39,9 +40,9 @@ def quadratic_peak_interpolation(alpha: float, beta: float,
 def find_peak_response(freqs, db_gains, bw_level=3):
   """Returns center frequency, amplitude at this point, and the 3dB width."""
   peak_bin = np.argmax(db_gains)
-  peak_frac, amplitude = quadratic_peak_interpolation(db_gains[peak_bin - 1],
-                                                      db_gains[peak_bin],
-                                                      db_gains[peak_bin + 1])
+  peak_frac, amplitude = quadratic_peak_interpolation(
+      db_gains[peak_bin - 1], db_gains[peak_bin], db_gains[peak_bin + 1]
+  )
   cf = linear_interp(freqs, peak_bin + peak_frac)
 
   freqs_3db = find_zero_crossings(freqs, db_gains - amplitude + bw_level)
@@ -78,18 +79,19 @@ class CarfacUtilityTest(absltest.TestCase):
       low_freq = characteristic_frequency - characteristic_frequency / bw2
       high_freq = characteristic_frequency + characteristic_frequency / bw2
 
-      scale = ((characteristic_frequency - low_freq) *
-               (characteristic_frequency - high_freq))
+      scale = (characteristic_frequency - low_freq) * (
+          characteristic_frequency - high_freq
+      )
       return (f - low_freq) * (f - high_freq) / scale
 
     # Don't use interval increment so we need to interpolate
-    self.test_freqs = np.arange(800, 1200, .37)
+    self.test_freqs = np.arange(800, 1200, 0.37)
     self.test_resp = test_peak(self.test_freqs)
 
   def test_linear_interp(self):
     # Test: One point
     num = 10
-    test_data = np.arange(num)**2
+    test_data = np.arange(num) ** 2
     # First Should be exactly 4, since it's a real point, and second is close
     # to 5 since it is between samples.
     self.assertAlmostEqual(linear_interp(test_data, math.sqrt(4)), 4)
@@ -100,8 +102,10 @@ class CarfacUtilityTest(absltest.TestCase):
     print(f'max_bin at {max_bin}, with value {self.test_freqs[max_bin]}')
     self.assertEqual(max_bin, 541)
     location, amplitude = quadratic_peak_interpolation(
-        self.test_resp[max_bin - 1], self.test_resp[max_bin],
-        self.test_resp[max_bin + 1])
+        self.test_resp[max_bin - 1],
+        self.test_resp[max_bin],
+        self.test_resp[max_bin + 1],
+    )
     print(f'Exact peak at bin {location}, with value {amplitude}')
     self.assertAlmostEqual(amplitude, 1.0)
     best_f = linear_interp(self.test_freqs, max_bin + location)
@@ -117,7 +121,8 @@ class CarfacUtilityTest(absltest.TestCase):
   def test_peak_response(self):
     bw_level = 0.5
     cf, amplitude, bw = find_peak_response(
-        self.test_freqs, self.test_resp, bw_level=bw_level)
+        self.test_freqs, self.test_resp, bw_level=bw_level
+    )
     print(f'Filter cf is {cf}, with peak amplitude of {amplitude} and bw {bw}.')
     self.assertAlmostEqual(cf, 1000)
     self.assertAlmostEqual(amplitude, 1)
@@ -147,14 +152,15 @@ class CarfacTest(parameterized.TestCase):
 
   def test_carfac_design(self):
     # Test: Simple.  But where do the divide by zeros come from????
-    carfac_filters = carfac.design_filters(carfac.CarParams(), 16000,
-                                           math.pi * np.arange(1, 5) / 5.)
+    carfac_filters = carfac.design_filters(
+        carfac.CarParams(), 16000, math.pi * np.arange(1, 5) / 5.0
+    )
     print(carfac_filters)
 
   def test_carfac_detect(self):
     # Test: Simple
     carfac.ihc_detect(10)
-    carfac.ihc_detect(np.array((1e6, 10.0, .0)))
+    carfac.ihc_detect(np.array((1e6, 10.0, 0.0)))
 
   def test_design_fir_coeffs(self):
     carfac.design_fir_coeffs(3, 1, 1, 1)
@@ -173,7 +179,8 @@ class CarfacTest(parameterized.TestCase):
           int(i == 0),
           cfp.ears[0].car_coeffs,
           cfp.ears[0].car_state,
-          linear=True)
+          linear=True,
+      )
       impulse_response[i, :] = car_out
 
     spectrum = np.fft.rfft(impulse_response, axis=0)
@@ -202,17 +209,20 @@ class CarfacTest(parameterized.TestCase):
         [60, 195, 38.98, 37.5, 5.2],
         [70, 32, 7.95, 14.6, 2.2],
     ]
-    for (channel, correct_cf, correct_gain, correct_bw, correct_q) in expected:
-      cf, amplitude, bw = find_peak_response(spectrum_freqs,
-                                             db_spectrum[:, channel])
+    for channel, correct_cf, correct_gain, correct_bw, correct_q in expected:
+      cf, amplitude, bw = find_peak_response(
+          spectrum_freqs, db_spectrum[:, channel]
+      )
       # Round and test gain to 2 places since float32 math is a
       # bit different to float64.
       gain = round(amplitude, 2)
       q = round(cf / bw, 1)
       cf = round(cf)
-      print(f'{channel}: cf is {cf} Hz, peak gain is '
-            f'{gain} dB, 3 dB bandwidth is {round(bw, 1)} Hz '
-            f'(Q = {q})')
+      print(
+          f'{channel}: cf is {cf} Hz, peak gain is '
+          f'{gain} dB, 3 dB bandwidth is {round(bw, 1)} Hz '
+          f'(Q = {q})'
+      )
       self.assertAlmostEqual(cf, correct_cf)
       self.assertAlmostEqual(amplitude, correct_gain, delta=0.01)
       self.assertAlmostEqual(bw, correct_bw, delta=0.1)
@@ -267,9 +277,12 @@ class CarfacTest(parameterized.TestCase):
     for i in range(1, 7):
       blip = neuro_output * (stim_num == i)
       blip_max = blip[np.argmax(blip)]
-      carrier_power = np.sum(blip * quad_sin)**2 + np.sum(blip * quad_cos)**2
-      print(f'Blip {i}: Max of {blip_max}, '
-            f'AC level is {np.sqrt(carrier_power)}')
+      carrier_power = (
+          np.sum(blip * quad_sin) ** 2 + np.sum(blip * quad_cos) ** 2
+      )
+      print(
+          f'Blip {i}: Max of {blip_max}, AC level is {np.sqrt(carrier_power)}'
+      )
       blip_maxes.append(blip_max)
       blip_ac.append(np.sqrt(carrier_power))
     return blip_maxes, blip_ac
@@ -370,7 +383,7 @@ class CarfacTest(parameterized.TestCase):
         -1: [1, 2, 3, 4, 5, 6, 6],
         0: [0, 1, 2, 3, 4, 5, 6],
         1: [0, 0, 1, 2, 3, 4, 5],
-        2: [0, 1, 0, 1, 2, 3, 4]
+        2: [0, 1, 0, 1, 2, 3, 4],
     }
     for amount in expected:
       result = carfac.shift_right(np.arange(7), amount)
@@ -392,9 +405,9 @@ class CarfacTest(parameterized.TestCase):
     agc_response = np.zeros((num_stages, n_points // decim, cfp.n_ch))
     num_outputs = 0
     for i in range(n_points):
-      [agc_updated,
-       agc_state] = carfac.agc_step(agc_input, cfp.ears[0].agc_coeffs,
-                                    cfp.ears[0].agc_state)
+      [agc_updated, agc_state] = carfac.agc_step(
+          agc_input, cfp.ears[0].agc_coeffs, cfp.ears[0].agc_state
+      )
       cfp.ears[0].agc_state = agc_state  # Not really necessary in np.
       if agc_updated:
         for stage in range(num_stages):
@@ -423,12 +436,16 @@ class CarfacTest(parameterized.TestCase):
       # that is 50% down from the interpolated peak amplitude to get width.
       amp = np.max(agc_response[i, -1, :])
       [cf, amp, bw] = find_peak_response(
-          np.arange(agc_response.shape[-1]), agc_response[i, -1, :], amp / 2)
+          np.arange(agc_response.shape[-1]), agc_response[i, -1, :], amp / 2
+      )
       [cf, amp, bw] = find_peak_response(
-          np.arange(agc_response.shape[-1]), agc_response[i, -1, :], amp / 2)
+          np.arange(agc_response.shape[-1]), agc_response[i, -1, :], amp / 2
+      )
 
-      print(f'AGC Stage {i}: Peak at channel {cf}, value is {amp},'
-            f'width is {bw} channels')
+      print(
+          f'AGC Stage {i}: Peak at channel {cf}, value is {amp},width is'
+          f' {bw} channels'
+      )
 
       expected_cf, expected_amplitude, expected_bw = expected_results[i]
       self.assertAlmostEqual(cf, expected_cf, places=5)
@@ -482,7 +499,8 @@ class CarfacTest(parameterized.TestCase):
     cfp = carfac.carfac_init(cfp)
 
     _, cfp, bm_initial, _, _ = carfac.run_segment(
-        cfp, impulse, open_loop=1, linear_car=True)
+        cfp, impulse, open_loop=1, linear_car=True
+    )
 
     carfac.run_segment(cfp, sinusoid, open_loop=0)
 
@@ -490,7 +508,8 @@ class CarfacTest(parameterized.TestCase):
     carfac.run_segment(cfp, 0 * impulse, open_loop=1, linear_car=False)
 
     _, cfp, bm_final, _, _ = carfac.run_segment(
-        cfp, impulse, open_loop=1, linear_car=True)
+        cfp, impulse, open_loop=1, linear_car=True
+    )
 
     fft_len = 2048  # Because 1024 is too sensitive for some reason.
     num_bins = fft_len // 2 + 1  # Per np.fft.rfft.
@@ -502,8 +521,10 @@ class CarfacTest(parameterized.TestCase):
     plt.title(f'NP: Channel {plot_channel} output bm_initial')
     plt.savefig('/tmp/whole_carfac_bm_initial.png')
     plt.savefig(f'/tmp/whole_channel_{plot_channel}_response.png')
-    print(f'Max value of bm_inital channel {plot_channel} is '
-          f'{np.max(bm_initial[:1500, plot_channel, 0])} ')
+    print(
+        f'Max value of bm_inital channel {plot_channel} is'
+        f' {np.max(bm_initial[:1500, plot_channel, 0])} '
+    )
 
     plt.figure()
     plt.semilogy(np.max(bm_initial[:, :, 0], axis=0))
@@ -517,8 +538,9 @@ class CarfacTest(parameterized.TestCase):
     print('Maximum output from each channel - Numpy')
     print('Channel: Before / After adaptation')
     for c in range(0, bm_initial.shape[1], 5):
-      print(f'{c}: ({np.max(bm_initial[:, c, 0])}, '
-            f'{np.max(bm_final[:, c, 0])}),')
+      print(
+          f'{c}: ({np.max(bm_initial[:, c, 0])}, {np.max(bm_final[:, c, 0])}),'
+      )
 
     # The following data comes from the Numpy implementation
     max_expected_responses = {  # By channel, pre and post adaptation
@@ -559,7 +581,7 @@ class CarfacTest(parameterized.TestCase):
       }
 
     def err(a, b):
-      return (a-b)/b
+      return (a - b) / b
 
     for c in max_expected_responses:
       e = err(max_expected_responses[c][0], np.max(bm_initial[:, c, 0]))
@@ -568,11 +590,13 @@ class CarfacTest(parameterized.TestCase):
       print(f'Post {c}: {e*100}% error.')
 
     for c in max_expected_responses:  # First check pre adaptation results
-      self.assertAlmostEqual(max_expected_responses[c][0],
-                             np.max(bm_initial[:, c, 0]))
+      self.assertAlmostEqual(
+          max_expected_responses[c][0], np.max(bm_initial[:, c, 0])
+      )
     for c in max_expected_responses:  # Then check post adaptation results
-      self.assertAlmostEqual(max_expected_responses[c][1],
-                             np.max(bm_final[:, c, 0]))
+      self.assertAlmostEqual(
+          max_expected_responses[c][1], np.max(bm_final[:, c, 0])
+      )
 
     initial_freq_response = np.fft.rfft(bm_initial[:fft_len, :, 0], axis=0)
     initial_freq_response = 20 * np.log10(np.abs(initial_freq_response) + 1e-50)
@@ -589,8 +613,9 @@ class CarfacTest(parameterized.TestCase):
     plt.semilogx(freqs[1:num_bins], final_freq_response[1:num_bins, ::1])
     plt.ylabel('dB')
     plt.xlabel('FFT Bin')
-    plt.title('NP: Initial (dotted) vs. Adapted at 1kHz (solid) '
-              'Frequency Response')
+    plt.title(
+        'NP: Initial (dotted) vs. Adapted at 1kHz (solid) Frequency Response'
+    )
     plt.ylim(-100, -15)
     plt.savefig('/tmp/whole_carfac_response.png')
 
@@ -621,7 +646,7 @@ class CarfacTest(parameterized.TestCase):
 
     # Test for change in peak gain after adaptation.
     def find_closest_channel(cfs: List[float], desired: float) -> np.ndarray:
-      return np.argmin((np.asarray(cfs) - desired)**2)
+      return np.argmin((np.asarray(cfs) - desired) ** 2)
 
     results = {}
     if ihc_style == 'one_cap':
@@ -651,11 +676,15 @@ class CarfacTest(parameterized.TestCase):
       expected_c, expected_cf, expected_change = results[desired_cf]
       cf = initial_resps[expected_c][0]
       diff_db = initial_resps[expected_c][1] - final_resps[expected_c][1]
-      print(f'Desired CF={desired_cf}Hz: Expected to find channel {expected_c}'
-            f' with a CF of {expected_cf}Hz and gain change of '
-            f'{expected_change}dB.')
-      print(f'                        Instead found channel {int(c)} with a CF '
-            f'of {cf}Hz and gain change of {diff_db}dB.')
+      print(
+          f'Desired CF={desired_cf}Hz: Expected to find channel'
+          f' {expected_c} with a CF of {expected_cf}Hz and gain change of'
+          f' {expected_change}dB.'
+      )
+      print(
+          f'                        Instead found channel {int(c)} with a CF '
+          f'of {cf}Hz and gain change of {diff_db}dB.'
+      )
     # Print a data block, just like the matlab does, for copy-paste purposes.
     for desired_cf in results:
       c = find_closest_channel([f[0] for f in final_resps], desired_cf)
@@ -672,7 +701,8 @@ class CarfacTest(parameterized.TestCase):
       self.assertEqual(c, expected_c)
       self.assertAlmostEqual(cf, expected_cf, delta=expected_cf / 10000.0)
       self.assertAlmostEqual(
-          diff_db, expected_change, delta=0.01)  # dB change diff.
+          diff_db, expected_change, delta=0.01
+      )  # dB change diff.
 
   def test_delay_buffer(self):
     # Test: Verify simple delay of linear impulse response.
@@ -686,21 +716,23 @@ class CarfacTest(parameterized.TestCase):
     cfp = carfac.carfac_init(cfp)
     # Run the linear case with small impulse.
     _, cfp, bm_initial, _, _ = carfac.run_segment(
-        cfp, impulse, open_loop=True, linear_car=True)
+        cfp, impulse, open_loop=True, linear_car=True
+    )
     plt.imshow(bm_initial[:80, :])
     plt.title('Impulse response with direct connections between stages')
 
     cfp = carfac.carfac_init(cfp)  # Clear state to zero between runs.
     cfp.ears[0].car_coeffs.use_delay_buffer = True
     _, cfp, bm_delayed, _, _ = carfac.run_segment(
-        cfp, impulse, open_loop=True, linear_car=True)
+        cfp, impulse, open_loop=True, linear_car=True
+    )
     plt.figure()
     plt.imshow(bm_delayed[:80, :])
     plt.title('Impulse response with delay buffer (one extra delay per stage)')
 
     max_max_rel_error = 0
     for ch in np.arange(cfp.n_ch):
-      impresp = bm_initial[:-ch - 1, ch]
+      impresp = bm_initial[: -ch - 1, ch]
       delayed = bm_delayed[ch:-1, ch]
       max_abs = np.amax(np.abs(impresp))
       max_abs_error = np.amax(np.abs(impresp - delayed))
@@ -719,7 +751,7 @@ class CarfacTest(parameterized.TestCase):
     _, cfp, bm_delayed, _, _ = carfac.run_segment(cfp, impulse)
     max_max_rel_error = 0
     for ch in np.arange(cfp.n_ch):
-      impresp = bm_initial[:-ch - 1, ch]
+      impresp = bm_initial[: -ch - 1, ch]
       delayed = bm_delayed[ch:-1, ch]
       max_abs = np.amax(np.abs(impresp))
       max_abs_error = np.amax(np.abs(impresp - delayed))
@@ -751,8 +783,8 @@ class CarfacTest(parameterized.TestCase):
     _, cfp, bm_degraded, _, _ = carfac.run_segment(cfp, noise)
 
     # Compare rms outputs per channel.
-    rms_baseline = np.mean(bm_baseline**2, axis=0)**0.5
-    rms_degraded = np.mean(bm_degraded**2, axis=0)**0.5
+    rms_baseline = np.mean(bm_baseline**2, axis=0) ** 0.5
+    rms_degraded = np.mean(bm_degraded**2, axis=0) ** 0.5
     tf_ratio = rms_degraded / rms_baseline
 
     plt.clf()
@@ -835,21 +867,78 @@ class CarfacTest(parameterized.TestCase):
     tf_ratio = rms_bm_binaural_good_ear / rms_bm_mono
     # this data comes directly from the same test that executes in Matlab.
     expected_tf_ratio = [
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0001, 1.0001, 1.0001,
-        1.0002, 1.0004, 1.0007, 1.0018, 1.0050,
-        1.0133, 1.0290, 1.0463, 1.0562, 1.0552,
-        1.0505, 1.0497, 1.0417, 1.0426, 1.0417,
-        1.0320, 1.0110, 1.0093, 1.0124, 1.0065,
-        1.0132, 1.0379, 1.0530, 1.0503, 1.0477,
-        1.0556, 1.0659, 1.0739, 1.0745, 1.0762,
-        1.0597, 1.0200, 1.0151, 1.0138, 1.0129,
-        1.0182,]
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0000,
+        1.0001,
+        1.0001,
+        1.0001,
+        1.0002,
+        1.0004,
+        1.0007,
+        1.0018,
+        1.0050,
+        1.0133,
+        1.0290,
+        1.0463,
+        1.0562,
+        1.0552,
+        1.0505,
+        1.0497,
+        1.0417,
+        1.0426,
+        1.0417,
+        1.0320,
+        1.0110,
+        1.0093,
+        1.0124,
+        1.0065,
+        1.0132,
+        1.0379,
+        1.0530,
+        1.0503,
+        1.0477,
+        1.0556,
+        1.0659,
+        1.0739,
+        1.0745,
+        1.0762,
+        1.0597,
+        1.0200,
+        1.0151,
+        1.0138,
+        1.0129,
+        1.0182,
+    ]
     diff_ratio = np.abs(tf_ratio - expected_tf_ratio)
     for ch in np.arange(len(diff_ratio)):
       self.assertAlmostEqual(
