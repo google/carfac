@@ -1850,26 +1850,27 @@ def ohc_nlf(velocities: jnp.ndarray, car_weights: CarWeights) -> jnp.ndarray:
 
 
 def ear_ch_scan(
-    carry: Tuple[jax.Array, jax.Array, jax.Array], ch: int
-) -> Tuple[Tuple[jax.Array, jax.Array, jax.Array], jax.Array]:
+    in_out: jax.Array, g_zy: Tuple[jax.Array, jax.Array]
+) -> Tuple[jax.Array, jax.Array]:
   """Propagates the BM action down the cochlea, to new channels.
 
   This function is the guts of a jax.lax.scan call.
 
   Args:
-    carry: the g, zy, and in_out matrices need to implement the CAR filters.
-    ch: The current channel number of the current scan step.
+    in_out: the output from the previous channel.
+    g_zy: the g and zy values for the current channel.
 
   Returns:
-    the new carry, and the output for the current channel.
+    the output for the current channel (as a carry), and the output for the
+    current channel (as an output for the scan).
   """
-  g, zy, in_out = carry
-  new_in_out = g[ch] * (in_out + zy[ch])
-  return (g, zy, new_in_out), new_in_out
+  g, zy = g_zy
+  new_in_out = g * (in_out + zy)
+  return new_in_out, new_in_out
 
 
 def car_step(
-    x_in: float,
+    x_in: jax.Array,
     ear: int,
     hypers: CarfacHypers,
     weights: CarfacWeights,
@@ -1916,11 +1917,7 @@ def car_step(
     # Ripple input-output path to avoid delay...
     # this is the only part that doesn't get computed "in parallel":
     zy = hypers.ears[ear].car.h_coeffs * z2  # partial output
-    in_out = x_in
-    # Copied from @malcolmslaney's version.
-    _, zy = jax.lax.scan(  # pytype: disable=wrong-arg-types  # lax-types
-        ear_ch_scan, (g, zy, in_out), jnp.arange(g.shape[-1])
-    )
+    _, zy = jax.lax.scan(ear_ch_scan, x_in, (g, zy))
     z1 += jnp.hstack((x_in, zy[:-1]))
 
   #  put new car_state back in place of old
