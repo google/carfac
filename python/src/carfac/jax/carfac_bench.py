@@ -246,6 +246,10 @@ def bench_jit_compile_time(state: google_benchmark.State):
     )
     naps_jax.block_until_ready()
 
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
+
 
 @google_benchmark.register
 @google_benchmark.option.measure_process_cpu_time()
@@ -324,6 +328,10 @@ def bench_jax_in_slices(state: google_benchmark.State):
       bm.append(seg_bm)
       ohc.append(seg_ohc)
       agc.append(seg_agc)
+
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
 
 
 @google_benchmark.register
@@ -410,6 +418,10 @@ def bench_jax(state: google_benchmark.State):
       # When running the merged version, the returned values are plain numpy.
       naps_jax.block_until_ready()
 
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected
+  # by previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
+
 
 @google_benchmark.register
 @google_benchmark.option.arg_names(['num_audio'])
@@ -462,6 +474,10 @@ def bench_jax_util_mapped(state: google_benchmark.State):
         open_loop=False,
     )
     results[0][0].block_until_ready()
+
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
 
 
 if __name__ == '__main__':
