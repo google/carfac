@@ -2398,11 +2398,6 @@ def run_segment(
   #       (n_ears, cfp.n_ears))
 
   n_ch = hypers.ears[0].car.n_ch
-  naps = jnp.zeros((n_samp, n_ch, n_ears))  # allocate space for result
-  naps_fibers = jnp.zeros((n_samp, n_ch, n_fibertypes, n_ears))
-  bm = jnp.zeros((n_samp, n_ch, n_ears))
-  seg_ohc = jnp.zeros((n_samp, n_ch, n_ears))
-  seg_agc = jnp.zeros((n_samp, n_ch, n_ears))
 
   # A 2022 addition to make open-loop running behave:
   if open_loop:
@@ -2418,7 +2413,12 @@ def run_segment(
   # Note that we can use naive for loops here because it will make gradient
   # computation very slow.
   def run_segment_scan_helper(carry, k):
-    naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves = carry
+    state, input_waves = carry
+    naps = jnp.zeros((n_ch, n_ears))  # allocate space for result
+    naps_fibers = jnp.zeros((n_ch, n_fibertypes, n_ears))
+    bm = jnp.zeros((n_ch, n_ears))
+    seg_ohc = jnp.zeros((n_ch, n_ears))
+    seg_agc = jnp.zeros((n_ch, n_ears))
     agc_updated = False
     for ear in range(n_ears):
       # This would be cleaner if we could just get and use a reference to
@@ -2436,9 +2436,9 @@ def run_segment(
         ihc_out, firings, state.ears[ear].syn = syn_step(
             v_recep, ear, weights, state.ears[ear].syn
         )
-        naps_fibers = naps_fibers.at[k, :, :, ear].set(firings)
+        naps_fibers = naps_fibers.at[:, :, ear].set(firings)
       else:
-        naps_fibers = naps_fibers.at[k, :, :, ear].set(
+        naps_fibers = naps_fibers.at[:, :, ear].set(
             jnp.zeros([jnp.shape(ihc_out)[0], n_fibertypes])
         )
 
@@ -2447,11 +2447,11 @@ def run_segment(
           ihc_out, ear, hypers, weights, state.ears[ear].agc
       )
       # save some output data:
-      naps = naps.at[k, :, ear].set(ihc_out)
-      bm = bm.at[k, :, ear].set(car_out)
+      naps = naps.at[:, ear].set(ihc_out)
+      bm = bm.at[:, ear].set(car_out)
       car_state = state.ears[ear].car
-      seg_ohc = seg_ohc.at[k, :, ear].set(car_state.za_memory)
-      seg_agc = seg_agc.at[k, :, ear].set(car_state.zb_memory)
+      seg_ohc = seg_ohc.at[:, ear].set(car_state.za_memory)
+      seg_agc = seg_agc.at[:, ear].set(car_state.zb_memory)
 
     def close_agc_loop_helper(
         hypers: CarfacHypers, weights: CarfacWeights, state: CarfacState
@@ -2473,13 +2473,28 @@ def run_segment(
         state,
     )
 
-    return (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves), None
+    return (state, input_waves), (
+        naps,
+        naps_fibers,
+        bm,
+        seg_ohc,
+        seg_agc,
+    )
 
-  return jax.lax.scan(
+  (state, _), (naps, naps_fibers, bm, seg_ohc, seg_agc) = jax.lax.scan(
       run_segment_scan_helper,
-      (naps, naps_fibers, state, bm, seg_ohc, seg_agc, input_waves),
+      (state, input_waves),
       jnp.arange(n_samp),
-  )[0][:-1]
+  )
+
+  return (
+      naps,
+      naps_fibers,
+      state,
+      bm,
+      seg_ohc,
+      seg_agc,
+  )
 
 
 @functools.partial(
