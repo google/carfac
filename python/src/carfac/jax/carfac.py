@@ -2388,7 +2388,7 @@ def run_segment(
   """
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
-  [n_samp, n_ears] = input_waves.shape
+  n_ears = input_waves.shape[1]
   n_fibertypes = SynDesignParameters.n_classes
 
   # TODO(honglinyu): add more assertions using checkify.
@@ -2412,8 +2412,7 @@ def run_segment(
 
   # Note that we can use naive for loops here because it will make gradient
   # computation very slow.
-  def run_segment_scan_helper(carry, k):
-    state, input_waves = carry
+  def run_segment_scan_helper(state, input_wave):
     naps = jnp.zeros((n_ch, n_ears))  # allocate space for result
     naps_fibers = jnp.zeros((n_ch, n_fibertypes, n_ears))
     bm = jnp.zeros((n_ch, n_ears))
@@ -2424,7 +2423,7 @@ def run_segment(
       # This would be cleaner if we could just get and use a reference to
       # cfp.ears(ear), but Matlab doesn't work that way...
       car_out, state.ears[ear].car = car_step(
-          input_waves[k, ear], ear, hypers, weights, state.ears[ear].car
+          input_wave[ear], ear, hypers, weights, state.ears[ear].car
       )
 
       # update IHC state & output on every time step, too
@@ -2473,7 +2472,7 @@ def run_segment(
         state,
     )
 
-    return (state, input_waves), (
+    return state, (
         naps,
         naps_fibers,
         bm,
@@ -2481,10 +2480,10 @@ def run_segment(
         seg_agc,
     )
 
-  (state, _), (naps, naps_fibers, bm, seg_ohc, seg_agc) = jax.lax.scan(
+  state, (naps, naps_fibers, bm, seg_ohc, seg_agc) = jax.lax.scan(
       run_segment_scan_helper,
-      (state, input_waves),
-      jnp.arange(n_samp),
+      state,
+      input_waves,
   )
 
   return (
