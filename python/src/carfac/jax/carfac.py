@@ -2527,6 +2527,22 @@ def run_segment_jit(
 
   If no modifications to the CarfacHypers are made, the same hypers object
   should be reused.
+
+  As this JITted function is global, all calls will share the same *global*
+  JIT cache, which may cause excessive memory usage if this is called with
+  multiple different hypers or input shapes. Note that two seemingly identical
+  hypers may be treated as different due to having different array references!
+
+  Prefer compiling `run_segment` directly at the callsite, rather than using
+  this wrapper, to ensure that the cache is cleared automatically upon garbage
+  collection:
+
+      segment_runner = jax.jit(functools.partial(run_segment, hypers=hypers))
+      naps, _, _, _, _ = segment_runner(input, weights=weights, state=state)
+
+  If this function must be used, use `run_segment_jit.clear_cache()` to clear
+  the cache when needed.
+
   Args:
     input_waves: the audio input.
     hypers: all the coefficients of the model. It will be passed to all the
