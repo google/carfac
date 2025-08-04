@@ -5,6 +5,7 @@ import numbers
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
+import chex
 import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_flatten
@@ -20,6 +21,68 @@ class CarfacJaxTest(parameterized.TestCase):
     super().setUp()
     # The default tolerance used in `assertAlmostEqual` etc.
     self.default_delta = 1e-6
+
+  @parameterized.named_parameters(
+      # Expected results are specified relative to the magnitude of the input.
+      dict(
+          testcase_name='1_iteration',
+          iterations=1,
+          expected=[
+              600.4e0,
+              600.3001e3,
+              600.3001e6,
+              600.3001e9,
+              600.3001e12,
+              0.9001e15,
+          ],
+      ),
+      dict(
+          testcase_name='2_iteration',
+          iterations=2,
+          expected=[
+              360420.22e0,
+              360360.21007e3,
+              360360.21006001e6,
+              360360.21006001e9,
+              720.21006001e12,
+              0.87012001e15,
+          ],
+      ),
+      dict(
+          testcase_name='3_iteration',
+          iterations=3,
+          expected=[
+              216360294.130e0,
+              216324270.141049e3,
+              216324270.13504501e6,
+              540270.135045009001e9,
+              774.171045009001e12,
+              0.855129015001e15,
+          ],
+      ),
+  )
+  def test_spatial_smooth(self, iterations: int, expected: list[float]):
+    fir = [0.1, 0.3, 0.6]
+    hypers = carfac_jax.AgcHypers(
+        # Required parameters that are unused in `spatial_smooth`.
+        n_ch=1,
+        n_agc_stages=1,
+        # Spatial smoothing parameters.
+        agc_spatial_iterations=iterations,
+        # Only 3-tap is supported.
+        agc_spatial_n_taps=3,
+    )
+    weights = carfac_jax.AgcWeights(agc_spatial_fir=fir)
+
+    # [1e0, 1e3, 1e6, 1e9, 1e12, 1e15]
+    state = 1e3 ** jnp.arange(6)
+    smoothed = carfac_jax.spatial_smooth_jit(hypers, weights, state)
+
+    # The floating point error is approximately proportional to the number of
+    # iterations.
+    chex.assert_trees_all_close_ulp(
+        smoothed, jnp.array(expected, dtype=float), maxulp=iterations
+    )
 
   def test_post_init_syn_params(self):
     # We add this test since SynDesignParameters contains a __post_init__ that

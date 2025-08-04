@@ -22,6 +22,7 @@ jax = [
 [dependency-groups]
 dev = [
     "absl-py >=1.4.0",
+    "chex >=0.1.90",
     "google-benchmark >=1.9.4",
     "parameterized >=0.9.0",
     "pyink[jupyter] >=24.10.1",

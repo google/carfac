@@ -390,6 +390,103 @@ class CarfacTest(parameterized.TestCase):
       print(f'{amount}: {result}')
       self.assertEqual(list(result), expected[amount])
 
+  @parameterized.named_parameters(
+      # Expected results are specified relative to the magnitude of the input.
+      dict(
+          testcase_name='3_tap_1_iteration',
+          taps=3,
+          iterations=1,
+          expected=[
+              600.4e0,
+              600.3001e3,
+              600.3001e6,
+              600.3001e9,
+              600.3001e12,
+              0.9001e15,
+          ],
+      ),
+      dict(
+          testcase_name='3_tap_2_iteration',
+          taps=3,
+          iterations=2,
+          expected=[
+              360420.22e0,
+              360360.21007e3,
+              360360.21006001e6,
+              360360.21006001e9,
+              720.21006001e12,
+              0.87012001e15,
+          ],
+      ),
+      dict(
+          testcase_name='3_tap_3_iteration',
+          taps=3,
+          iterations=3,
+          expected=[
+              216360294.130e0,
+              216324270.141049e3,
+              216324270.13504501e6,
+              540270.135045009001e9,
+              774.171045009001e12,
+              0.855129015001e15,
+          ],
+      ),
+      dict(
+          testcase_name='5_tap_1_iteration',
+          taps=5,
+          iterations=1,
+          expected=[
+              600600.5e0,
+              # This should probably be 600600.3002e3, but
+              # `shift_right(amount=2)` takes the current value here (1e3)
+              # instead of the previous value (1e0).
+              600600.4001e3,
+              600600.3001001e6,
+              600600.3001001e9,
+              1200.3001001e12,
+              # This should probably be 1.5001001e15, but
+              # `shift_right(amount=-2)` takes the previous value here (1e12)
+              # instead of the current value (1e15).
+              0.9007001e15,
+          ],
+      ),
+      dict(
+          testcase_name='5_tap_2_iteration',
+          taps=5,
+          iterations=2,
+          expected=[
+              360720840600.37e0,
+              360720780540.34015e3,
+              1080720480.33019009e6,
+              1440840.33018008002e9,
+              1501.05024007002001e12,
+              1.71090019008001e15,
+          ],
+      ),
+  )
+  def test_spatial_smooth(
+      self, taps: int, iterations: int, expected: list[float]
+  ):
+    fir = [0.1, 0.3, 0.6]
+    coeffs = carfac.AgcCoeffs(
+        # Required parameters that are unused in `spatial_smooth`.
+        n_ch=1,
+        n_agc_stages=1,
+        agc_stage_gain=1.0,
+        # Spatial smoothing parameters.
+        agc_spatial_fir=fir,
+        agc_spatial_n_taps=taps,
+        agc_spatial_iterations=iterations,
+    )
+
+    # [1e0, 1e3, 1e6, 1e9, 1e12, 1e15]
+    state = 1e3 ** np.arange(6)
+    smoothed = carfac.spatial_smooth(coeffs, state)
+
+    # The floating point error is approximately proportional to the number of
+    # iterations.
+    np.testing.assert_array_max_ulp(smoothed, expected, maxulp=iterations)
+
   def test_agc_steady_state(self):
     # Test: Steady state response
     # Analagous to figure 19.7
