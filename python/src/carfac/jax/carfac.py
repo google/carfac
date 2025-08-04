@@ -1597,6 +1597,9 @@ def design_and_init_agc(
 ) -> Tuple[List[AgcHypers], List[AgcWeights], List[AgcState]]:
   """Design the AGC implementation from the parameters.
 
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
+
   Args:
     ear: the index of the ear.
     params: all the design parameters.
@@ -2241,6 +2244,12 @@ def spatial_smooth_jit(
     agc_hypers: AgcHypers, weights: AgcWeights, stage_state: jax.Array
 ) -> jax.Array:
   """Does the spatial smoothing.
+
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
+
+  This also does not support a 5-tap filter in the non-`new_way` branch, despite
+  the code in `design_and_init_agc` and `design_fir_coeffs` to support it.
 
   Args:
     agc_hypers: The AGC coefficients for this state.

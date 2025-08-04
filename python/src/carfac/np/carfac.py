@@ -974,6 +974,9 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
 def design_agc(agc_params: AgcParams, fs: float, n_ch: int) -> List[AgcCoeffs]:
   """Design the AGC implementation from the parameters.
 
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
+
   Args:
     agc_params: The parameters desired for this AGC block
     fs: The sampling rate (Hz)
@@ -1373,9 +1376,10 @@ def shift_right(s: np.ndarray, amount: int) -> np.ndarray:
 
 
 def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
-  """Design the AGC spatial smoothing filter.
+  """Performs spatial smoothing on the AGC state.
 
-  TODO(dicklyon): Can you say more??
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
 
   Args:
     coeffs: The coefficient description for this state
