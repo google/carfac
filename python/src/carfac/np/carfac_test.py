@@ -374,21 +374,29 @@ class CarfacTest(parameterized.TestCase):
       self.assertAlmostEqual(blip_maxes[i], max_val, delta=max_val / 10000)
       self.assertAlmostEqual(blip_ac[i], ac, delta=ac / 10000)
 
-  def test_shift_right(self):
-    # Test: By direct comparison to the 5 cases in the
-    # Matab Spatial_Smooth
-    # function.  Test these 5 cases, for these exact values.
-    expected = {
-        -2: [2, 3, 4, 5, 6, 6, 5],
-        -1: [1, 2, 3, 4, 5, 6, 6],
-        0: [0, 1, 2, 3, 4, 5, 6],
-        1: [0, 0, 1, 2, 3, 4, 5],
-        2: [0, 1, 0, 1, 2, 3, 4],
-    }
-    for amount in expected:
-      result = carfac.shift_right(np.arange(7), amount)
-      print(f'{amount}: {result}')
-      self.assertEqual(list(result), expected[amount])
+  def test_shift_left_two(self):
+    array = np.arange(7)
+    self.assertEqual(
+        carfac.shift_left_two(array).tolist(), [2, 3, 4, 5, 6, 6, 5]
+    )
+
+  def test_shift_left_one(self):
+    array = np.arange(7)
+    self.assertEqual(
+        carfac.shift_left_one(array).tolist(), [1, 2, 3, 4, 5, 6, 6]
+    )
+
+  def test_shift_right_one(self):
+    array = np.arange(7)
+    self.assertEqual(
+        carfac.shift_right_one(array).tolist(), [0, 0, 1, 2, 3, 4, 5]
+    )
+
+  def test_shift_right_two(self):
+    array = np.arange(7)
+    self.assertEqual(
+        carfac.shift_right_two(array).tolist(), [0, 1, 0, 1, 2, 3, 4]
+    )
 
   @parameterized.named_parameters(
       # Expected results are specified relative to the magnitude of the input.
@@ -437,16 +445,16 @@ class CarfacTest(parameterized.TestCase):
           iterations=1,
           expected=[
               600600.5e0,
-              # This should probably be 600600.3002e3, but
-              # `shift_right(amount=2)` takes the current value here (1e3)
-              # instead of the previous value (1e0).
+              # This should probably be 600600.3002e3, but `shift_right_two`
+              # takes the current value here (1e3) instead of the previous value
+              # (1e0).
               600600.4001e3,
               600600.3001001e6,
               600600.3001001e9,
               1200.3001001e12,
-              # This should probably be 1.5001001e15, but
-              # `shift_right(amount=-2)` takes the previous value here (1e12)
-              # instead of the current value (1e15).
+              # This should probably be 1.5001001e15, but `shift_left_two` takes
+              # the previous value here (1e12) instead of the current value
+              # (1e15).
               0.9007001e15,
           ],
       ),

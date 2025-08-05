@@ -2215,16 +2215,34 @@ def agc_step(
   return updated, state
 
 
-def _shift_right(s: jax.Array, amount: int) -> jax.Array:
-  """Rotate a vector to the right by amount, or to the left if negative."""
-  if amount > 0:
-    return jnp.concatenate((s[0:amount, ...], s[:-amount, ...]), axis=0)
-  elif amount < 0:
-    return jnp.concatenate(
-        (s[-amount:, ...], jnp.flip(s[amount:, ...])), axis=0
-    )
-  else:
-    return s
+def _shift_right_one(s: jax.Array) -> jax.Array:
+  """Shifts a vector to the right by one.
+
+  The blank element at the start of the vector is filled in with a copy of the
+  first element. For example, [1, 2, 3, 4, 5] becomes [1, 1, 2, 3, 4].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return jnp.concat((s[0, jnp.newaxis, ...], s[:-1, ...]))
+
+
+def _shift_left_one(s: jax.Array) -> jax.Array:
+  """Shifts a vector to the left by one.
+
+  The blank element at the end of the vector is filled in with a copy of the
+  last element. For example, [1, 2, 3, 4, 5] becomes [2, 3, 4, 5, 5].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return jnp.concat((s[1:, ...], s[-1, jnp.newaxis, ...]))
 
 
 def spatial_smooth_jit(
@@ -2254,9 +2272,9 @@ def spatial_smooth_jit(
       0,
       n_iterations,
       lambda _, stage_state: (  # pylint: disable=g-long-lambda
-          fir_coeffs[0] * _shift_right(stage_state, 1)
-          + fir_coeffs[1] * _shift_right(stage_state, 0)
-          + fir_coeffs[2] * _shift_right(stage_state, -1)
+          fir_coeffs[0] * _shift_right_one(stage_state)
+          + fir_coeffs[1] * stage_state
+          + fir_coeffs[2] * _shift_left_one(stage_state)
       ),
       stage_state,
   )

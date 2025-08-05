@@ -1365,14 +1365,68 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
   return cfp
 
 
-def shift_right(s: np.ndarray, amount: int) -> np.ndarray:
-  """Rotate a vector to the right by amount, or to the left if negative."""
-  if amount > 0:
-    return np.concatenate((s[0:amount, ...], s[:-amount, ...]), axis=0)
-  elif amount < 0:
-    return np.concatenate((s[-amount:, ...], np.flip(s[amount:, ...])), axis=0)
-  else:
-    return s
+def shift_right_two(s: np.ndarray) -> np.ndarray:
+  """Shifts a vector to the right by two.
+
+  WARNING: The two blank elements at the start of the vector are filled in with
+  a copy of the first TWO elements, matching the behavior of the non-`new_way`
+  MATLAB implementation of spatial smoothing.
+  For example, [1, 2, 3, 4, 5] becomes [1, 2, 1, 2, 3].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return np.concat((s[0, np.newaxis, ...], s[1, np.newaxis, ...], s[:-2, ...]))
+
+
+def shift_right_one(s: np.ndarray) -> np.ndarray:
+  """Shifts a vector to the right by one.
+
+  The blank element at the start of the vector is filled in with a copy of the
+  first element. For example, [1, 2, 3, 4, 5] becomes [1, 1, 2, 3, 4].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return np.concat((s[0, np.newaxis, ...], s[:-1, ...]))
+
+
+def shift_left_one(s: np.ndarray) -> np.ndarray:
+  """Shifts a vector to the left by one.
+
+  The blank element at the end of the vector is filled in with a copy of the
+  last element. For example, [1, 2, 3, 4, 5] becomes [2, 3, 4, 5, 5].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return np.concat((s[1:, ...], s[-1, np.newaxis, ...]))
+
+
+def shift_left_two(s: np.ndarray) -> np.ndarray:
+  """Shifts a vector to the left by two.
+
+  WARNING: The two blank elements at the end of the vector are filled in with
+  a copy of the last TWO elements in reverse order, matching the behavior of the
+  non-`new_way` MATLAB implementation of spatial smoothing.
+  For example, [1, 2, 3, 4, 5] becomes [3, 4, 5, 5, 4].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return np.concat((s[2:, ...], s[-1, np.newaxis, ...], s[-2, np.newaxis, ...]))
 
 
 def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
@@ -1398,9 +1452,9 @@ def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
     if coeffs.agc_spatial_n_taps == 3:
       for _ in range(n_iterations):
         stage_state = (
-            fir_coeffs[0] * shift_right(stage_state, 1)
-            + fir_coeffs[1] * shift_right(stage_state, 0)
-            + fir_coeffs[2] * shift_right(stage_state, -1)
+            fir_coeffs[0] * shift_right_one(stage_state)
+            + fir_coeffs[1] * stage_state
+            + fir_coeffs[2] * shift_left_one(stage_state)
         )
 
     #  5-tap smoother duplicates first and last coeffs
@@ -1408,10 +1462,10 @@ def spatial_smooth(coeffs: AgcCoeffs, stage_state: np.ndarray) -> np.ndarray:
       for _ in range(n_iterations):
         stage_state = (
             fir_coeffs[0]
-            * (shift_right(stage_state, 2) + shift_right(stage_state, 1))
-            + fir_coeffs[1] * shift_right(stage_state, 0)
+            * (shift_right_two(stage_state) + shift_right_one(stage_state))
+            + fir_coeffs[1] * stage_state
             + fir_coeffs[2]
-            * (shift_right(stage_state, -1) + shift_right(stage_state, -2))
+            * (shift_left_one(stage_state) + shift_left_two(stage_state))
         )
     else:
       raise ValueError(
