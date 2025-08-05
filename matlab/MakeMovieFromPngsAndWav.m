@@ -19,13 +19,17 @@
 function MakeMovieFromPngsAndWav(frame_rate, png_name_pattern, ...
   wav_filename, out_filename)
 
-system(['rm "', out_filename, '"']);
+if exist(out_filename, 'file')
+    disp("Deleting existing file: " + out_filename);
+    delete(out_filename);
+end
 
 if ~exist(wav_filename, 'file')
   error('wave file is missing', wav_filename)
 end
 
-ffmpeg_command = ['/opt/local/bin/ffmpeg' ...
+% Expect FFMPEG to be on path for all systems 
+ffmpeg_command = ['ffmpeg' ...
   ' -r ' num2str(frame_rate) ...
   ' -i ' png_name_pattern ...
   ' -i "' wav_filename ...
