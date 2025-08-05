@@ -1055,7 +1055,6 @@ class CarfacDesignParameters:
   """All the parameters set manually for designing CARFAC."""
 
   fs: float = 22050.0
-  n_ears: int = 1
   ears: List[EarDesignParameters] = dataclasses.field(
       default_factory=lambda: [EarDesignParameters()]
   )
@@ -1070,16 +1069,19 @@ class CarfacDesignParameters:
         car_step.
     """
     self.fs = fs
-    self.n_ears = n_ears
     self.ears = [EarDesignParameters() for _ in range(n_ears)]
     for ear in self.ears:
       ear.car.use_delay_buffer = use_delay_buffer
 
+  @property
+  def n_ears(self) -> int:
+    return len(self.ears)
+
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):
-    children = (self.fs, self.n_ears, self.ears)
-    aux_data = ('fs', 'n_ears', 'ears')
+    children = (self.fs, self.ears)
+    aux_data = ('fs', 'ears')
     return (children, aux_data)
 
   @classmethod

@@ -433,7 +433,6 @@ class CarfacJaxTest(parameterized.TestCase):
     params_jax = carfac_jax.CarfacDesignParameters(
         n_ears=n_ears, use_delay_buffer=delay_buffer
     )
-    params_jax.n_ears = n_ears
     for ear in range(n_ears):
       params_jax.ears[ear].ihc.ihc_style = ihc_style
       params_jax.ears[ear].car.linear_car = False
