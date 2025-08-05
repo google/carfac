@@ -1069,9 +1069,12 @@ class CarfacDesignParameters:
         car_step.
     """
     self.fs = fs
-    self.ears = [EarDesignParameters() for _ in range(n_ears)]
-    for ear in self.ears:
-      ear.car.use_delay_buffer = use_delay_buffer
+    self.ears = [
+        EarDesignParameters(
+            car=CarDesignParameters(use_delay_buffer=use_delay_buffer)
+        )
+        for _ in range(n_ears)
+    ]
 
   @property
   def n_ears(self) -> int:
