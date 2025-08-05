@@ -79,27 +79,6 @@ import numpy as np
 # TPU/GPU?
 
 
-# TODO(honglinyu): can we use inheritance instead? Also, can we define a general
-# hashing function too?
-def _are_two_equal_hypers(hypers1, hypers2):
-  """Used in comparing whether two `*Hypers` objects are equal in `__eq__()`."""
-  if not isinstance(hypers1, type(hypers2)):
-    return False
-  children1, _ = hypers1.tree_flatten()
-  children2, _ = hypers2.tree_flatten()
-  for child1, child2 in zip(children1, children2):
-    # Notice that when `__eq__` returns true for two objects, their `__hash__`
-    # must return the same. So if `__hash__` hashes member variables' `id`, we
-    # must compare `id` in `__eq__` too.
-    if isinstance(child1, jnp.ndarray):
-      if id(child1) != id(child2):
-        return False
-    else:
-      if child1 != child2:
-        return False
-  return True
-
-
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class CarDesignParameters:
@@ -236,9 +215,8 @@ class CarHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    return hash((
+  def _eq_key(self):
+    return (
         self.n_ch,
         self.use_delay_buffer,
         self.linear_car,
@@ -248,10 +226,16 @@ class CarHypers:
         id(self.h_coeffs),
         id(self.g0_coeffs),
         id(self.zr_coeffs),
-    ))
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, CarHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
@@ -467,14 +451,13 @@ class AgcHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+  def _eq_key(self):
+    # Notice that we use the `id` of `jnp.ndarray` rather than its content for
     # speed. This should always be correct because `jnp.ndarray` is immutable.
-    # But this also means the hash will be different if this field is assigned
-    # to a different array with exactly the same value. We think such case
-    # should be very rare in usage.
-    return hash((
+    # But this also means the equality and hash will be different if this field
+    # is assigned to a different array with exactly the same value. We think
+    # such case should be very rare in usage.
+    return (
         self.n_ch,
         self.n_agc_stages,
         self.decimation,
@@ -482,10 +465,16 @@ class AgcHypers:
         self.agc_spatial_n_taps,
         id(self.reverse_cumulative_decimation),
         id(self.max_cumulative_decimation),
-    ))
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, AgcHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
@@ -662,7 +651,9 @@ class SynDesignParameters:
 
 
 @jax.tree_util.register_pytree_node_class
-@dataclasses.dataclass
+# A hash is needed if this class is used as a static parameter in a `jax.jit`ted
+# function. However, we don't want to mark this class as frozen for convenience.
+@dataclasses.dataclass(unsafe_hash=True)
 class SynHypers:
   """Hyperparameters for the IHC synapse. Tagged `static` in `jax.jit`."""
 
@@ -678,14 +669,6 @@ class SynHypers:
   @classmethod
   def tree_unflatten(cls, _, children):
     return cls(*children)
-
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    children, _ = self.tree_flatten()
-    return hash(children)
-
-  def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -763,7 +746,9 @@ class SynState:
 
 
 @jax.tree_util.register_pytree_node_class
-@dataclasses.dataclass
+# A hash is needed if this class is used as a static parameter in a `jax.jit`ted
+# function. However, we don't want to mark this class as frozen for convenience.
+@dataclasses.dataclass(unsafe_hash=True)
 class IhcHypers:
   """Hyperparameters for the inner hair cell. Tagged `static` in `jax.jit`."""
 
@@ -781,14 +766,6 @@ class IhcHypers:
   @classmethod
   def tree_unflatten(cls, _, children):
     return cls(*children)
-
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    children, _ = self.tree_flatten()
-    return hash(tuple(children))
-
-  def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -971,24 +948,30 @@ class EarHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+  def _eq_key(self):
+    # Notice that we use the `id` of `jnp.ndarray` rather than its content for
     # speed. This should always be correct because `jnp.ndarray` is immutable.
-    # But this also means the hash will be different if this field is assigned
-    # to a different array with exactly the same value. We think such case
-    # should be very rare in usage.
-    return hash((
+    # But this also means the hash/equality will be different if this field is
+    # assigned to a different array with exactly the same value. We think such
+    # case should be very rare in usage.
+    return (
         self.n_ch,
         id(self.pole_freqs),
         self.max_channels_per_octave,
         self.car,
         tuple(self.agc),
         self.ihc,
-    ))
+        self.syn,
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, EarHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
@@ -1091,13 +1074,17 @@ class CarfacHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
+  def _eq_key(self):
+    return tuple(self.ears)
+
   # Needed by `static_argnums` of `jax.jit`.
   def __hash__(self):
-    children, _ = self.tree_flatten()
-    return hash(tuple(map(tuple, children)))
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, CarfacHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
