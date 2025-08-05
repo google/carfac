@@ -13,7 +13,7 @@ import dataclasses
 import functools
 import math
 import numbers
-from typing import List, Optional, Tuple, Union
+from typing import ClassVar, List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -586,12 +586,30 @@ class IhcDesignParameters:
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class SynDesignParameters:
-  """Variables needed for the synapse implementation."""
+  """Variables needed for the synapse implementation.
+
+  `healthy_n_fibers` and `agc_weights` are not automatically adjusted for IHCs
+  per channel different from the default. Use `from_ihcs_per_channel` to create
+  an instance with the aforementioned parameters adjusted.
+  """
+  _DEFAULT_IHCS_PER_CHANNEL: ClassVar[int] = 10  # Maybe 20 would be better?
+  _DEFAULT_HEALTHY_N_FIBERS: ClassVar[np.ndarray] = np.array(
+      [50.0, 35.0, 25.0], dtype=float
+  )
+  # Tweaked.
+  # The weights 1.2 were picked before correctly account for sample rate
+  # and number of fibers. This way works for more different numbers.
+  _DEFAULT_AGC_WEIGHTS: ClassVar[np.ndarray] = (
+      np.array([1.2, 1.2, 1.2], dtype=float) / 22050
+  )
 
   n_classes: int = 3  # Default. Modify params and redesign to change.
-  ihcs_per_channel: dataclasses.InitVar[int] = 10  # Maybe 20 would be better?
   healthy_n_fibers: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([50.0, 35.0, 25.0], dtype=float)
+      default_factory=lambda: jnp.array(
+          # pytype does not recognise that this is lazily evaluated.
+          SynDesignParameters._DEFAULT_HEALTHY_N_FIBERS  # pytype: disable=name-error
+          * SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+      )
   )
   spont_rates: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.array([50.0, 6.0, 1.0], dtype=float)
@@ -601,27 +619,41 @@ class SynDesignParameters:
   v_width: float = 0.02
   tau_lpf: float = 0.000080
   reservoir_tau: float = 0.02
-  # Tweaked.
-  # The weights 1.2 were picked before correctly account for sample rate
-  # and number of fibers. This way works for more different numbers.
   agc_weights: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: (
-          jnp.array([1.2, 1.2, 1.2], dtype=float) / 22050.0
+      default_factory=lambda: jnp.array(
+          # pytype does not recognise that this is lazily evaluated.
+          SynDesignParameters._DEFAULT_AGC_WEIGHTS  # pytype: disable=name-error
+          / SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
       )
   )
 
-  def __post_init__(self, ihcs_per_channel):
-    self.healthy_n_fibers *= ihcs_per_channel
-    self.agc_weights /= ihcs_per_channel
+  @classmethod
+  def from_ihcs_per_channel(
+      cls,
+      ihcs_per_channel: Optional[int] = None,
+      healthy_n_fibers: Optional[jnp.ndarray] = None,
+      agc_weights: Optional[jnp.ndarray] = None,
+      **kwargs
+  ):
+    """Creates an instance, adjusting parameters for ihcs_per_channel."""
+    ihcs_per_channel = ihcs_per_channel or cls._DEFAULT_IHCS_PER_CHANNEL
+    healthy_n_fibers = healthy_n_fibers or jnp.array(
+        cls._DEFAULT_HEALTHY_N_FIBERS
+    )
+    agc_weights = agc_weights or jnp.array(cls._DEFAULT_AGC_WEIGHTS)
+
+    healthy_n_fibers *= ihcs_per_channel
+    agc_weights /= ihcs_per_channel
+
+    return cls(
+        healthy_n_fibers=healthy_n_fibers, agc_weights=agc_weights, **kwargs
+    )
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
-  # Note that ihcs_per_channel is set to 1 for flattening/unflattening,
-  # to avoid repeat multiplication in __post_init__.
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
     children = (
         self.n_classes,
-        1,
         self.healthy_n_fibers,
         self.spont_rates,
         self.sat_rates,
@@ -633,7 +665,6 @@ class SynDesignParameters:
     )
     aux_data = (
         'n_classes',
-        'ihcs_per_channel',
         'healthy_n_fibers',
         'spont_rates',
         'sat_rates',

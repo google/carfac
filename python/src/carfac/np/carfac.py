@@ -26,7 +26,7 @@ at https://github.com/google/carfac.
 import dataclasses
 import math
 import numbers
-from typing import List, Optional, Tuple, Union
+from typing import ClassVar, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -411,13 +411,27 @@ class IhcTwoCapParams(IhcJustHwrParams):
 
 @dataclasses.dataclass
 class IhcSynParams:
-  """Parameters for the IHC synapse model."""
+  """Parameters for the IHC synapse model.
+
+  `healthy_n_fibers` and `agc_weights` are not automatically adjusted for IHCs
+  per channel different from the default. Use `from_ihcs_per_channel` to create
+  an instance with the aforementioned parameters adjusted.
+  """
+  _DEFAULT_IHCS_PER_CHANNEL: ClassVar[int] = 10  # Maybe 20 would be better?
+  _DEFAULT_HEALTHY_N_FIBERS: ClassVar[np.ndarray] = np.array([50, 35, 25])
+  # Tweaked.
+  # The weights 1.2 were picked before correctly account for sample rate
+  # and number of fibers. This way works for more different numbers.
+  _DEFAULT_AGC_WEIGHTS: ClassVar[np.ndarray] = np.array([1.2, 1.2, 1.2]) / 22050
 
   do_syn: bool = False
   n_classes: int = 3  # Default. Modify params and redesign to change.
-  ihcs_per_channel: dataclasses.InitVar[int] = 10  # Maybe 20 would be better?
   healthy_n_fibers: np.ndarray = dataclasses.field(
-      default_factory=lambda: np.array([50, 35, 25])
+      default_factory=lambda: np.array(
+          # pytype does not recognise that this is lazily evaluated.
+          IhcSynParams._DEFAULT_HEALTHY_N_FIBERS  # pytype: disable=name-error
+          * IhcSynParams._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+      )
   )
   spont_rates: np.ndarray = dataclasses.field(
       default_factory=lambda: np.array([50, 6, 1])
@@ -427,16 +441,35 @@ class IhcSynParams:
   v_width: float = 0.02
   tau_lpf: float = 0.000080
   reservoir_tau: float = 0.02
-  # Tweaked.
-  # The weights 1.2 were picked before correctly account for sample rate
-  # and number of fibers. This way works for more different numbers.
   agc_weights: np.ndarray = dataclasses.field(
-      default_factory=lambda: (np.array([1.2, 1.2, 1.2]) / 22050)
+      default_factory=lambda: np.array(
+          # pytype does not recognise that this is lazily evaluated.
+          IhcSynParams._DEFAULT_AGC_WEIGHTS  # pytype: disable=name-error
+          / IhcSynParams._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+      )
   )
 
-  def __post_init__(self, ihcs_per_channel):
-    self.healthy_n_fibers *= ihcs_per_channel
-    self.agc_weights /= ihcs_per_channel
+  @classmethod
+  def from_ihcs_per_channel(
+      cls,
+      ihcs_per_channel: Optional[int] = None,
+      healthy_n_fibers: Optional[np.ndarray] = None,
+      agc_weights: Optional[np.ndarray] = None,
+      **kwargs,
+  ):
+    """Creates an instance, adjusting parameters for ihcs_per_channel."""
+    ihcs_per_channel = ihcs_per_channel or cls._DEFAULT_IHCS_PER_CHANNEL
+    healthy_n_fibers = healthy_n_fibers or np.array(
+        cls._DEFAULT_HEALTHY_N_FIBERS
+    )
+    agc_weights = agc_weights or np.array(cls._DEFAULT_AGC_WEIGHTS)
+
+    healthy_n_fibers *= ihcs_per_channel
+    agc_weights /= ihcs_per_channel
+
+    return cls(
+        healthy_n_fibers=healthy_n_fibers, agc_weights=agc_weights, **kwargs
+    )
 
 
 # See Section 18.3 (A Digital IHC Model)
