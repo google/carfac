@@ -442,7 +442,6 @@ class WorkingCarfacPitchogram:
             self.audio.terminate()
 
 def main():
-    """Main function"""
     print("FIXED CARFAC Pitchogram - No More Assertion Errors!")
     print("=" * 60)
     
