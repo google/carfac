@@ -1,6 +1,6 @@
 """
-FINAL WORKING CARFAC PITCHOGRAM - FIXED THE ASSERTION ERROR!
-The issue was: input_segment_width is in seconds, but SAI expects samples
+WORKING CARFAC PITCHOGRAM
+Based exactly on the pattern from sai_test.py
 """
 
 import numpy as np
@@ -14,24 +14,38 @@ import carfac.sai as pysai
 from scipy.signal import butter, sosfilt, hilbert
 from collections import deque
 
-class WorkingCarfacPitchogram:
-    def __init__(self, sample_rate=22050):
-        self.sample_rate = sample_rate
+def CreateSAIParams(sai_width, num_triggers_per_frame=2, **kwargs):
+    """Exactly like in sai_test.py - fills SAIParams with reasonable defaults"""
+    return pysai.SAIParams(
+        sai_width=sai_width,
+        future_lags=sai_width // 2,  # Half from future
+        num_triggers_per_frame=num_triggers_per_frame,
+        **kwargs,
+    )
+
+class WorkingCARFACPitchogram:
+    def __init__(self):
+        # Audio settings
+        self.sample_rate = 22050
         self.chunk_size = 1024
-        self.update_interval = 100
         
-        # Display
+        # SAI settings - using pattern from test
+        self.input_segment_width = 882  # EXACTLY like the test
+        self.num_channels = 71          # EXACTLY like the test
+        self.sai_width = 100            # Good for pitch detection
+        
+        # Display settings
         self.time_window = 10
         self.pitch_range = (80, 500)
         
-        # History
+        # History storage
         self.pitch_history = deque(maxlen=300)
         self.time_history = deque(maxlen=300)
         self.confidence_history = deque(maxlen=300)
         
-        # Audio
-        self.audio_queue = queue.Queue(maxsize=50)
-        self.audio_buffer = np.zeros(sample_rate * 3)  # 3 second buffer
+        # Audio buffer
+        self.audio_queue = queue.Queue(maxsize=100)
+        self.audio_buffer = np.zeros(self.sample_rate * 3)  # 3 second buffer
         self.buffer_index = 0
         
         # Current values
@@ -39,61 +53,40 @@ class WorkingCarfacPitchogram:
         self.current_confidence = 0
         self.current_time = 0
         
-        # Setup CARFAC
-        self.setup_carfac()
+        # Setup CARFAC exactly like the test
+        self.setup_carfac_from_test()
         
-        # Threading
+        # Audio
         self.is_running = False
         self.audio = pyaudio.PyAudio()
         self.stream = None
-    
-    def setup_carfac(self):
-        """Setup CARFAC with correct sample-based input_segment_width"""
-        print("Setting up CARFAC with correct parameters...")
         
-        # Create SAI parameters
-        self.sai_params = pysai.SAIParams()
+    def setup_carfac_from_test(self):
+        """Setup CARFAC using the EXACT same pattern as sai_test.py"""
+        print("Setting up CARFAC using sai_test.py pattern...")
         
-        # Set parameters
-        self.sai_params.sai_width = 40
-        self.sai_params.sai_height = 64
-        self.sai_params.kernel_width = 15
-        self.sai_params.kernel_spacing = 2
-        self.sai_params.num_triggers_per_frame = 4
-        self.sai_params.trigger_win_length = 0.020
-        self.sai_params.sai_frame_width = 0.040
-        self.sai_params.future_lags = 0
-        self.sai_params.num_window_widths = 20
-        self.sai_params.window_width = 0.002
-        self.sai_params.num_channels = 64
-        self.sai_params.do_stabilize = True
+        # Use the EXACT same function and parameters as the test
+        self.sai_params = CreateSAIParams(
+            num_channels=self.num_channels,
+            input_segment_width=self.input_segment_width,
+            trigger_window_width=self.input_segment_width,  # EXACTLY like test
+            sai_width=self.sai_width,
+        )
         
-        # CRITICAL FIX: Convert input_segment_width from seconds to samples
-        # AND make sure it's smaller than CARFAC's internal buffer
-        segment_duration_seconds = 0.020  # 20ms segments (smaller to fit buffer)
-        segment_samples = int(segment_duration_seconds * self.sample_rate)
-        self.sai_params.input_segment_width = segment_samples  # NOT seconds, but samples!
-        
-        # Also reduce other time-based parameters to match
-        self.sai_params.sai_frame_width = 0.020  # Match input segment width
-        self.sai_params.trigger_win_length = 0.010  # Half of segment width
-        
-        # Fix trigger_window_width
-        setattr(self.sai_params, 'trigger_window_width', self.sai_params.sai_width + 10)
-        
-        print(f"Key parameters:")
-        print(f"  Sample rate: {self.sample_rate}")
-        print(f"  Segment duration: {segment_duration_seconds} seconds")
-        print(f"  Segment samples: {segment_samples}")
-        print(f"  input_segment_width: {self.sai_params.input_segment_width}")
+        print(f"SAI Parameters (matching test):")
         print(f"  num_channels: {self.sai_params.num_channels}")
+        print(f"  input_segment_width: {self.sai_params.input_segment_width} samples")
+        print(f"  trigger_window_width: {self.sai_params.trigger_window_width}")
+        print(f"  sai_width: {self.sai_params.sai_width}")
+        print(f"  future_lags: {self.sai_params.future_lags}")
         
         try:
+            # Create SAI exactly like the test
             self.sai = pysai.SAI(self.sai_params)
-            print("✓ CARFAC SAI created successfully!")
+            print("✓ CARFAC SAI created successfully using test pattern!")
             
-            # Test it
-            self.test_carfac()
+            # Test it like the test does
+            self.test_sai()
             
         except Exception as e:
             print(f"CARFAC setup failed: {e}")
@@ -101,42 +94,26 @@ class WorkingCarfacPitchogram:
             traceback.print_exc()
             raise
     
-    def test_carfac(self):
-        """Test CARFAC with correct input size"""
-        print("Testing CARFAC with correct input size...")
+    def test_sai(self):
+        """Test SAI like sai_test.py does"""
+        print("Testing SAI with synthetic data...")
         
         try:
-            # Create test input with EXACT number of samples expected
-            n_channels = self.sai_params.num_channels
-            n_samples = self.sai_params.input_segment_width  # This is now in samples!
+            # Create test pulse train like in the test
+            test_segment = self.create_pulse_train(self.num_channels, self.input_segment_width, period=10)
             
-            print(f"Creating test input: ({n_channels}, {n_samples})")
+            print(f"Test segment shape: {test_segment.shape}")
+            print(f"Expected shape: ({self.num_channels}, {self.input_segment_width})")
             
-            # Generate test signal
-            t = np.linspace(0, n_samples/self.sample_rate, n_samples)
-            test_freq = 200  # 200 Hz test tone
+            # Run SAI exactly like the test
+            sai_frame = self.sai.RunSegment(test_segment)
             
-            # Create multi-channel input
-            test_input = []
-            for ch in range(n_channels):
-                # Each channel gets slightly different filtering of the test tone
-                signal = np.sin(2 * np.pi * test_freq * t)
-                # Add some channel-specific variation
-                signal *= np.exp(-ch * 0.02)  # Decay across channels
-                test_input.append(signal)
-            
-            test_array = np.array(test_input, dtype=np.float32)
-            print(f"Test array shape: {test_array.shape}")
-            
-            # Run SAI
-            sai_result = self.sai.RunSegment(test_array)
-            
-            if sai_result is not None:
-                print(f"✓ SAI test PASSED! Output shape: {sai_result.shape}")
-                print(f"✓ Output range: {np.min(sai_result):.4f} to {np.max(sai_result):.4f}")
+            if sai_frame is not None:
+                print(f"✓ SAI test passed! Output shape: {sai_frame.shape}")
+                print(f"✓ Output range: {np.min(sai_frame):.6f} to {np.max(sai_frame):.6f}")
                 return True
             else:
-                print("✗ SAI returned None")
+                print("✗ SAI test failed: returned None")
                 return False
                 
         except Exception as e:
@@ -145,23 +122,42 @@ class WorkingCarfacPitchogram:
             traceback.print_exc()
             return False
     
+    def create_pulse_train(self, num_channels, num_samples, period, leading_zeros=0):
+        """Create pulse train exactly like sai_test.py"""
+        segment = np.zeros((num_channels, num_samples))
+        for i in range(num_channels):
+            # Begin each channel at a different phase
+            phase = (i + leading_zeros) % period
+            for j in range(phase, num_samples, period):
+                segment[i, j] = 1
+        return segment.astype(np.float32)
+    
     def create_cochlear_channels(self, audio_segment):
-        """Create cochlear-like channels from audio segment"""
-        n_channels = self.sai_params.num_channels
-        n_samples = len(audio_segment)
+        """Convert mono audio to multi-channel input for SAI"""
+        # Need to create exactly input_segment_width samples
+        if len(audio_segment) != self.input_segment_width:
+            # Resample to exact size
+            if len(audio_segment) > self.input_segment_width:
+                # Downsample
+                audio_segment = audio_segment[:self.input_segment_width]
+            else:
+                # Pad with zeros
+                audio_segment = np.pad(audio_segment, (0, self.input_segment_width - len(audio_segment)))
         
-        # Simple filterbank
+        # Create multi-channel representation
         channels = []
+        
+        # Simple filterbank approach
         low_freq = 80
         high_freq = min(8000, self.sample_rate // 2 - 100)
         
-        # Linear frequency spacing
-        center_freqs = np.linspace(low_freq, high_freq, n_channels)
+        # Create frequency channels
+        center_freqs = np.logspace(np.log10(low_freq), np.log10(high_freq), self.num_channels)
         
         for fc in center_freqs:
             try:
-                # Simple bandpass filter
-                bandwidth = fc * 0.2
+                # Bandpass filter
+                bandwidth = fc * 0.25
                 low_cut = max(fc - bandwidth/2, 20)
                 high_cut = min(fc + bandwidth/2, self.sample_rate/2 - 50)
                 
@@ -172,48 +168,45 @@ class WorkingCarfacPitchogram:
                     
                     # Simple envelope detection
                     envelope = np.abs(hilbert(filtered))
-                    
-                    # Low-pass filter the envelope
-                    sos_lp = butter(1, 100, btype='low', fs=self.sample_rate, output='sos')
-                    smooth_envelope = sosfilt(sos_lp, envelope)
-                    
-                    channels.append(smooth_envelope)
+                    channels.append(envelope)
                 else:
-                    channels.append(np.zeros(n_samples))
+                    channels.append(np.zeros_like(audio_segment))
             except:
-                channels.append(np.zeros(n_samples))
+                channels.append(np.zeros_like(audio_segment))
         
-        return np.array(channels, dtype=np.float32)
+        result = np.array(channels, dtype=np.float32)
+        return result
     
-    def extract_pitch_from_sai(self, sai_output):
-        """Extract pitch from SAI output"""
+    def extract_pitch_from_sai(self, sai_frame):
+        """Extract pitch from SAI frame"""
         try:
-            if sai_output is None or sai_output.size == 0:
+            if sai_frame is None or sai_frame.size == 0:
                 return 0, 0
             
-            # Sum across frequency channels
-            if len(sai_output.shape) == 2:
-                summary = np.mean(sai_output, axis=0)
+            # Sum across frequency channels (like test analysis)
+            if len(sai_frame.shape) == 2:
+                summary = np.mean(sai_frame, axis=0)
             else:
-                summary = sai_output
+                summary = sai_frame
             
-            if len(summary) < 3:
+            if len(summary) < 5:
                 return 0, 0
             
-            # Find peak (skip DC bin)
-            peak_idx = np.argmax(summary[1:]) + 1
+            # Find peak (skip first few bins)
+            peak_idx = np.argmax(summary[3:]) + 3
             
-            # Convert to frequency
-            max_delay = 0.020  # 20ms max delay (match segment duration)
-            delay_per_bin = max_delay / len(summary)
-            delay = peak_idx * delay_per_bin
+            # Convert SAI bin to frequency
+            # SAI bins represent time lags
+            max_delay_ms = 50  # 50ms max delay for pitch detection
+            delay_per_bin_ms = max_delay_ms / len(summary)
+            delay_ms = peak_idx * delay_per_bin_ms
             
-            if delay > 0:
-                freq = 1.0 / delay
+            if delay_ms > 0:
+                freq = 1000.0 / delay_ms  # Convert ms to Hz
                 confidence = summary[peak_idx] / np.max(summary) if np.max(summary) > 0 else 0
                 
-                # Filter valid range
-                if self.pitch_range[0] <= freq <= self.pitch_range[1] and confidence > 0.2:
+                # Filter valid pitch range
+                if self.pitch_range[0] <= freq <= self.pitch_range[1] and confidence > 0.3:
                     return float(freq), float(confidence)
             
             return 0, 0
@@ -242,13 +235,11 @@ class WorkingCarfacPitchogram:
         print("Processing thread started")
         start_time = time.time()
         
-        segment_samples = self.sai_params.input_segment_width
-        
         while self.is_running:
             try:
                 # Get audio data
                 audio_chunks = []
-                for _ in range(3):
+                for _ in range(5):  # Get several chunks
                     try:
                         chunk = self.audio_queue.get_nowait()
                         audio_chunks.append(chunk)
@@ -259,15 +250,15 @@ class WorkingCarfacPitchogram:
                     combined_audio = np.concatenate(audio_chunks)
                     self.update_buffer(combined_audio)
                     
-                    # Extract segment of exact size
-                    start_idx = (self.buffer_index - segment_samples) % len(self.audio_buffer)
+                    # Extract exactly input_segment_width samples
+                    start_idx = (self.buffer_index - self.input_segment_width) % len(self.audio_buffer)
                     
-                    if start_idx + segment_samples <= len(self.audio_buffer):
-                        audio_segment = self.audio_buffer[start_idx:start_idx + segment_samples]
+                    if start_idx + self.input_segment_width <= len(self.audio_buffer):
+                        audio_segment = self.audio_buffer[start_idx:start_idx + self.input_segment_width]
                     else:
                         # Handle wraparound
                         part1 = self.audio_buffer[start_idx:]
-                        part2 = self.audio_buffer[:segment_samples - len(part1)]
+                        part2 = self.audio_buffer[:self.input_segment_width - len(part1)]
                         audio_segment = np.concatenate([part1, part2])
                     
                     # Normalize
@@ -276,20 +267,20 @@ class WorkingCarfacPitchogram:
                         audio_segment = audio_segment / max_val
                     
                     try:
-                        # Create cochlear channels
-                        cochlear_channels = self.create_cochlear_channels(audio_segment)
+                        # Create multi-channel input
+                        cochlear_input = self.create_cochlear_channels(audio_segment)
                         
-                        # Ensure exact shape
-                        if cochlear_channels.shape != (self.sai_params.num_channels, segment_samples):
-                            print(f"Shape mismatch: got {cochlear_channels.shape}, expected ({self.sai_params.num_channels}, {segment_samples})")
+                        # Verify exact shape
+                        if cochlear_input.shape != (self.num_channels, self.input_segment_width):
+                            print(f"Shape error: {cochlear_input.shape} != ({self.num_channels}, {self.input_segment_width})")
                             continue
                         
-                        # Run SAI
-                        sai_output = self.sai.RunSegment(cochlear_channels)
+                        # Run SAI (exactly like the test)
+                        sai_frame = self.sai.RunSegment(cochlear_input)
                         
-                        if sai_output is not None:
+                        if sai_frame is not None:
                             # Extract pitch
-                            pitch, confidence = self.extract_pitch_from_sai(sai_output)
+                            pitch, confidence = self.extract_pitch_from_sai(sai_frame)
                             
                             # Update history
                             self.current_pitch = pitch
@@ -299,15 +290,15 @@ class WorkingCarfacPitchogram:
                             self.pitch_history.append(pitch)
                             self.confidence_history.append(confidence)
                             self.time_history.append(self.current_time)
-                    
+                        
                     except Exception as e:
-                        print(f"Processing error: {e}")
+                        print(f"SAI processing error: {e}")
                         continue
                 
-                time.sleep(0.02)
+                time.sleep(0.02)  # 50 FPS
                 
             except Exception as e:
-                print(f"Main processing error: {e}")
+                print(f"Processing thread error: {e}")
                 time.sleep(0.1)
     
     def start_audio(self):
@@ -333,7 +324,7 @@ class WorkingCarfacPitchogram:
             return True
             
         except Exception as e:
-            print(f"Audio start failed: {e}")
+            print(f"Audio start error: {e}")
             return False
     
     def stop_audio(self):
@@ -347,7 +338,7 @@ class WorkingCarfacPitchogram:
         print("Audio stopped")
     
     def freq_to_note(self, freq):
-        """Convert frequency to note"""
+        """Convert frequency to musical note"""
         if freq <= 0:
             return "---"
         
@@ -360,7 +351,7 @@ class WorkingCarfacPitchogram:
         return f"{note_names[note_idx]}{octave}"
     
     def update_plot(self, frame):
-        """Update plot"""
+        """Update the pitchogram display"""
         try:
             if len(self.pitch_history) < 2:
                 return []
@@ -375,8 +366,12 @@ class WorkingCarfacPitchogram:
             voiced_mask = pitches > 0
             if np.any(voiced_mask):
                 self.ax.scatter(times[voiced_mask], pitches[voiced_mask], 
-                              c=confidences[voiced_mask], cmap='viridis', 
-                              s=15, alpha=0.8, vmin=0, vmax=1)
+                              c=confidences[voiced_mask], cmap='plasma', 
+                              s=20, alpha=0.8, vmin=0, vmax=1)
+                
+                # Connect points for continuity
+                if np.sum(voiced_mask) > 1:
+                    self.ax.plot(times[voiced_mask], pitches[voiced_mask], 'w-', alpha=0.3, linewidth=1)
             
             # Setup axes
             self.ax.set_xlim(max(0, self.current_time - self.time_window), self.current_time + 1)
@@ -384,51 +379,52 @@ class WorkingCarfacPitchogram:
             self.ax.set_xlabel('Time (seconds)')
             self.ax.set_ylabel('Pitch (Hz)')
             
-            # Title
+            # Title with current pitch info
             if self.current_pitch > 0:
                 note = self.freq_to_note(self.current_pitch)
-                title = f'CARFAC Pitchogram | {self.current_pitch:.1f} Hz ({note}) | Conf: {self.current_confidence:.2f}'
+                title = f'CARFAC Pitchogram | {self.current_pitch:.1f} Hz ({note}) | Confidence: {self.current_confidence:.2f}'
             else:
                 title = f'CARFAC Pitchogram | Unvoiced | Time: {self.current_time:.1f}s'
             
-            self.ax.set_title(title)
+            self.ax.set_title(title, fontsize=12)
             self.ax.grid(True, alpha=0.3)
             
             return []
             
         except Exception as e:
-            print(f"Plot error: {e}")
+            print(f"Plot update error: {e}")
             return []
     
     def run(self):
-        """Run the pitchogram"""
+        """Run the real-time pitchogram"""
         print("=== WORKING CARFAC PITCHOGRAM ===")
+        print("Based on sai_test.py pattern")
         
         if not self.start_audio():
             print("Failed to start audio!")
             return
         
         try:
-            # Setup plot
-            self.fig, self.ax = plt.subplots(figsize=(14, 8))
+            # Setup matplotlib
+            self.fig, self.ax = plt.subplots(figsize=(15, 8))
             
-            # Colorbar
-            sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=0, vmax=1))
+            # Add colorbar
+            sm = plt.cm.ScalarMappable(cmap='plasma', norm=plt.Normalize(vmin=0, vmax=1))
             sm.set_array([])
-            self.fig.colorbar(sm, ax=self.ax, label='Confidence')
+            cbar = self.fig.colorbar(sm, ax=self.ax, label='Pitch Confidence')
             
             # Title
-            self.fig.suptitle("CARFAC Real-time Pitchogram - FIXED!\nSpeak or sing into your microphone!", 
-                            fontsize=12, y=0.95)
+            self.fig.suptitle("CARFAC Real-time Pitchogram (Based on sai_test.py)\nSpeak or sing into your microphone!", 
+                            fontsize=13, y=0.95)
             
             # Animation
             self.anim = FuncAnimation(self.fig, self.update_plot, 
-                                    interval=self.update_interval,
+                                    interval=100,  # 10 FPS
                                     blit=False, cache_frame_data=False)
             
             print("✓ Pitchogram display started!")
-            print("✓ The assertion error is fixed!")
-            print("✓ Speak into your microphone to see pitch tracking!")
+            print("✓ Using EXACT same SAI pattern as working test!")
+            print("✓ Speak into microphone to see pitch tracking!")
             plt.show()
             
         except KeyboardInterrupt:
@@ -442,15 +438,16 @@ class WorkingCarfacPitchogram:
             self.audio.terminate()
 
 def main():
-    print("FIXED CARFAC Pitchogram - No More Assertion Errors!")
+    """Main function"""
+    print("CARFAC Pitchogram - Based on Working sai_test.py")
     print("=" * 60)
     
     try:
-        pitchogram = WorkingCarfacPitchogram(sample_rate=22050)
+        pitchogram = WorkingCARFACPitchogram()
         pitchogram.run()
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Main error: {e}")
         import traceback
         traceback.print_exc()
 
