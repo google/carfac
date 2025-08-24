@@ -34,14 +34,14 @@ class WorkingCARFACPitchogram:
         self.num_channels = 71          # EXACTLY like the test
         self.sai_width = 100            # Good for pitch detection
         
-        # Display settings
-        self.time_window = 10
-        self.pitch_range = (80, 500)
+        # Display settings - FANCY low pitch range like professional tools
+        self.time_window = 15  # Longer time window for more data
+        self.pitch_range = (40, 100)  # LOW PITCH RANGE - more detailed for bass/fundamental frequencies
         
-        # History storage
-        self.pitch_history = deque(maxlen=300)
-        self.time_history = deque(maxlen=300)
-        self.confidence_history = deque(maxlen=300)
+        # History storage - MUCH larger for dense visualization
+        self.pitch_history = deque(maxlen=2000)  # Store many more points
+        self.time_history = deque(maxlen=2000)
+        self.confidence_history = deque(maxlen=2000)
         
         # Audio buffer
         self.audio_queue = queue.Queue(maxsize=100)
@@ -178,42 +178,64 @@ class WorkingCARFACPitchogram:
         return result
     
     def extract_pitch_from_sai(self, sai_frame):
-        """Extract pitch from SAI frame"""
+        """Extract MULTIPLE pitches from SAI frame for dense visualization"""
         try:
             if sai_frame is None or sai_frame.size == 0:
-                return 0, 0
+                return [], []
             
-            # Sum across frequency channels (like test analysis)
+            # Sum across frequency channels
             if len(sai_frame.shape) == 2:
                 summary = np.mean(sai_frame, axis=0)
             else:
                 summary = sai_frame
             
             if len(summary) < 5:
-                return 0, 0
+                return [], []
             
-            # Find peak (skip first few bins)
-            peak_idx = np.argmax(summary[3:]) + 3
+            max_sai = np.max(summary)
+            if max_sai < 0.001:
+                return [], []
             
-            # Convert SAI bin to frequency
-            # SAI bins represent time lags
-            max_delay_ms = 50  # 50ms max delay for pitch detection
-            delay_per_bin_ms = max_delay_ms / len(summary)
-            delay_ms = peak_idx * delay_per_bin_ms
+            # EXTRACT MULTIPLE PITCHES for dense visualization
+            pitches_found = []
+            confidences_found = []
             
-            if delay_ms > 0:
-                freq = 1000.0 / delay_ms  # Convert ms to Hz
-                confidence = summary[peak_idx] / np.max(summary) if np.max(summary) > 0 else 0
+            # Much more aggressive pitch extraction - find MANY peaks
+            for threshold in [0.6, 0.4, 0.2, 0.1, 0.05, 0.02]:  # Multiple threshold levels
+                peak_threshold = max_sai * threshold
                 
-                # Filter valid pitch range
-                if self.pitch_range[0] <= freq <= self.pitch_range[1] and confidence > 0.3:
-                    return float(freq), float(confidence)
+                for i in range(1, len(summary)-1):
+                    if (summary[i] > peak_threshold and 
+                        summary[i] >= summary[i-1] and 
+                        summary[i] >= summary[i+1]):
+                        
+                        # Convert bin to frequency
+                        max_delay_ms = 25
+                        delay_per_bin_ms = max_delay_ms / len(summary)
+                        delay_ms = i * delay_per_bin_ms
+                        
+                        if delay_ms > 0.5:  # Valid delay
+                            freq = 1000.0 / delay_ms
+                            confidence = summary[i] / max_sai
+                            
+                            # Accept VERY wide frequency range, then filter for display
+                            if 20 <= freq <= 200:  # Wide detection range
+                                # Avoid duplicate nearby frequencies
+                                is_duplicate = False
+                                for existing_freq in pitches_found:
+                                    if abs(freq - existing_freq) < 2:  # Within 2 Hz for precision
+                                        is_duplicate = True
+                                        break
+                                
+                                if not is_duplicate:
+                                    pitches_found.append(freq)
+                                    confidences_found.append(confidence)
             
-            return 0, 0
+            return pitches_found, confidences_found
             
         except Exception as e:
             print(f"Pitch extraction error: {e}")
-            return 0, 0
+            return [], []
     
     def audio_callback(self, in_data, frame_count, time_info, status):
         """Audio callback"""
@@ -261,10 +283,15 @@ class WorkingCARFACPitchogram:
                         part2 = self.audio_buffer[:self.input_segment_width - len(part1)]
                         audio_segment = np.concatenate([part1, part2])
                     
-                    # Normalize
+                    # Normalize audio and check levels
                     max_val = np.max(np.abs(audio_segment))
                     if max_val > 0:
                         audio_segment = audio_segment / max_val
+                        # DEBUG: Check if we're getting audio
+                        if max_val > 0.01:  # Only print for significant audio
+                            print(f"Audio level: {max_val:.4f}")
+                    else:
+                        continue  # Skip silent segments
                     
                     try:
                         # Create multi-channel input
@@ -279,23 +306,37 @@ class WorkingCARFACPitchogram:
                         sai_frame = self.sai.RunSegment(cochlear_input)
                         
                         if sai_frame is not None:
-                            # Extract pitch
-                            pitch, confidence = self.extract_pitch_from_sai(sai_frame)
+                            # Extract MULTIPLE pitches for dense visualization
+                            pitches_found, confidences_found = self.extract_pitch_from_sai(sai_frame)
                             
-                            # Update history
-                            self.current_pitch = pitch
-                            self.current_confidence = confidence
-                            self.current_time = time.time() - start_time
+                            # Add ALL found pitches to history
+                            current_time = time.time() - start_time
                             
-                            self.pitch_history.append(pitch)
-                            self.confidence_history.append(confidence)
-                            self.time_history.append(self.current_time)
+                            if pitches_found:  # If any pitches found
+                                for pitch, confidence in zip(pitches_found, confidences_found):
+                                    self.pitch_history.append(pitch)
+                                    self.confidence_history.append(confidence)
+                                    self.time_history.append(current_time)
+                                
+                                # Update current values with the strongest pitch
+                                strongest_idx = np.argmax(confidences_found)
+                                self.current_pitch = pitches_found[strongest_idx]
+                                self.current_confidence = confidences_found[strongest_idx]
+                                self.current_time = current_time
+                            else:
+                                # No pitch found - add zero entry to maintain timing
+                                self.pitch_history.append(0)
+                                self.confidence_history.append(0)
+                                self.time_history.append(current_time)
+                                self.current_pitch = 0
+                                self.current_confidence = 0
+                                self.current_time = current_time
                         
                     except Exception as e:
                         print(f"SAI processing error: {e}")
                         continue
                 
-                time.sleep(0.02)  # 50 FPS
+                time.sleep(0.01)  # 100 FPS for very dense data
                 
             except Exception as e:
                 print(f"Processing thread error: {e}")
@@ -351,43 +392,106 @@ class WorkingCARFACPitchogram:
         return f"{note_names[note_idx]}{octave}"
     
     def update_plot(self, frame):
-        """Update the pitchogram display"""
+        """Update the FANCY pitchogram display"""
         try:
             if len(self.pitch_history) < 2:
                 return []
             
+            # FANCY: Clear with style
             self.ax.clear()
             
+            # Create ULTRA-DENSE visualization with FANCY styling
             times = np.array(self.time_history)
-            pitches = np.array(self.pitch_history)
+            pitches = np.array(self.pitch_history) 
             confidences = np.array(self.confidence_history)
             
-            # Plot voiced segments
-            voiced_mask = pitches > 0
-            if np.any(voiced_mask):
-                self.ax.scatter(times[voiced_mask], pitches[voiced_mask], 
-                              c=confidences[voiced_mask], cmap='plasma', 
-                              s=20, alpha=0.8, vmin=0, vmax=1)
-                
-                # Connect points for continuity
-                if np.sum(voiced_mask) > 1:
-                    self.ax.plot(times[voiced_mask], pitches[voiced_mask], 'w-', alpha=0.3, linewidth=1)
+            # Filter for display range (40-100 Hz)
+            display_mask = (pitches >= self.pitch_range[0]) & (pitches <= self.pitch_range[1])
+            display_times = times[display_mask]
+            display_pitches = pitches[display_mask]
+            display_confidences = confidences[display_mask]
             
-            # Setup axes
+            # BEAUTIFUL PAINTING-LIKE VISUALIZATION - NO DOTS, PURE COLOR STROKES
+            if len(display_times) > 0:
+                # Layer 1: Ultra-high confidence (BRIGHT COLOR STROKES)
+                ultra_conf_mask = display_confidences > 0.7
+                if np.any(ultra_conf_mask):
+                    for size in [80, 60, 40, 20]:  # Multiple stroke sizes
+                        self.ax.scatter(display_times[ultra_conf_mask], display_pitches[ultra_conf_mask],
+                                      c=display_confidences[ultra_conf_mask], cmap='plasma',
+                                      s=size, alpha=0.8, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')  # Square markers for paint effect
+                
+                # Layer 2: High confidence (BRIGHT PAINT STROKES)
+                high_conf_mask = (display_confidences > 0.4) & (display_confidences <= 0.7)
+                if np.any(high_conf_mask):
+                    for size in [60, 40, 25]:
+                        self.ax.scatter(display_times[high_conf_mask], display_pitches[high_conf_mask],
+                                      c=display_confidences[high_conf_mask], cmap='hot',
+                                      s=size, alpha=0.7, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')
+                
+                # Layer 3: Medium confidence (COLORFUL PAINT PATCHES)
+                med_conf_mask = (display_confidences > 0.2) & (display_confidences <= 0.4)
+                if np.any(med_conf_mask):
+                    for size in [45, 30, 15]:
+                        self.ax.scatter(display_times[med_conf_mask], display_pitches[med_conf_mask],
+                                      c=display_confidences[med_conf_mask], cmap='rainbow',
+                                      s=size, alpha=0.6, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')
+                
+                # Layer 4: Low confidence (SOFT COLOR WASHES)
+                low_conf_mask = (display_confidences > 0.1) & (display_confidences <= 0.2)
+                if np.any(low_conf_mask):
+                    for size in [35, 20]:
+                        self.ax.scatter(display_times[low_conf_mask], display_pitches[low_conf_mask],
+                                      c=display_confidences[low_conf_mask], cmap='viridis',
+                                      s=size, alpha=0.5, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')
+                
+                # Layer 5: Ultra-low confidence (SUBTLE COLOR TEXTURES)
+                ultra_low_mask = (display_confidences > 0.05) & (display_confidences <= 0.1)
+                if np.any(ultra_low_mask):
+                    for size in [25, 15]:
+                        self.ax.scatter(display_times[ultra_low_mask], display_pitches[ultra_low_mask],
+                                      c=display_confidences[ultra_low_mask], cmap='cool',
+                                      s=size, alpha=0.4, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')
+                
+                # Layer 6: Background texture (VERY SOFT PAINT WASHES)
+                bg_mask = (display_confidences > 0.01) & (display_confidences <= 0.05)
+                if np.any(bg_mask):
+                    for size in [20, 10]:
+                        self.ax.scatter(display_times[bg_mask], display_pitches[bg_mask],
+                                      c=display_confidences[bg_mask], cmap='spring',
+                                      s=size, alpha=0.3, vmin=0, vmax=1, 
+                                      edgecolors='none', marker='s')
+            
+            # BEAUTIFUL PAINTING: Enhanced visual styling
             self.ax.set_xlim(max(0, self.current_time - self.time_window), self.current_time + 1)
             self.ax.set_ylim(self.pitch_range[0], self.pitch_range[1])
-            self.ax.set_xlabel('Time (seconds)')
-            self.ax.set_ylabel('Pitch (Hz)')
             
-            # Title with current pitch info
-            if self.current_pitch > 0:
+            # NO GRID - pure painting effect
+            self.ax.grid(False)
+            self.ax.set_facecolor('black')  # Pure black canvas
+            
+            # HIDE ALL LABELS AND TICKS for pure art
+            self.ax.set_xlabel('')
+            self.ax.set_ylabel('') 
+            self.ax.set_xticks([])
+            self.ax.set_yticks([])
+            
+            # HIDE SPINES for borderless effect
+            for spine in self.ax.spines.values():
+                spine.set_visible(False)
+            
+            # PURE ART: Minimal status display
+            if self.current_pitch > 0 and self.pitch_range[0] <= self.current_pitch <= self.pitch_range[1]:
                 note = self.freq_to_note(self.current_pitch)
-                title = f'CARFAC Pitchogram | {self.current_pitch:.1f} Hz ({note}) | Confidence: {self.current_confidence:.2f}'
+                title = f'{self.current_pitch:.1f} Hz ({note})'
+                self.ax.set_title(title, fontsize=10, color='white', fontweight='light', pad=10)
             else:
-                title = f'CARFAC Pitchogram | Unvoiced | Time: {self.current_time:.1f}s'
-            
-            self.ax.set_title(title, fontsize=12)
-            self.ax.grid(True, alpha=0.3)
+                self.ax.set_title('', fontsize=1)  # Empty title
             
             return []
             
@@ -397,34 +501,32 @@ class WorkingCARFACPitchogram:
     
     def run(self):
         """Run the real-time pitchogram"""
-        print("=== WORKING CARFAC PITCHOGRAM ===")
-        print("Based on sai_test.py pattern")
+        print("=== ● ♫ ○ ◊ ===")
+        print("♪ ▲ sai_test.py ♬")
         
         if not self.start_audio():
-            print("Failed to start audio!")
+            print("✗ ✗ ○ ●!")
             return
         
         try:
-            # Setup matplotlib
-            self.fig, self.ax = plt.subplots(figsize=(15, 8))
+            # PURE ART: Minimal setup
+            plt.style.use('dark_background')
+            self.fig, self.ax = plt.subplots(figsize=(16, 10))
+            self.fig.patch.set_facecolor('black')
             
-            # Add colorbar
-            sm = plt.cm.ScalarMappable(cmap='plasma', norm=plt.Normalize(vmin=0, vmax=1))
-            sm.set_array([])
-            cbar = self.fig.colorbar(sm, ax=self.ax, label='Pitch Confidence')
+            # NO COLORBAR - pure art
             
-            # Title
-            self.fig.suptitle("CARFAC Real-time Pitchogram (Based on sai_test.py)\nSpeak or sing into your microphone!", 
-                            fontsize=13, y=0.95)
+            # MINIMAL TITLE
+            self.fig.suptitle("", fontsize=1)
             
-            # Animation
+            # NO VERSION INFO - pure art
+            
+            # SMOOTH ANIMATION for painting effect
             self.anim = FuncAnimation(self.fig, self.update_plot, 
-                                    interval=100,  # 10 FPS
+                                    interval=30,  # 33 FPS for smooth painting
                                     blit=False, cache_frame_data=False)
             
-            print("✓ Pitchogram display started!")
-            print("✓ Using EXACT same SAI pattern as working test!")
-            print("✓ Speak into microphone to see pitch tracking!")
+            print("")  # Silent start
             plt.show()
             
         except KeyboardInterrupt:
@@ -439,7 +541,7 @@ class WorkingCARFACPitchogram:
 
 def main():
     """Main function"""
-    print("CARFAC Pitchogram - Based on Working sai_test.py")
+    print("♫ ○ ◊ - ♪ ● sai_test.py")
     print("=" * 60)
     
     try:
