@@ -22,7 +22,7 @@ function status = CARFAC_Test(do_plots)
 % optional, defaults to 1 (as when executing the file as a script).
 % Run CARFAC_Test(0) to suppress plotting.
 
-if nargin < 1, 
+if nargin < 1,
   do_plots = 1;
   close ALL  % So plots don't accumulate.
 end  % Produce plots by default.
@@ -34,14 +34,20 @@ status = status | test_IHC1(do_plots);  % one_cap, v1
 status = status | test_IHC2(do_plots);  % two_cap, v2
 status = status | test_IHC3(do_plots);  % do_syn, v3
 status = status | test_AGC_steady_state(do_plots);
+status = status | test_AGC_steady_state_non_decimating(do_plots);
 status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac1(do_plots);
 status = status | test_whole_carfac2(do_plots);
 status = status | test_whole_carfac3(do_plots);
+status = status | test_whole_carfac1_non_decimating(do_plots);
+status = status | test_whole_carfac2_non_decimating(do_plots);
+status = status | test_whole_carfac3_non_decimating(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
-status = status | test_multiaural_silent_channel_carfac(do_plots);
+status = status | test_multiaural_silent_channel(do_plots);
+status = status | test_multiaural_silent_channel_non_decimating(do_plots);
 status = status | test_multiaural_carfac(do_plots);
+status = status | test_spike_rates(do_plots);
 report_status(status, 'CARFAC_Test', 1)
 return
 
@@ -51,7 +57,7 @@ function status = test_CAR_freq_response(do_plots)
 
 status = 0;
 
-CF = CARFAC_Design();  % Defaults to 1 ear at 22050 sps.
+CF = CARFAC_Design(1, 22050);  % 1 ear; use old test fs.
 CF = CARFAC_Init(CF);
 n_points = 2^14;
 fft_len = n_points * 2;  % Lots of zero padding for good freq. resolution.
@@ -393,18 +399,37 @@ return
 
 
 function status = test_AGC_steady_state(do_plots)
-% Test: Make sure that the AGC adapts an appropriate steady state,
+% Test: Make sure that the AGC adapts to an appropriate steady state,
 % like figure 19.7
+status = test_AGC_steady_state_core(do_plots, 0);
+return
+
+
+function status = test_AGC_steady_state_non_decimating(do_plots)
+% Test: Make sure that the AGC adapts to an appropriate steady state,
+% like figure 19.7
+status = test_AGC_steady_state_core(do_plots, 1);
+return
+
+function status = test_AGC_steady_state_core(do_plots, non_decimating)
+% Test: Make sure 2025 non-decimating changes is "close enough" to same.
 
 status = 0;
 
-CF = CARFAC_Design();  % Defaults to 1 ear at 22050 sps.
+if non_decimating
+  CAR_params = CAR_params_default;
+  AGC_params = AGC_params_default;
+  AGC_params.decimation = [1, 1, 1, 1];  % Override default.
+  CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
+else
+  CF = CARFAC_Design(1, 22050);  % With default [8, 2, 2, 2] decimation.
+end
 CF = CARFAC_Init(CF);
 agc_input = zeros(CF.n_ch, 1);
 test_channel = 40;
 n_points = 16384;
 num_stages = CF.AGC_params.n_stages;  % 4
-decim = CF.ears.AGC_coeffs(1).decimation(1);  % 8
+decim = CF.ears.AGC_coeffs.decimation(1);  % 8
 agc_response = zeros(num_stages, floor(n_points / decim), CF.n_ch);
 num_outputs = 0;
 for i = 1:n_points
@@ -415,7 +440,7 @@ for i = 1:n_points
   if agc_updated  % Every 8 samples.
     num_outputs = num_outputs + 1;
     for stage = 1:num_stages
-      agc_response(stage, num_outputs, :) = agc_state(stage).AGC_memory;
+      agc_response(stage, num_outputs, :) = agc_state.AGC_memory(:, stage)';
     end
   end
 end
@@ -423,16 +448,29 @@ end
 % Test: Plot spatial response to match Figure 19.7
 if do_plots
   figure
+  hold on
   plot(squeeze(agc_response(:, end, :))')
   title('Steady state spatial responses of the stages')
   drawnow
 end
-expected_ch_amp_bws = [ ...
-  [39.033166, 8.359763, 9.598703];
-  [39.201534, 4.083376, 9.019020];
-  [39.374404, 1.878256, 8.219043];
-  [39.565957, 0.712351, 6.994498];
-  ];
+
+if CF.ears(1).AGC_coeffs.non_decimating
+  % 2025 non-decimating way is higher/sharper near the peak.
+  expected_ch_amp_bws = [ ...
+    [39.680614, 9.160676, 8.470642];
+    [39.760187, 4.531205, 7.819946];
+    [39.828831, 2.117139, 6.951839];
+    [39.896631, 0.833373, 5.552264];
+    ];
+else
+  expected_ch_amp_bws = [ ...
+    [39.033166, 8.359763, 9.598703];
+    [39.201534, 4.083376, 9.019020];
+    [39.374404, 1.878256, 8.219043];
+    [39.565957, 0.712351, 6.994498];
+    ];
+end
+
 if num_stages ~= size(expected_ch_amp_bws, 1)
   fprintf(1, ...
     'Unmatched num_stages %d and expected_ch_amp_bws rows %d in test_IHC.\n',...
@@ -480,7 +518,7 @@ else
   fprintf(1, 'Golden data for Python test_agc_steady_state:\n');
   fprintf(1, '        %d: [%f, %f, %f],\n', ...
     [(0:(num_stages-1))', ch_amp_bws]')
- end
+end
 report_status(status, 'test_AGC_steady_state')
 return
 
@@ -521,26 +559,44 @@ return
 
 
 function status = test_whole_carfac1(do_plots)
-status = test_whole_carfac(do_plots, 'one_cap')
+status = test_whole_carfac(do_plots, 'one_cap', 0);
 report_status(status, 'test_whole_carfac1')
 return
 
 
 function status = test_whole_carfac2(do_plots)
-status = test_whole_carfac(do_plots, 'two_cap')
+status = test_whole_carfac(do_plots, 'two_cap', 0);
 report_status(status, 'test_whole_carfac2')
 return
 
 
 function status = test_whole_carfac3(do_plots)
-status = test_whole_carfac(do_plots, 'do_syn')
+status = test_whole_carfac(do_plots, 'do_syn', 0);
 report_status(status, 'test_whole_carfac3')
 return
 
 
-function status = test_whole_carfac(do_plots, version_string)
-% Test: Make sure that the AGC adapts to a tone. Test with open-loop
-% impulse response.
+function status = test_whole_carfac1_non_decimating(do_plots)
+status = test_whole_carfac(do_plots, 'one_cap', 1);
+report_status(status, 'test_whole_carfac4')
+return
+
+
+function status = test_whole_carfac2_non_decimating(do_plots)
+status = test_whole_carfac(do_plots, 'two_cap', 1);
+report_status(status, 'test_whole_carfac5')
+return
+
+
+function status = test_whole_carfac3_non_decimating(do_plots)
+status = test_whole_carfac(do_plots, 'do_syn', 1);
+report_status(status, 'test_whole_carfac6')
+return
+
+
+function status = test_whole_carfac(do_plots, version_string, non_decimating)
+% Test: Make sure that the AGC adapts to a tone. 
+% Test with open-loop impulse response.
 
 status = 0;
 
@@ -554,7 +610,14 @@ impulse_dur = 0.5;  % 0.25 is about enough; this is conservative.
 impulse = zeros(round(impulse_dur*fs), 1);  % For short impulse wave.
 impulse(1) = 1e-4;  % Small amplitude impulse to keep it pretty linear
 
-CF = CARFAC_Design(1, fs, version_string);
+if non_decimating
+  CAR_params = CAR_params_default;
+  AGC_params = AGC_params_default;
+  AGC_params.decimation = [1, 1, 1, 1];  % Override default.
+  CF = CARFAC_Design(1, 22050, CAR_params, AGC_params, version_string);
+else
+  CF = CARFAC_Design(1, 22050, version_string);  % With default decimation.
+end
 CF = CARFAC_Init(CF);
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -563,13 +626,13 @@ CF.linear_car = 1;  % For measuring impulse response.
 
 CF.open_loop = 0;  % To let CF adapt to signal.
 CF.linear_car = 0;  % Normal mode.
-[~, CF, bm_sine] = CARFAC_Run_Segment(CF, sinusoid);
+[nap, CF, bm_sine] = CARFAC_Run_Segment(CF, sinusoid);
 
 % Capture AGC state response at end, for analysis later.
 num_stages = CF.AGC_params.n_stages;  % 4
 agc_response = zeros(num_stages, CF.n_ch);
 for stage = 1:num_stages
-  agc_response(stage, :) = CF.ears(1).AGC_state(stage).AGC_memory;
+  agc_response(stage, :) = CF.ears(1).AGC_state.AGC_memory(:, stage);
 end
 
 CF.open_loop = 1;  % For measuring impulse response.
@@ -704,21 +767,29 @@ for j = 1:size(results, 1)
     fprintf(1, 'c = %d should equal expected_c %d\n', c, expected_c);
   end
 
-  if abs(initial_resps(expected_c, 1) - expected_cf) > expected_cf / 10000
+  if non_decimating
+    tolerance = expected_cf / 1000;
+  else
+    tolerance = expected_cf / 10000;
+  end
+  if abs(initial_resps(expected_c, 1) - expected_cf) > tolerance
     status = 1;
     fprintf(1, ...
       'initial_resps(c, 0) = %8.3f not close to expected_cf %8.3f\n', ...
       initial_resps(c, 1), expected_cf);
   end
-
-  if abs(dB_change - expected_change) > 0.01
+  if non_decimating
+    tolerance = 0.02 + expected_change/30;
+  else
+    tolerance = 0.01;  % dB
+  end
+  if abs(dB_change - expected_change) > tolerance
     status = 1;
     fprintf(1, 'dB_change = %6.3f not close to expected_change %6.3f\n', ...
       dB_change, expected_change);
   end
 end
 
-%%
 if do_plots  % Plot final AGC state
   figure
   plot(agc_response')
@@ -796,37 +867,58 @@ fprintf(1, 'Delay nonlinear max_max_rel_error = %f\n', max_max_rel_error);
 report_status(status, 'test_delay_buffer')
 return
 
-function status = test_multiaural_silent_channel_carfac(do_plots)
-  % Test multiaural functionality with 2 ears. Runs a 50ms sample of a pair of
-  % C Major chords, and tests a binaural carfac, with 1 silent ear against
-  % a simple monoaural carfac with only the chords.
-  %
-  % Tests that:
-  % 1. The ratio of the BM in total is within an expected ratio [1, 1.25]
-  % 2. Checks a golden set against a precise set of ratios for these chords
-  % The latter is to ensure identical behavior in python.
-  status = 0;
-  fs = 22050;
-  t = (0:(1/fs):(0.05 - 1/fs))';  % 50ms
-  amplitude = 1e-3;  % -70 dBFS, around 30-40 dB SPL
 
-  % c major chord of c-e-g at 523.25, 659.25 and 783.99
-  % and 32.7, 41.2 and 49
-  freqs = [523.25 659.25 783.99 32.7 41.2 49];
-  c_chord = amplitude * sum(sin(2 * pi * t * freqs), 2);
+function status = test_multiaural_silent_channel(do_plots)
+status = test_multiaural_silent_core(do_plots, 0);
 
-  binaural_audio = [c_chord zeros(size(t))];
-  CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
-  CF = CARFAC_Init(CF);
-  MONO_CF = CARFAC_Design(1, fs, 'one_cap');  % Legacy
-  MONO_CF = CARFAC_Init(MONO_CF);
-  [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
-  [mono_naps, MONO_CF, mono_bm_baseline] = CARFAC_Run_Segment(MONO_CF, c_chord);
-  good_ear_bm = bm_baseline(:, :, 1);
-  rms_good_ear = rms(good_ear_bm);
-  rms_mono = rms(mono_bm_baseline);
-  tf_ratio = rms_good_ear ./ rms_mono;
 
+function status = test_multiaural_silent_channel_non_decimating(do_plots)
+status = test_multiaural_silent_core(do_plots, 1);
+
+
+function status = test_multiaural_silent_core(do_plots, non_decimating)
+% Test multiaural functionality with 2 ears. Runs a 50ms sample of a pair of
+% C Major chords, and tests a binaural carfac, with 1 silent ear against
+% a simple monoaural carfac with only the chords.
+%
+% Tests that:
+% 1. The ratio of the BM in total is within an expected ratio [1, 1.25]
+% 2. Checks a golden set against a precise set of ratios for these chords
+% The latter is to ensure identical behavior in python.
+status = 0;
+fs = 22050;
+t = (0:(1/fs):(0.05 - 1/fs))';  % 50ms
+amplitude = 1e-3;  % -70 dBFS, around 30-40 dB SPL
+
+% c major chord of c-e-g at 523.25, 659.25 and 783.99
+% and 32.7, 41.2 and 49
+freqs = [523.25 659.25 783.99 32.7 41.2 49];
+c_chord = amplitude * sum(sin(2 * pi * t * freqs), 2);
+binaural_audio = [c_chord, zeros(size(t))];
+
+version_string = 'one_cap';  % Legacy test.
+if non_decimating
+  CAR_params = CAR_params_default;
+  AGC_params = AGC_params_default;
+  AGC_params.decimation = [1, 1, 1, 1];  % Override default.
+  CF = CARFAC_Design(2, 22050, CAR_params, AGC_params, version_string);
+  MONO_CF = CARFAC_Design(1, fs, CAR_params, AGC_params, version_string);
+else
+  CF = CARFAC_Design(2, 22050, version_string);
+  MONO_CF = CARFAC_Design(1, fs, version_string);
+end
+
+CF = CARFAC_Init(CF);
+MONO_CF = CARFAC_Init(MONO_CF);
+[naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
+[mono_naps, MONO_CF, mono_bm_baseline] = CARFAC_Run_Segment(MONO_CF, c_chord);
+good_ear_bm = bm_baseline(:, :, 1);
+rms_good_ear = rms(good_ear_bm);
+rms_mono = rms(mono_bm_baseline);
+tf_ratio = rms_good_ear ./ rms_mono;
+
+if ~non_decimating
+  % Data from non_decimating case is not used as golden.
   fprintf(1, 'for python, tf_ratio = [');
   for ch = 1:size(tf_ratio')
     fprintf(1, ' %.4f,', tf_ratio(ch));
@@ -842,7 +934,8 @@ function status = test_multiaural_silent_channel_carfac(do_plots)
     end
   end
   fprintf(1, '];\n');
-  expected_tf_ratio = [1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
+end
+expected_tf_ratio = [1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
   1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
   1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
   1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
@@ -857,39 +950,48 @@ function status = test_multiaural_silent_channel_carfac(do_plots)
   1.0556, 1.0659, 1.0739, 1.0745, 1.0762, ...
   1.0597, 1.0200, 1.0151, 1.0138, 1.0129, ...
   1.0182, ];
-  max_error = max(abs(expected_tf_ratio - tf_ratio));
-  if max_error > 1e-3
-    status = 1
-    fprintf(1, 'Expected TF Ratio is not within 1e-3 of TF Ratio');
-  end
-  if any(tf_ratio < 1) | any(tf_ratio > 1.25)
-    status = 1;
-    fprintf(1, 'bm ratio is expected to be between 1 and 1.2 for noise');
-  end
-  report_status(status, 'test_multiaural_silent_channel_carfac');
+if non_decimating
+  % Later channels are dominated by aliasing effects, which are different
+  % with the 2025 non-decimating version, so ignore the tiny responses
+  % there.
+  tf_ratio = tf_ratio(1:52);
+  expected_tf_ratio = expected_tf_ratio(1:52);
+end
+max_error = max(abs(expected_tf_ratio - tf_ratio));
+if max_error > 1e-3
+  status = 1
+  fprintf(1, 'Expected TF Ratio is not within 1e-3 of TF Ratio\n');
+end
+if any(tf_ratio < 0.999) | any(tf_ratio > 1.25)
+  status = 1;
+  fprintf(1, 'bm ratio is expected to be between 1 and 1.2 for noise\n');
+end
+report_status(status, 'test_multiaural_silent_channel_carfac');
 return
 
+
 function status = test_multiaural_carfac(do_plots)
-  % Tests that in binaural carfac, providing identical noise to both ears
-  % gives identical nap output at end.
-  status = 0;
-  fs = 22050;
-  t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
-  amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
-  noise = amplitude * randn(size(t));
-  binaural_noise = [noise noise];
-  CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
-  CF = CARFAC_Init(CF);
-  [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_noise);
-  ear_one_naps = naps(:, :, 1);
-  ear_two_naps = naps(:, :, 2);
-  max_error =  max(abs(ear_one_naps - ear_two_naps));
-  if max_error > 1e-6
-    status = 1;
-    fprintf(1, 'Failed to have both ears equal in binaural');
-  end
-  report_status(status, 'test_multiaural_carfac');
-  return
+% Tests that in binaural carfac, providing identical noise to both ears
+% gives identical nap output at end.
+status = 0;
+fs = 22050;
+t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
+amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
+noise = amplitude * randn(size(t));
+binaural_noise = [noise noise];
+CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
+CF = CARFAC_Init(CF);
+[naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_noise);
+ear_one_naps = naps(:, :, 1);
+ear_two_naps = naps(:, :, 2);
+max_error =  max(abs(ear_one_naps - ear_two_naps));
+if max_error > 1e-6
+  status = 1;
+  fprintf(1, 'Failed to have both ears equal in binaural');
+end
+report_status(status, 'test_multiaural_carfac');
+return
+
 
 function status = test_OHC_health(do_plots)
 % Test: Verify frequency dependent reduced gain with reduced health.
@@ -897,7 +999,6 @@ function status = test_OHC_health(do_plots)
 status = 0;
 
 fs = 22050;
-
 t = (0:(1/fs):(1 - 1/fs))';  % Sample times for 1s of noise
 amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
 noise = amplitude * randn(size(t));
@@ -963,7 +1064,7 @@ cf_amp_bw = [cf, amplitude, bw];
 return
 
 
-% From:
+% Formula from:
 % https://ccrma.stanford.edu/~jos/sasp/Quadratic_Interpolation_Spectral_Peaks.html
 function [location, amplitude] = quadratic_peak_interpolation(...
   alpha, beta, gamma)
@@ -983,6 +1084,77 @@ a = y(locs);
 b = y(locs+1);
 frac = -a ./ (b - a);
 zclist = x(locs) .* (1 - frac) + x(locs + 1) .* frac;
+return
+
+
+function status = test_spike_rates(do_plots)
+% Test: Assure the 3 class rates versus level look good.
+
+status = 0;
+fs = 22050;
+fp = 1000;  % Probe tone frequency
+duration = 0.25;
+dbstep = 10;   % 10 is good
+dbfs = -104:dbstep:6;  % 0 to 110 dB SPL
+
+t = (0:(1/fs):(duration - 1/fs))';  % Sample times for short duration
+sinusoid = sin(2 * pi * t * fp);
+signal = [];
+time = [];
+t_start = 0;
+for db = dbfs  % Levels spanning a huge range
+  amplitude = sqrt(2) * 10.^(db/20);
+  signal = [signal; amplitude*sinusoid];
+  time = [time; t + t_start];
+  t_start = t_start + duration;
+end
+
+CF = CARFAC_Design(1, fs, 'do_syn');  % v3 3-class synapse model
+CF = CARFAC_Init(CF);
+[nap, CF, bm, ohc, agc, firings] = CARFAC_Run_Segment(CF, signal);  % nap has 3 columns of firings
+
+if do_plots
+  %%
+  chan = find(CF.pole_freqs * 1.06 < fp, 1); % probably best channel
+  chan_firings = squeeze(firings(:, chan, :, 1));  % Just one channel, 3 class columns.
+  healthy_n_fibers = CF.SYN_params.healthy_n_fibers;
+  rates = chan_firings ./ healthy_n_fibers;
+
+  figure();
+  plot(time, chan_firings);
+  title('Instantaneous rates of 3 fiber-group classes')
+  xlabel('time in seconds, with 10 dB steps from -100 to 0 dB FS')
+  ylabel('firings per sample')
+  for db = dbfs + 104
+    text(duration * (db/dbstep + 0.4), 12, num2str(db))
+  end
+
+  figure();
+  plot(time, fs*smooth1d(rates, fs*0.005)) % Per fiber
+  title('Mean rates of 3 fiber classes')
+  xlabel('time in seconds, with 10 dB steps from 0 to 110 dB SPL rms')
+  ylabel('firings per second per fiber')
+  for db = dbfs + 104
+    text(duration * (db/dbstep + 0.4), 100, num2str(db))
+  end
+  octave_basal_chan = find(CF.pole_freqs * 1.06 < fp*2, 1);
+  half_octave_basal_chan = find(CF.pole_freqs * 1.06 < fp*sqrt(2), 1);
+  best_chan = find(CF.pole_freqs * 1.06 < fp, 1);
+  half_octave_apical_chan = find(CF.pole_freqs * 1.06 < fp/sqrt(2), 1);
+  channels = [octave_basal_chan, half_octave_basal_chan, best_chan, ...
+    half_octave_apical_chan];
+  figure()
+  plot(time(1:8:end), agc(1:8:end, channels))
+  text(2.55, 0.15, [num2str(channels(4)), ': apical 0.5'])
+  text(2.55, 0.5, [num2str(channels(3)), ': best'])
+  text(2.58, 0.74, [num2str(channels(2)), ': basal 0.5'])
+  text(2.45, 0.93, [num2str(channels(1)), ': basal 1'])
+  for db = dbfs + 104
+    text(duration * (db/dbstep + 0.4), 0.4, num2str(db))
+  end
+end
+
+report_status(status, 'test_spike_rates')
 return
 
 

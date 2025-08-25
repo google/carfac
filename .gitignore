@@ -10,3 +10,4 @@
 *.png
 # VScode files
 cpp/.vs/*
+.DS_Store

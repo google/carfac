@@ -51,14 +51,11 @@ state = struct( ...
 
 
 function state = AGC_Init_State(coeffs)
-n_ch = coeffs(1).n_ch;
-n_AGC_stages = coeffs(1).n_AGC_stages;
-state = struct([]);
-for stage = 1:n_AGC_stages
-  % Initialize state recursively...
-  state(stage).AGC_memory = zeros(n_ch, 1);
-  state(stage).input_accum = zeros(n_ch, 1);
-  state(stage).decim_phase = 0;  % integer decimator phase
+% 2025 new way, one struct instead of array of them.
+state = struct('AGC_memory', zeros(coeffs.n_ch, coeffs.n_AGC_stages));
+if ~coeffs.non_decimating  % Fields only needed if decimating.
+  state.input_accum = zeros(coeffs.n_ch, coeffs.n_AGC_stages);
+  state.decim_phase = zeros(1, coeffs.n_AGC_stages);  % small ints
 end
 
 
@@ -84,10 +81,10 @@ else
   end
 end
 
+
 function state = SYN_Init_State(coeffs)
 n_ch = coeffs.n_ch;
 n_cl = coeffs.n_classes;
 state = struct( ...
   'reservoirs', ones(n_ch, 1) * coeffs.res_lpf_inits, ...  % 0 full, 1 empty.
   'lpf_state', ones(n_ch, 1) * coeffs.spont_p); 
-
