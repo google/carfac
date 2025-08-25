@@ -1,8 +1,3 @@
-"""
-WORKING CARFAC PITCHOGRAM
-Based exactly on the pattern from sai_test.py
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -73,30 +68,19 @@ class WorkingCARFACPitchogram:
             sai_width=self.sai_width,
         )
         
-        print(f"SAI Parameters (matching test):")
-        print(f"  num_channels: {self.sai_params.num_channels}")
-        print(f"  input_segment_width: {self.sai_params.input_segment_width} samples")
-        print(f"  trigger_window_width: {self.sai_params.trigger_window_width}")
-        print(f"  sai_width: {self.sai_params.sai_width}")
-        print(f"  future_lags: {self.sai_params.future_lags}")
-        
         try:
             # Create SAI exactly like the test
             self.sai = pysai.SAI(self.sai_params)
-            print("✓ CARFAC SAI created successfully using test pattern!")
             
             # Test it like the test does
             self.test_sai()
             
         except Exception as e:
-            print(f"CARFAC setup failed: {e}")
             import traceback
             traceback.print_exc()
             raise
     
     def test_sai(self):
-        """Test SAI like sai_test.py does"""
-        print("Testing SAI with synthetic data...")
         
         try:
             # Create test pulse train like in the test
@@ -105,16 +89,6 @@ class WorkingCARFACPitchogram:
             print(f"Test segment shape: {test_segment.shape}")
             print(f"Expected shape: ({self.num_channels}, {self.input_segment_width})")
             
-            # Run SAI exactly like the test
-            sai_frame = self.sai.RunSegment(test_segment)
-            
-            if sai_frame is not None:
-                print(f"✓ SAI test passed! Output shape: {sai_frame.shape}")
-                print(f"✓ Output range: {np.min(sai_frame):.6f} to {np.max(sai_frame):.6f}")
-                return True
-            else:
-                print("✗ SAI test failed: returned None")
-                return False
                 
         except Exception as e:
             print(f"✗ SAI test failed: {e}")
