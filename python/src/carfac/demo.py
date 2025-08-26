@@ -10,6 +10,8 @@ import time
 from scipy.signal import butter, sosfilt, hilbert
 from collections import deque
 import matplotlib.colors as mcolors
+from matplotlib.patches import Circle
+import matplotlib.patches as patches
 
 # Try to import carfac from multiple possible locations
 pysai = None
@@ -62,14 +64,21 @@ class PitchVisualizer:
             print("🎵 Using autocorrelation pitch detection")
         
         # Display settings
-        self.time_window = 10.0  # seconds
-        self.pitch_range = (50, 400)  # Hz
+        self.time_window = 8.0  # seconds
+        self.pitch_range = (80, 800)  # Hz
         self.max_history = 1000
+        
+        # Linear wave effect settings
+        self.wave_duration = 2.5  # How long each wave lasts
+        self.max_wave_radius = 150  # Maximum wave radius in plot units
+        self.wave_speed = 60  # Wave expansion speed
+        self.num_wave_rings = 15  # Number of concentric linear rings
         
         # Data storage
         self.pitch_history = deque(maxlen=self.max_history)
         self.time_history = deque(maxlen=self.max_history)
         self.confidence_history = deque(maxlen=self.max_history)
+        self.wave_sources = deque(maxlen=50)  # Store wave source points
         
         # Audio system
         self.audio_queue = queue.Queue(maxsize=50)
@@ -93,8 +102,8 @@ class PitchVisualizer:
         self.sai = pysai.SAI(sai_params)
         print(f"SAI initialized: {self.num_channels} channels, {self.sai_width} bins")
     
-    def frequency_to_hsv_color(self, freq, min_freq=50, max_freq=400):
-        """Convert frequency to HSV color for natural rainbow effect"""
+    def frequency_to_hsv_color(self, freq, min_freq=80, max_freq=800):
+        """Convert frequency to HSV color with distinct color mapping per frequency range"""
         if freq <= 0 or freq < min_freq:
             return (0, 0, 0)  # Black for invalid frequencies
             
@@ -104,17 +113,47 @@ class PitchVisualizer:
         # Normalize frequency to 0-1
         normalized_freq = (freq - min_freq) / (max_freq - min_freq)
         
-        # Map to hue - Rainbow progression: Red -> Orange -> Yellow -> Green -> Blue -> Purple
-        # Low freq = red (hue=0), High freq = purple (hue=0.83)
-        hue = (1 - normalized_freq) * 0.83
-        
-        saturation = 1.0  # Full saturation for vibrant colors
-        value = 0.9      # Bright but not maximum
+        # Create distinct HSV color zones
+        # Each zone covers about 14% of the frequency range with distinct colors
+        if normalized_freq <= 0.14:  # 80-180 Hz
+            hue = 0.0  # Pure Red
+            saturation = 0.9 + 0.1 * (normalized_freq / 0.14)
+            value = 0.9 + 0.1 * (normalized_freq / 0.14)
+        elif normalized_freq <= 0.28:  # 180-280 Hz
+            hue = 0.08  # Orange-Red
+            local_norm = (normalized_freq - 0.14) / 0.14
+            saturation = 0.95
+            value = 0.85 + 0.15 * local_norm
+        elif normalized_freq <= 0.42:  # 280-380 Hz
+            hue = 0.16  # Orange-Yellow
+            local_norm = (normalized_freq - 0.28) / 0.14
+            saturation = 1.0
+            value = 0.9 + 0.1 * local_norm
+        elif normalized_freq <= 0.56:  # 380-480 Hz
+            hue = 0.25  # Yellow-Green
+            local_norm = (normalized_freq - 0.42) / 0.14
+            saturation = 0.9 + 0.1 * local_norm
+            value = 0.95
+        elif normalized_freq <= 0.7:  # 480-580 Hz
+            hue = 0.35  # Green
+            local_norm = (normalized_freq - 0.56) / 0.14
+            saturation = 0.85 + 0.15 * local_norm
+            value = 0.9
+        elif normalized_freq <= 0.84:  # 580-680 Hz
+            hue = 0.5  # Cyan-Blue
+            local_norm = (normalized_freq - 0.7) / 0.14
+            saturation = 0.9
+            value = 0.85 + 0.15 * local_norm
+        else:  # 680-800 Hz
+            hue = 0.75  # Purple-Magenta
+            local_norm = (normalized_freq - 0.84) / 0.16
+            saturation = 0.95 - 0.1 * local_norm
+            value = 0.8 + 0.2 * local_norm
         
         return (hue, saturation, value)
     
     def get_rainbow_colors(self, frequencies):
-        """Get array of rainbow colors for given frequencies"""
+        """Get array of distinct HSV colors for given frequencies"""
         colors = []
         for freq in frequencies:
             hsv = self.frequency_to_hsv_color(freq)
@@ -123,17 +162,24 @@ class PitchVisualizer:
         return colors
     
     def _autocorrelation_pitch(self, audio_segment):
-        """Simple autocorrelation-based pitch detection (fallback method)"""
+        """Improved autocorrelation-based pitch detection"""
         # Apply window
         windowed = audio_segment * np.hanning(len(audio_segment))
+        
+        # Remove DC component
+        windowed = windowed - np.mean(windowed)
         
         # Autocorrelation
         correlation = np.correlate(windowed, windowed, mode='full')
         correlation = correlation[len(correlation)//2:]
         
+        # Normalize
+        if correlation[0] > 0:
+            correlation = correlation / correlation[0]
+        
         # Find peaks in autocorrelation
-        min_period = int(self.sample_rate / 400)  # 400 Hz max
-        max_period = int(self.sample_rate / 50)   # 50 Hz min
+        min_period = int(self.sample_rate / 800)  # 800 Hz max
+        max_period = int(self.sample_rate / 80)   # 80 Hz min
         
         if max_period >= len(correlation):
             return 0, 0
@@ -148,10 +194,10 @@ class PitchVisualizer:
         
         # Calculate frequency and confidence
         frequency = self.sample_rate / period
-        confidence = search_range[peak_idx] / np.max(correlation) if np.max(correlation) > 0 else 0
+        confidence = search_range[peak_idx]
         
-        # Threshold for valid detection
-        if confidence < 0.3:
+        # Lower threshold for more detections
+        if confidence < 0.15:
             return 0, 0
             
         return frequency, confidence
@@ -162,7 +208,7 @@ class PitchVisualizer:
             audio_segment = np.resize(audio_segment, self.input_segment_width)
         
         channels = []
-        freqs = np.logspace(np.log10(80), np.log10(4000), self.num_channels)
+        freqs = np.logspace(np.log10(80), np.log10(8000), self.num_channels)
         
         for fc in freqs:
             try:
@@ -200,14 +246,14 @@ class PitchVisualizer:
         max_idx = np.argmax(summary)
         max_val = summary[max_idx]
         
-        if max_val < 0.001:
+        if max_val < 0.0001:
             return 0, 0
             
         # Convert to frequency
-        max_delay_ms = 25.0
+        max_delay_ms = 12.5
         delay_ms = (max_idx / len(summary)) * max_delay_ms
         
-        if delay_ms < 0.5:
+        if delay_ms < 1.25:
             return 0, 0
             
         frequency = 1000.0 / delay_ms
@@ -227,7 +273,7 @@ class PitchVisualizer:
     def _processing_loop(self):
         """Main audio processing loop"""
         if self.use_carfac:
-            audio_buffer = np.zeros(self.sample_rate * 2)  # 2 second buffer
+            audio_buffer = np.zeros(self.sample_rate * 2)
             buffer_pos = 0
         else:
             audio_buffer = np.zeros(4096)
@@ -237,7 +283,7 @@ class PitchVisualizer:
             try:
                 # Collect audio chunks
                 chunks = []
-                for _ in range(3):  # Process multiple chunks together
+                for _ in range(3):
                     try:
                         chunk = self.audio_queue.get_nowait()
                         chunks.append(chunk)
@@ -260,43 +306,131 @@ class PitchVisualizer:
                     if start_idx + self.input_segment_width <= len(audio_buffer):
                         segment = audio_buffer[start_idx:start_idx + self.input_segment_width]
                     else:
-                        # Handle wrap-around
                         part1 = audio_buffer[start_idx:]
                         part2 = audio_buffer[:self.input_segment_width - len(part1)]
                         segment = np.concatenate([part1, part2])
                 else:
-                    # Use entire buffer for autocorrelation
                     segment = audio_buffer.copy()
                 
                 # Normalize
                 max_amp = np.max(np.abs(segment))
-                if max_amp > 0.001:  # Only process if there's significant audio
+                if max_amp > 0.001:
                     segment = segment / max_amp
                     
                     if self.use_carfac:
-                        # Create filterbank
                         cochlear_input = self._create_filterbank(segment)
-                        
-                        # Run SAI
                         sai_frame = self.sai.RunSegment(cochlear_input)
-                        
-                        # Extract pitch
                         pitch, confidence = self._extract_pitch(sai_frame)
                     else:
-                        # Use autocorrelation
                         pitch, confidence = self._autocorrelation_pitch(segment)
                     
-                    # Store results
+                    # Store results and create wave source
                     current_time = time.time() - self.start_time
                     self.pitch_history.append(pitch)
                     self.confidence_history.append(confidence)
                     self.time_history.append(current_time)
+                    
+                    # Add wave source for significant detections
+                    if pitch > 0 and confidence > 0.2:
+                        self.wave_sources.append({
+                            'time': current_time,
+                            'pitch': pitch,
+                            'confidence': confidence,
+                            'x': current_time,
+                            'y': pitch
+                        })
                 
-                time.sleep(0.02)  # 50 Hz processing
+                time.sleep(0.02)
                 
             except Exception as e:
                 print(f"Processing error: {e}")
                 time.sleep(0.1)
+    
+    def _create_linear_wave_rings(self, current_time):
+        """Create expanding linear wave rings from pitch detections"""
+        active_waves = []
+        
+        for source in list(self.wave_sources):
+            age = current_time - source['time']
+            
+            if age > self.wave_duration:
+                continue  # Wave has expired
+            
+            # Calculate wave expansion
+            wave_radius = age * self.wave_speed
+            
+            if wave_radius > self.max_wave_radius:
+                continue
+            
+            # Create multiple concentric LINEAR rings
+            base_color = self.get_rainbow_colors([source['pitch']])[0]
+            
+            for ring_idx in range(self.num_wave_rings):
+                ring_delay = ring_idx * 0.08  # Shorter delay for more rings
+                ring_age = age - ring_delay
+                
+                if ring_age <= 0:
+                    continue
+                    
+                ring_radius = ring_age * self.wave_speed
+                
+                if ring_radius > self.max_wave_radius:
+                    continue
+                
+                # Fade out over time
+                fade_factor = 1.0 - (ring_age / self.wave_duration)
+                if fade_factor <= 0:
+                    continue
+                
+                # Ring thickness and alpha
+                ring_thickness = 2 + (source['confidence'] * 4)  # Thinner for linear look
+                alpha = fade_factor * source['confidence'] * 0.7
+                
+                # Create linear wave ring data
+                wave_data = {
+                    'center_x': source['x'],
+                    'center_y': source['y'],
+                    'radius': ring_radius,
+                    'thickness': ring_thickness,
+                    'color': base_color,
+                    'alpha': alpha,
+                    'ring_index': ring_idx,
+                    'age': ring_age
+                }
+                
+                active_waves.append(wave_data)
+        
+        return active_waves
+    
+    def _draw_linear_waves(self, waves):
+        """Draw linear wave rings (perfect circles)"""
+        for wave in waves:
+            center_x, center_y = wave['center_x'], wave['center_y']
+            radius = wave['radius']
+            color = wave['color']
+            alpha = wave['alpha']
+            thickness = wave['thickness']
+            
+            if alpha < 0.05 or radius < 1:
+                continue
+            
+            # Create perfect circular wave using matplotlib Circle
+            # But draw it as a thin line for linear appearance
+            num_points = 128
+            angles = np.linspace(0, 2*np.pi, num_points)
+            
+            # Calculate perfect circle points
+            x_points = center_x + radius * np.cos(angles)
+            y_points = center_y + radius * np.sin(angles)
+            
+            # Close the circle
+            x_points = np.append(x_points, x_points[0])
+            y_points = np.append(y_points, y_points[0])
+            
+            # Draw the linear wave ring as a thin perfect circle
+            self.ax.plot(x_points, y_points, color=color, alpha=alpha, 
+                        linewidth=thickness, solid_capstyle='round',
+                        antialiased=True)
     
     def _freq_to_note(self, freq):
         """Convert frequency to musical note"""
@@ -312,97 +446,93 @@ class PitchVisualizer:
         return f"{notes[note_idx]}{octave}"
     
     def _get_color_name(self, freq):
-        """Get color name for frequency"""
+        """Get color name for frequency based on new HSV mapping"""
         normalized = (freq - self.pitch_range[0]) / (self.pitch_range[1] - self.pitch_range[0])
         
-        if normalized <= 0.17:
-            return "Purple"
-        elif normalized <= 0.33:
-            return "Blue"
-        elif normalized <= 0.5:
-            return "Green"
-        elif normalized <= 0.67:
-            return "Yellow"
-        elif normalized <= 0.83:
-            return "Orange"
-        else:
+        if normalized <= 0.14:
             return "Red"
+        elif normalized <= 0.28:
+            return "Orange-Red" 
+        elif normalized <= 0.42:
+            return "Orange-Yellow"
+        elif normalized <= 0.56:
+            return "Yellow-Green"
+        elif normalized <= 0.7:
+            return "Green"
+        elif normalized <= 0.84:
+            return "Cyan-Blue"
+        else:
+            return "Purple-Magenta"
     
     def _update_plot(self, frame):
-        """Update visualization with HSV rainbow colors"""
+        """Update visualization with linear wave effects"""
         self.ax.clear()
+        
+        current_time = time.time() - self.start_time if self.start_time else 0
         
         if len(self.pitch_history) < 2:
             method = "CARFAC-SAI" if self.use_carfac else "Autocorrelation"
-            self.ax.text(0.5, 0.5, f'🎤 Listening for audio...\n({method} method)', 
+            self.ax.text(0.5, 0.5, f'📡 Listening for audio...\n({method} method)\n\nSpeak, sing, or play music!\nEach frequency gets its unique HSV color', 
                         transform=self.ax.transAxes, ha='center', va='center',
-                        fontsize=14, alpha=0.7)
+                        fontsize=14, alpha=0.7, color='cyan')
+            self._setup_plot_appearance(current_time)
             return
         
-        # Get data
-        times = np.array(self.time_history)
-        pitches = np.array(self.pitch_history)
-        confidences = np.array(self.confidence_history)
+        # Create and draw linear wave patterns
+        waves = self._create_linear_wave_rings(current_time)
+        self._draw_linear_waves(waves)
         
-        # Filter valid pitches in display range
-        valid_mask = (pitches > 0) & (pitches >= self.pitch_range[0]) & (pitches <= self.pitch_range[1])
+        # Add center points for active sources
+        recent_sources = [s for s in self.wave_sources if (current_time - s['time']) < 0.3]
+        if recent_sources:
+            for source in recent_sources:
+                age = current_time - source['time']
+                alpha = 1.0 - (age / 0.3)
+                color = self.get_rainbow_colors([source['pitch']])[0]
+                
+                self.ax.scatter(source['x'], source['y'], s=80, c=[color], 
+                              alpha=alpha, edgecolors='white', linewidth=1.5, zorder=10)
         
-        if np.any(valid_mask):
-            valid_times = times[valid_mask]
-            valid_pitches = pitches[valid_mask]
-            valid_confidences = confidences[valid_mask]
+        self._setup_plot_appearance(current_time)
+        
+        # Show current pitch info
+        if len(self.pitch_history) > 0:
+            recent_pitches = [(p, c) for p, c in zip(list(self.pitch_history)[-10:], 
+                                                    list(self.confidence_history)[-10:]) 
+                            if p > 0 and self.pitch_range[0] <= p <= self.pitch_range[1]]
             
-            # Get rainbow colors based on frequency
-            colors = self.get_rainbow_colors(valid_pitches)
-            
-            # Create scatter plot with HSV rainbow coloring
-            # Size based on confidence
-            sizes = 20 + (valid_confidences * 40)  # 20-60 point size
-            
-            scatter = self.ax.scatter(valid_times, valid_pitches, 
-                                    c=colors,
-                                    s=sizes, 
-                                    alpha=0.8,
-                                    edgecolors='white',
-                                    linewidth=0.5)
-        
-        # Add frequency color bar reference
-        self._add_frequency_colorbar()
-        
-        # Set up plot
-        current_time = time.time() - self.start_time if self.start_time else 0
-        self.ax.set_xlim(max(0, current_time - self.time_window), current_time + 1)
-        self.ax.set_ylim(self.pitch_range[0], self.pitch_range[1])
-        
-        self.ax.set_xlabel('Time (s)')
-        self.ax.set_ylabel('Frequency (Hz)')
-        self.ax.grid(True, alpha=0.3)
-        
-        # Show current pitch with its rainbow color
-        if len(pitches) > 0:
-            current_pitch = pitches[-1]
-            current_conf = confidences[-1]
-            
-            if current_pitch > 0 and self.pitch_range[0] <= current_pitch <= self.pitch_range[1]:
+            if recent_pitches:
+                current_pitch, current_conf = recent_pitches[-1]
                 note = self._freq_to_note(current_pitch)
                 color_name = self._get_color_name(current_pitch)
                 method = "CARFAC" if self.use_carfac else "Auto"
                 
-                title = f'🌈 {current_pitch:.1f} Hz ({note}) - {color_name} [{method}] - Confidence: {current_conf:.2f}'
-                self.ax.set_title(title)
+                title = f'📡 {current_pitch:.1f} Hz ({note}) - {color_name} [{method}] - Confidence: {current_conf:.2f}'
+                self.ax.set_title(title, color='white', fontsize=12)
     
-    def _add_frequency_colorbar(self):
-        """Add frequency-to-color reference lines"""
-        key_freqs = [75, 125, 175, 225, 275, 325, 375]
-        for freq in key_freqs:
+    def _setup_plot_appearance(self, current_time):
+        """Setup plot appearance and limits"""
+        # Set up plot limits
+        self.ax.set_xlim(max(0, current_time - self.time_window), current_time + 1)
+        self.ax.set_ylim(self.pitch_range[0], self.pitch_range[1])
+        
+        # Style
+        self.ax.set_xlabel('Time (s)', color='white')
+        self.ax.set_ylabel('Frequency (Hz)', color='white')
+        self.ax.grid(True, alpha=0.2, color='gray')
+        self.ax.set_facecolor('black')
+        
+        # Show frequency color zones as reference
+        zone_freqs = [80, 180, 280, 380, 480, 580, 680, 800]
+        for i, freq in enumerate(zone_freqs[:-1]):
             if self.pitch_range[0] <= freq <= self.pitch_range[1]:
-                color = self.get_rainbow_colors([freq])[0]
-                self.ax.axhline(y=freq, color=color, alpha=0.3, linestyle='--', linewidth=1)
+                color = self.get_rainbow_colors([freq + 50])[0]  # Mid-zone color
+                self.ax.axhline(y=freq, color=color, alpha=0.15, linestyle='-', linewidth=0.8)
     
     def start(self):
         """Start the pitch visualizer"""
         method = "CARFAC-SAI" if self.use_carfac else "Autocorrelation"
-        print(f"🌈 Starting Rainbow Pitch Visualizer ({method})...")
+        print(f"📡 Starting Linear Wave Pitch Visualizer ({method})...")
         
         # Initialize audio
         self.audio = pyaudio.PyAudio()
@@ -427,15 +557,25 @@ class PitchVisualizer:
             
             # Set up plot
             plt.style.use('dark_background')
-            self.fig, self.ax = plt.subplots(figsize=(14, 8))
-            self.fig.suptitle(f'🌈 Real-time Rainbow Pitch Detection ({method})', fontsize=14)
+            self.fig, self.ax = plt.subplots(figsize=(16, 10))
+            self.fig.patch.set_facecolor('black')
+            self.fig.suptitle(f'📡 Real-time Linear Wave Pitch Visualization - HSV Color Space ({method})', 
+                            fontsize=16, color='white')
             
             # Start animation
             self.anim = FuncAnimation(self.fig, self._update_plot, 
                                     interval=50, blit=False)
             
             print("🎵 Visualizer started! Speak, sing, or play audio...")
-            print("🌈 Colors: Red (low) → Orange → Yellow → Green → Blue → Purple (high)")
+            print("📡 Watch perfect circular waves expand from each pitch!")
+            print("🌈 HSV Color Zones:")
+            print("   80-180 Hz  → Red")
+            print("   180-280 Hz → Orange-Red") 
+            print("   280-380 Hz → Orange-Yellow")
+            print("   380-480 Hz → Yellow-Green")
+            print("   480-580 Hz → Green")
+            print("   580-680 Hz → Cyan-Blue")
+            print("   680-800 Hz → Purple-Magenta")
             plt.tight_layout()
             plt.show()
             
@@ -459,7 +599,7 @@ class PitchVisualizer:
 def main():
     """Main function"""
     print("=" * 60)
-    print("🌈 CARFAC/Rainbow Pitch Visualizer 🌈")
+    print("📡 CARFAC/Linear Wave Pitch Visualizer 📡")
     print("=" * 60)
     
     try:
