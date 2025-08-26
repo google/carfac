@@ -635,6 +635,13 @@ for stage = 1:num_stages
   agc_response(stage, :) = CF.ears(1).AGC_state.AGC_memory(:, stage);
 end
 
+% Capture AGC state response at end, for analysis later.
+num_stages = CF.AGC_params.n_stages;  % 4
+agc_response = zeros(num_stages, CF.n_ch);
+for stage = 1:num_stages
+  agc_response(stage, :) = CF.ears(1).AGC_state.AGC_memory(:, stage);
+end
+
 CF.open_loop = 1;  % For measuring impulse response.
 CF.linear_car = 1;  % For measuring impulse response.
 [~, CF] = CARFAC_Run_Segment(CF, 0*impulse);  % To let ringing die out.

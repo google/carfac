@@ -284,8 +284,8 @@ decim = 1;
 for stage = 1:n_AGC_stages
   % Temporal design for the parallel of cascades:
   decim = decim * AGC_params.decimation(stage);
-  AGC_epsilon = 1 - exp(-decim ./ tau_fs(stage));
-
+  ntimes = tau_fs(stage) / decim;  % Number of updates per time tau.
+  AGC_epsilon = 1 - exp(-1 / ntimes);
   AGC_coeffs.temporal_IIR(stage, stage) = 1 - AGC_epsilon;
   % Gain for input from cascaded next stage:
   if stage < n_AGC_stages
@@ -298,10 +298,9 @@ for stage = 1:n_AGC_stages
   % Leave the rest at 0.
 
   % Spatial design using 3-point FIR smoother across channels:
-  ntimes = tau_fs(stage) / decim;  % Number of spatial steps in 1 tau.
   delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
   spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
-  [spatial_FIR, FIR_OK] = Design_FIR_coeffs(3, spread_sq, delay, 1);
+  [spatial_FIR, FIR_OK] = Design_FIR_coeffs(spread_sq, delay);
   if ~FIR_OK
     error( ...
       'AGC 3-point FIR design failed; try less spread or delay or longer time constant.')
@@ -311,10 +310,8 @@ for stage = 1:n_AGC_stages
 end
 
 %%
-function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
-  mean_delay, n_iter)
-% function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
-%   mean_delay, n_iter)
+function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
+% function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
 % The smoothing function is a space-domain smoothing, but it considered
 % here by analogy to time-domain smoothing, which is why its potential
 % off-centeredness is called a delay.  Since it's a smoothing filter, it is
@@ -327,25 +324,13 @@ function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
 % blob not too far from Gaussian if we run several FIR iterations.
 
 % reduce mean and variance of smoothing distribution by n_iterations:
-mean_delay = mean_delay / n_iter;
-delay_variance = delay_variance / n_iter;
-switch n_taps
-  case 3
-    % based on solving to match mean and variance of [a, 1-a-b, b]:
-    a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
-    b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
-    FIR = [a, 1 - a - b, b];
-    OK = FIR(2) >= 0.25;
-  case 5
-    % based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((delay_variance + mean_delay*mean_delay)*2/5 - mean_delay*2/3) / 2;
-    b = ((delay_variance + mean_delay*mean_delay)*2/5 + mean_delay*2/3) / 2;
-    % first and last coeffs are implicitly duplicated to make 5-point FIR:
-    FIR = [a/2, 1 - a - b, b/2];
-    OK = FIR(2) >= 0.15;
-  otherwise
-    error('Bad n_taps in AGC_spatial_FIR');
-end
+mean_delay = mean_delay;
+delay_variance = delay_variance;
+% based on solving to match mean and variance of [a, 1-a-b, b]:
+a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
+b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
+FIR = [a, 1 - a - b, b];
+OK = all(FIR >= [0.0, 0.25, 0.0]);
 
 
 %% the IHC design coeffs:

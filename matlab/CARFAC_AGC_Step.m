@@ -77,6 +77,8 @@ if decim_phase == 0
     % This call maybe updates stage+1 and later ones, doesn't touch this
     % stage, whose state we're playing with in AGC_stage_state.
     state = CARFAC_AGC_Recurse(coeffs, AGC_in, stage+1, state);  % RECURSE
+    % The coefficient for adding in the next stage state is premultiplied
+    % by the AGC_epsilon.
     AGC_stage_state = AGC_stage_state + ...
       coeffs.temporal_IIR(stage+1, stage) * state.AGC_memory(:, stage+1);
   end

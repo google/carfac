@@ -135,7 +135,7 @@ for k = 1:n_samp
       nap = ihc_out;  % If no SYN, ihc_out goes to nap and agc as in v2.
     end
 
-    % Use nap to run the AGC update step, maybe decimating internally,
+    % Use nap to run the AGC update step, maybe decimating internally.
     [CF.ears(ear).AGC_state, AGC_updated] = CARFAC_AGC_Step( ...
       nap, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
 

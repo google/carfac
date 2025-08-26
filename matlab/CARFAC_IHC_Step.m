@@ -22,7 +22,7 @@ function [ihc_out, state, v_recep] = CARFAC_IHC_Step(bm_out, coeffs, state);
 % One sample-time update of inner-hair-cell (IHC) model, including the
 % detection nonlinearity and one or two capacitor state variables.
 %
-% receptor_potential output will be empty except in two_cap mode.  
+% receptor_potential output will be empty except in two_cap mode.
 % Use it as input to CARFAC_SYN_Step to model synapses to get firing rates.
 
 v_recep = [];  % For cases other than two_cap and do_syn it's not used.
