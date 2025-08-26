@@ -203,15 +203,12 @@ class RealTimeCARFACSAI:
         )
         
     def _create_research_colormap(self):
-        n_colors = 2048  
-        
-        hues = np.linspace(0.8, 0.0, n_colors) 
-        sats = 0.85 * np.ones(n_colors)  
-        vals = np.power(np.linspace(0.05, 1.0, n_colors), 0.8)  
-        
+        n_colors = self.n_channels
+        hues = np.linspace(0.0, 0.8, n_colors)  # red → blue
+        sats = np.ones(n_colors) * 0.85          # fixed saturation
+        vals = np.ones(n_colors)                 # brightness will be amplitude-modulated
         hsv_array = np.stack([hues, sats, vals], axis=-1)
         rgb_array = hsv_to_rgb(hsv_array.reshape(-1, 1, 3)).reshape(-1, 3)
-        
         return ListedColormap(rgb_array)
         
     def audio_callback(self, in_data, frame_count, time_info, status):
@@ -244,17 +241,26 @@ class RealTimeCARFACSAI:
                 continue
                 
     def _enhance_for_display(self, sai_frame):
+        """
+        Apply temporal smoothing, amplitude scaling, and per-channel normalization.
+        Output is ready for frequency-hue visualization.
+        """
+        # Temporal smoothing to reduce flicker
         temporal_alpha = 0.3
         if hasattr(self, '_previous_sai'):
             sai_frame = temporal_alpha * sai_frame + (1 - temporal_alpha) * self._previous_sai
         self._previous_sai = sai_frame.copy()
-        
+
+        # Amplitude → brightness mapping (non-linear)
         sai_frame = np.power(np.abs(sai_frame), 0.75)
-        
-        percentile_98 = np.percentile(sai_frame, 98)
-        if percentile_98 > 1e-6:
-            sai_frame = np.clip(sai_frame / percentile_98, 0, 1)
-            
+
+        # Normalize each channel individually
+        for ch in range(sai_frame.shape[0]):
+            max_val = np.max(sai_frame[ch, :])
+            if max_val > 1e-6:
+                sai_frame[ch, :] = sai_frame[ch, :] / max_val
+
+        # Clip to display width
         return sai_frame[:, :self.display_width]
 
         
@@ -287,7 +293,7 @@ class RealTimeCARFACSAI:
             self.pitch_text.set_text(pitch_info)
         
         return [self.im, self.pitch_text]
-        
+    
     def start(self):
         
         try:
