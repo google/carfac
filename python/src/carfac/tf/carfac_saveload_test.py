@@ -21,18 +21,20 @@
 """Tests for carfac.python.tf.carfac."""
 
 import tempfile
+
 import numpy as np
 import tensorflow as tf
 
-from . import carfac
+from carfac.tf import carfac
 
 
 class CARFACSaveloadTest(tf.test.TestCase):
 
   def testSaveLoad(self):
     carfac_cell = carfac.CARFACCell(num_ears=4)
-    carfac_layer = tf.keras.layers.RNN(carfac_cell, return_sequences=True,
-                                       dtype=tf.float32)
+    carfac_layer = tf.keras.layers.RNN(
+        carfac_cell, return_sequences=True, dtype=tf.float32
+    )
     model = tf.keras.Sequential([carfac_layer])
     impulse: np.ndarray = np.zeros([3, 10, 4, 1], dtype=np.float32)
     impulse[:, 0, :, :] = 1
@@ -40,9 +42,11 @@ class CARFACSaveloadTest(tf.test.TestCase):
     with tempfile.TemporaryDirectory() as savefile:
       model.save(savefile)
       loaded_model = tf.keras.models.load_model(
-          savefile, custom_objects={'CARFACCell': carfac.CARFACCell})
-      np.testing.assert_array_almost_equal(model(impulse),
-                                           loaded_model(impulse))
+          savefile, custom_objects={'CARFACCell': carfac.CARFACCell}
+      )
+      np.testing.assert_array_almost_equal(
+          model(impulse), loaded_model(impulse)
+      )
 
 
 if __name__ == '__main__':

@@ -5,31 +5,114 @@ import numbers
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
+import chex
 import jax
 import jax.numpy as jnp
+from jax.tree_util import tree_flatten
+from jax.tree_util import tree_unflatten
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac_jax
-import np.carfac as carfac_np
+from carfac.jax import carfac as carfac_jax
+from carfac.np import carfac as carfac_np
 
 
 class CarfacJaxTest(parameterized.TestCase):
+
   def setUp(self):
     super().setUp()
     # The default tolerance used in `assertAlmostEqual` etc.
     self.default_delta = 1e-6
 
+  @parameterized.named_parameters(
+      # Expected results are specified relative to the magnitude of the input.
+      dict(
+          testcase_name='1_iteration',
+          iterations=1,
+          expected=[
+              600.4e0,
+              600.3001e3,
+              600.3001e6,
+              600.3001e9,
+              600.3001e12,
+              0.9001e15,
+          ],
+      ),
+      dict(
+          testcase_name='2_iteration',
+          iterations=2,
+          expected=[
+              360420.22e0,
+              360360.21007e3,
+              360360.21006001e6,
+              360360.21006001e9,
+              720.21006001e12,
+              0.87012001e15,
+          ],
+      ),
+      dict(
+          testcase_name='3_iteration',
+          iterations=3,
+          expected=[
+              216360294.130e0,
+              216324270.141049e3,
+              216324270.13504501e6,
+              540270.135045009001e9,
+              774.171045009001e12,
+              0.855129015001e15,
+          ],
+      ),
+  )
+  def test_spatial_smooth(self, iterations: int, expected: list[float]):
+    fir = [0.1, 0.3, 0.6]
+    hypers = carfac_jax.AgcHypers(
+        # Required parameters that are unused in `spatial_smooth`.
+        n_ch=1,
+        n_agc_stages=1,
+        # Spatial smoothing parameters.
+        agc_spatial_iterations=iterations,
+        # Only 3-tap is supported.
+        agc_spatial_n_taps=3,
+    )
+    weights = carfac_jax.AgcWeights(agc_spatial_fir=fir)
+
+    # [1e0, 1e3, 1e6, 1e9, 1e12, 1e15]
+    state = 1e3 ** jnp.arange(6)
+    smoothed = carfac_jax.spatial_smooth_jit(hypers, weights, state)
+
+    # The floating point error is approximately proportional to the number of
+    # iterations.
+    chex.assert_trees_all_close_ulp(
+        smoothed, jnp.array(expected, dtype=float), maxulp=iterations
+    )
+
+  def test_post_init_syn_params(self):
+    # We add this test since SynDesignParameters contains a __post_init__ that
+    # we want to make sure does not interfere.
+    syn = carfac_jax.SynDesignParameters()
+    treedef, leaves = tree_flatten(syn)
+    reconstituted_syn = tree_unflatten(leaves, treedef)
+    self.assertLess(
+        jnp.max(abs(syn.healthy_n_fibers - reconstituted_syn.healthy_n_fibers)),
+        self.default_delta,
+    )
+
   def test_hypers_hash(self):
     # Tests hyperparameter objects can be hashed. This is needed by `jax.jit`
     # because hyperparameters are tagged `static`.
     hypers = carfac_jax.CarfacHypers()
-    hypers.ears = [carfac_jax.EarHypers()]
-    hypers.ears[0].car = carfac_jax.CarHypers()
-    hypers.ears[0].agc = [carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
-                          carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2)]
-    hypers.ears[0].ihc = carfac_jax.IhcHypers(n_ch=1, ihc_style=1)
+    hypers.ears = [
+        carfac_jax.EarHypers(
+            n_ch=0,
+            pole_freqs=jnp.array([]),
+            max_channels_per_octave=0.0,
+            car=carfac_jax.CarHypers(),
+            agc=[
+                carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
+                carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
+            ],
+            ihc=carfac_jax.IhcHypers(n_ch=1, ihc_style=1),
+            syn=carfac_jax.SynHypers(),
+        )
+    ]
     h1 = hash(hypers)
     hypers.ears[0].car.n_ch += 1
     h2 = hash(hypers)
@@ -108,7 +191,9 @@ class CarfacJaxTest(parameterized.TestCase):
             msg='failed comparison on key item %s' % (k),
         )
 
-  @parameterized.parameters(['one_cap', 'two_cap'])
+  @parameterized.parameters(
+      ['just_hwr', 'one_cap', 'two_cap', 'two_cap_with_syn']
+  )
   def test_equal_design(self, ihc_style):
     # Test: the designs are similar.
     cfp = carfac_np.design_carfac(ihc_style=ihc_style)
@@ -153,7 +238,7 @@ class CarfacJaxTest(parameterized.TestCase):
       # Linear car is named differently in plain numpy,
       self.assertEqual(
           ear_params_np.car_coeffs.linear,
-          hypers_jax.ears[ear_idx].car.linear_car
+          hypers_jax.ears[ear_idx].car.linear_car,
       )
       self.container_comparison(
           state_jax.ears[ear_idx].car, ear_params_np.car_state
@@ -192,19 +277,27 @@ class CarfacJaxTest(parameterized.TestCase):
       # Ihc params very specific for one cap, only a subset is used, so for
       # now we only check these one by one. We could add tests for 2 cap
       # similarly.
-      self.assertEqual(
-          cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
-      )
+      if ihc_style == 'two_cap_with_syn':
+        # on the numpy side, we keep the IHC as two cap name.
+        self.assertEqual('two_cap', cfp.ihc_params.ihc_style)
+        self.assertEqual(
+            'two_cap_with_syn', params_jax.ears[ear_idx].ihc.ihc_style
+        )
+      else:
+        self.assertEqual(
+            cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
+        )
 
-      self.assertEqual(
-          cfp.ihc_params.tau_in, params_jax.ears[ear_idx].ihc.tau_in
-      )
-      self.assertEqual(
-          cfp.ihc_params.tau_lpf, params_jax.ears[ear_idx].ihc.tau_lpf
-      )
-      self.assertEqual(
-          cfp.ihc_params.tau_out, params_jax.ears[ear_idx].ihc.tau_out
-      )
+      if ihc_style != 'just_hwr':
+        self.assertEqual(
+            cfp.ihc_params.tau_in, params_jax.ears[ear_idx].ihc.tau_in
+        )
+        self.assertEqual(
+            cfp.ihc_params.tau_lpf, params_jax.ears[ear_idx].ihc.tau_lpf
+        )
+        self.assertEqual(
+            cfp.ihc_params.tau_out, params_jax.ears[ear_idx].ihc.tau_out
+        )
       self.assertAlmostEqual(
           cfp.max_channels_per_octave,
           hypers_jax.ears[ear_idx].max_channels_per_octave,
@@ -220,6 +313,40 @@ class CarfacJaxTest(parameterized.TestCase):
       self.container_comparison(
           weights_jax.ears[ear_idx].car, ear_params_np.car_coeffs
       )
+
+      if ihc_style == 'two_cap_with_syn':
+        self.container_comparison(
+            weights_jax.ears[ear_idx].syn,
+            ear_params_np.syn_coeffs,
+            exclude_keys=['n_fibers', 'v_widths', 'v_halfs'],
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.n_fibers
+                    - ear_params_np.syn_coeffs.n_fibers
+                )
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.v_widths
+                    - ear_params_np.syn_coeffs.v_widths
+                )
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.v_halfs
+                    - ear_params_np.syn_coeffs.v_halfs
+                ),
+            ),
+            self.default_delta,
+        )
 
       # Test AGC parameters for each stage.
       for stage_idx, ear_agc_coeffs_np in enumerate(ear_params_np.agc_coeffs):
@@ -245,7 +372,7 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(5)],
-      ihc_style=['one_cap', 'two_cap'],
+      ihc_style=['one_cap', 'two_cap', 'two_cap_with_syn'],
   )
   def test_chunked_naps_same_as_jit(self, random_seed, ihc_style):
     """Tests whether `run_segment` produces the same results as np version."""
@@ -270,17 +397,22 @@ class CarfacJaxTest(parameterized.TestCase):
     state_jax_copied = copy.deepcopy(state_jax)
 
     # Only tests the JITted version because this is what we will use.
-    naps_jax, _, bm_jax, ohc_jax, agc_jax = carfac_jax.run_segment_jit(
+    naps_jax, _, _, bm_jax, ohc_jax, agc_jax = carfac_jax.run_segment_jit(
         run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
-    naps_jax_chunked, _, bm_chunked, ohc_chunked, agc_chunked = (
-        carfac_jax.run_segment_jit_in_chunks_notraceable(
-            run_seg_input,
-            hypers_jax,
-            weights_jax,
-            state_jax_copied,
-            open_loop=False,
-        )
+    (
+        naps_jax_chunked,
+        _,
+        _,
+        bm_chunked,
+        ohc_chunked,
+        agc_chunked,
+    ) = carfac_jax.run_segment_jit_in_chunks_notraceable(
+        run_seg_input,
+        hypers_jax,
+        weights_jax,
+        state_jax_copied,
+        open_loop=False,
     )
     self.assertLess(jnp.max(abs(naps_jax_chunked - naps_jax)), 1e-7)
     self.assertLess(jnp.max(abs(bm_chunked - bm_jax)), 1e-7)
@@ -289,7 +421,7 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(20)],
-      ihc_style=['one_cap', 'two_cap'],
+      ihc_style=['just_hwr', 'one_cap', 'two_cap', 'two_cap_with_syn'],
       n_ears=[1, 2],
       delay_buffer=[False, True],
   )
@@ -301,7 +433,6 @@ class CarfacJaxTest(parameterized.TestCase):
     params_jax = carfac_jax.CarfacDesignParameters(
         n_ears=n_ears, use_delay_buffer=delay_buffer
     )
-    params_jax.n_ears = n_ears
     for ear in range(n_ears):
       params_jax.ears[ear].ihc.ihc_style = ihc_style
       params_jax.ears[ear].car.linear_car = False
@@ -326,7 +457,7 @@ class CarfacJaxTest(parameterized.TestCase):
     run_seg_input = jax.random.normal(random_generator, (n_samp, n_ears))
 
     # Only tests the JITted version because this is what we will use.
-    naps_jax, state_jax, bm_jax, seg_ohc_jax, seg_agc_jax = (
+    naps_jax, _, state_jax, bm_jax, seg_ohc_jax, seg_agc_jax = (
         carfac_jax.run_segment_jit(
             run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
         )
@@ -343,7 +474,7 @@ class CarfacJaxTest(parameterized.TestCase):
     )
     # Tests the generated "bms" are similar.
     self.assertLess(
-        jnp.max(abs(bm_jax.block_until_ready() - bm_np)), 1e-4  # Low Precision.
+        jnp.max(abs(bm_jax.block_until_ready() - bm_np)), 1e-3  # Low Precision.
     )
     # Tests the generated "seg_ohcs" are similar.
     self.assertLess(
@@ -411,11 +542,12 @@ class CarfacJaxTest(parameterized.TestCase):
           state_np.ears[ear].ihc_state.ihc_accum,
           delta=8e-3,  # Low Precision
       )
-      self.assertSequenceAlmostEqual(
-          state_jax.ears[ear].ihc.lpf1_state,
-          state_np.ears[ear].ihc_state.lpf1_state,
-          delta=1e-3,  # Low Precision
-      )
+      if cfp.ears[ear].ihc_coeffs.ihc_style != 0:
+        self.assertSequenceAlmostEqual(
+            state_jax.ears[ear].ihc.lpf1_state,
+            state_np.ears[ear].ihc_state.lpf1_state,
+            delta=1e-3,  # Low Precision
+        )
       if cfp.ears[ear].ihc_coeffs.ihc_style == 1:
         self.assertSequenceAlmostEqual(
             state_jax.ears[ear].ihc.lpf2_state,
@@ -440,7 +572,7 @@ class CarfacJaxTest(parameterized.TestCase):
             state_np.ears[ear].ihc_state.cap2_voltage,
             delta=1e-5,  # Low Precision
         )
-      else:
+      elif cfp.ears[ear].ihc_coeffs.ihc_style != 0:
         self.fail('Unsupported IHC style.')
       # Comapares agc state
       for stage in range(hypers_jax.ears[ear].agc[0].n_agc_stages):

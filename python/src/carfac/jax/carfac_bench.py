@@ -14,14 +14,13 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac_jax
-import carfac_util
-import np.carfac as carfac_np
+from carfac.jax import carfac as carfac_jax
+from carfac.jax import carfac_util
+from carfac.np import carfac as carfac_np
+
 import os
-os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=2048"
+
+os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=2'
 
 # Noise factor to mulitply for random noise.
 _NOISE_FACTOR = 1e-4
@@ -52,8 +51,8 @@ def bench_numpy_in_slices(state: google_benchmark.State):
     state: the benchmark state for this execution run.
   """
   random_seed = 1
-  one_cap = False
-  cfp = carfac_np.design_carfac(one_cap=one_cap)
+  ihc_style = 'two_cap'
+  cfp = carfac_np.design_carfac(ihc_style=ihc_style)
 
   carfac_np.carfac_init(cfp)
   cfp.ears[0].car_coeffs.linear = False
@@ -72,7 +71,7 @@ def bench_numpy_in_slices(state: google_benchmark.State):
         np_random.standard_normal(size=(n_samp, n_ears)) * _NOISE_FACTOR
     )
     run_seg_slices = np.array_split(run_seg_input_full, split_count)
-    cfp = carfac_np.design_carfac(one_cap=one_cap)
+    cfp = carfac_np.design_carfac(ihc_style=ihc_style)
     carfac_np.carfac_init(cfp)
     cfp.ears[0].car_coeffs.linear = False
     state.resume_timing()
@@ -93,12 +92,16 @@ def bench_numpy_in_slices(state: google_benchmark.State):
 @google_benchmark.option.measure_process_cpu_time()
 @google_benchmark.option.use_real_time()
 @google_benchmark.option.unit(google_benchmark.kMicrosecond)
-@google_benchmark.option.arg_names(['segment_sample_length'])
-@google_benchmark.option.args([220])
-@google_benchmark.option.args([2205])
-@google_benchmark.option.args([22050])
-@google_benchmark.option.args([44100])
-@google_benchmark.option.args([220500])
+@google_benchmark.option.arg_names([
+    'segment_sample_length',
+    'ihc_style',
+])
+@google_benchmark.option.args_product(
+    [
+        [220, 2205, 22050, 44100, 220500],
+        [0, 1],
+    ],
+)
 def bench_numpy(state: google_benchmark.State):
   """Benchmark the numpy version of carfac.
 
@@ -109,8 +112,13 @@ def bench_numpy(state: google_benchmark.State):
     state: the benchmark state for this execution run.
   """
   random_seed = 1
-  one_cap = False
-  cfp = carfac_np.design_carfac(one_cap=one_cap)
+  if state.range(1) == 0:
+    ihc_style = 'two_cap'
+  elif state.range(1) == 1:
+    ihc_style = 'two_cap_with_syn'
+  else:
+    raise ValueError('Invalid ihc_style')
+  cfp = carfac_np.design_carfac(ihc_style=ihc_style)
 
   carfac_np.carfac_init(cfp)
   cfp.ears[0].car_coeffs.linear = False
@@ -123,7 +131,7 @@ def bench_numpy(state: google_benchmark.State):
     run_seg_input = (
         np_random.standard_normal(size=(n_samp, n_ears)) * _NOISE_FACTOR
     )
-    cfp = carfac_np.design_carfac(one_cap=one_cap)
+    cfp = carfac_np.design_carfac(ihc_style=ihc_style)
     carfac_np.carfac_init(cfp)
     cfp.ears[0].car_coeffs.linear = False
     state.resume_timing()
@@ -134,16 +142,25 @@ def bench_numpy(state: google_benchmark.State):
 @google_benchmark.option.measure_process_cpu_time()
 @google_benchmark.option.use_real_time()
 @google_benchmark.option.unit(google_benchmark.kMicrosecond)
-@google_benchmark.option.arg_names(['segment_sample_length'])
-@google_benchmark.option.range_multiplier(2)
-@google_benchmark.option.range(128, 4096)
+@google_benchmark.option.arg_names(['segment_sample_length', 'ihc_style'])
+@google_benchmark.option.args_product(
+    [
+        [128, 256, 512, 1024, 2048, 4096],
+        [0, 1],
+    ],
+)
 def bench_jax_grad(state: google_benchmark.State):
   """Benchmark JAX Value and Gradient function on Carfac.
 
   Args:
     state: The Benchmark state for this run.
   """
-  ihc_style = 'two_cap'
+  if state.range(1) == 0:
+    ihc_style = 'two_cap'
+  elif state.range(1) == 1:
+    ihc_style = 'two_cap_with_syn'
+  else:
+    raise ValueError('Invalid ihc_style')
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
   params_jax.ears[0].ihc.ihc_style = ihc_style
@@ -161,7 +178,7 @@ def bench_jax_grad(state: google_benchmark.State):
       weights: carfac_jax.CarfacWeights,
       state: carfac_jax.CarfacState,
   ):
-    nap_output, _, _, _, _ = carfac_jax.run_segment(
+    nap_output, _, _, _, _, _ = carfac_jax.run_segment(
         audio, hypers, weights, state
     )
     return jnp.sum(nap_output), nap_output
@@ -224,10 +241,14 @@ def bench_jit_compile_time(state: google_benchmark.State):
     # that this benchmark is appropriate.
     n_samp += 1
     state.resume_timing()
-    naps_jax, state_jax, _, _, _ = carfac_jax.run_segment_jit(
+    naps_jax, _, state_jax, _, _, _ = carfac_jax.run_segment_jit(
         run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
     naps_jax.block_until_ready()
+
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
 
 
 @google_benchmark.register
@@ -277,7 +298,7 @@ def bench_jax_in_slices(state: google_benchmark.State):
   for _, segment in enumerate(silence_slices):
     if segment.shape not in compiled_shapes:
       compiled_shapes.add(segment.shape)
-      naps_jax, _, _, _, _ = carfac_jax.run_segment_jit(
+      naps_jax, _, _, _, _, _ = carfac_jax.run_segment_jit(
           segment, hypers_jax, weights_jax, state_jax, open_loop=False
       )
       naps_jax.block_until_ready()
@@ -298,7 +319,7 @@ def bench_jax_in_slices(state: google_benchmark.State):
     jax_loop_state = state_jax
     state.resume_timing()
     for _, segment in enumerate(run_seg_slices):
-      seg_naps, jax_loop_state, seg_bm, seg_ohc, seg_agc = (
+      seg_naps, _, jax_loop_state, seg_bm, seg_ohc, seg_agc = (
           carfac_jax.run_segment_jit(
               segment, hypers_jax, weights_jax, jax_loop_state, open_loop=False
           )
@@ -308,16 +329,28 @@ def bench_jax_in_slices(state: google_benchmark.State):
       ohc.append(seg_ohc)
       agc.append(seg_agc)
 
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
+
 
 @google_benchmark.register
 @google_benchmark.option.measure_process_cpu_time()
 @google_benchmark.option.use_real_time()
 @google_benchmark.option.unit(google_benchmark.kMicrosecond)
-@google_benchmark.option.arg_names(
-    ['jax_chunked_uncompiled', 'segment_sample_length', 'use_delay_buffer']
-)
+@google_benchmark.option.arg_names([
+    'jax_chunked_uncompiled',
+    'segment_sample_length',
+    'use_delay_buffer',
+    'ihc_style',
+])
 @google_benchmark.option.args_product(
-    [[0, 1, 2], [220, 2205, 22050, 44100, 220500, 2205000], [False, True]],
+    [
+        [0, 1, 2],
+        [220, 2205, 22050, 44100, 220500, 2205000],
+        [False, True],
+        [0, 1],
+    ],
 )
 def bench_jax(state: google_benchmark.State):
   """Benchmark the JAX version of carfac.
@@ -335,7 +368,12 @@ def bench_jax(state: google_benchmark.State):
     state: the benchmark state for this execution run.
   """
   # Inits JAX version
-  ihc_style = 'two_cap'
+  if state.range(3) == 0:
+    ihc_style = 'two_cap'
+  elif state.range(3) == 1:
+    ihc_style = 'two_cap_with_syn'
+  else:
+    raise ValueError('Invalid ihc_style')
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
   params_jax.ears[0].car.use_delay_buffer = state.range(2)
@@ -358,7 +396,7 @@ def bench_jax(state: google_benchmark.State):
       params_jax
   )
   short_silence = jnp.zeros(shape=(n_samp, n_ears))
-  naps_jax, state_jax, _, _, _ = run_segment_function(
+  naps_jax, _, state_jax, _, _, _ = run_segment_function(
       short_silence, hypers_jax, weights_jax, state_jax, open_loop=False
   )
   # This block ensures calculation.
@@ -373,12 +411,16 @@ def bench_jax(state: google_benchmark.State):
         jax.random.normal(random_generator, (n_samp, n_ears)) * _NOISE_FACTOR
     ).block_until_ready()
     state.resume_timing()
-    naps_jax, state_jax, _, _, _ = run_segment_function(
+    naps_jax, _, state_jax, _, _, _ = run_segment_function(
         run_seg_input, hypers_jax, weights_jax, state_jax, open_loop=False
     )
     if state.range(0) != 1:
       # When running the merged version, the returned values are plain numpy.
       naps_jax.block_until_ready()
+
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected
+  # by previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
 
 
 @google_benchmark.register
@@ -432,6 +474,10 @@ def bench_jax_util_mapped(state: google_benchmark.State):
         open_loop=False,
     )
     results[0][0].block_until_ready()
+
+  # Clear the JIT cache to ensure that the next benchmark run isn't affected by
+  # previous runs, and to prevent OOMs.
+  carfac_jax.run_segment_jit.clear_cache()
 
 
 if __name__ == '__main__':

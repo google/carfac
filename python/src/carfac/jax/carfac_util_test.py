@@ -7,15 +7,12 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 
-import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-import carfac as carfac
-import carfac_util as carfac_util
+from carfac.jax import carfac
+from carfac.jax import carfac_util
+
 import os
-os.environ["XLA_FLAGS"] = (
-   "--xla_force_host_platform_device_count=2"
-)
+
+os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=2'
 
 _NOISE_FACTOR = 1e-2
 
@@ -59,7 +56,7 @@ class CarfacUtilTest(absltest.TestCase):
         ],
         axis=0,
     )
-    nap_out_a, state_out_a, bm_out_a, ohc_out_a, agc_out_a = (
+    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, ohc_out_a, agc_out_a = (
         carfac.run_segment_jit(
             self.sample_a,
             self.hypers,
@@ -68,7 +65,7 @@ class CarfacUtilTest(absltest.TestCase):
             self.open_loop,
         )
     )
-    nap_out_b, state_out_b, bm_out_b, ohc_out_b, agc_out_b = (
+    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, ohc_out_b, agc_out_b = (
         carfac.run_segment_jit(
             self.sample_b,
             self.hypers,
@@ -86,20 +83,22 @@ class CarfacUtilTest(absltest.TestCase):
     )
     self.assertTrue((combined_output[0][0] == nap_out_a).all())
     self.assertTrue((combined_output[1][0] == nap_out_b).all())
-    self.assertTrue((combined_output[0][2] == bm_out_a).all())
-    self.assertTrue((combined_output[1][2] == bm_out_b).all())
-    self.assertTrue((combined_output[0][3] == ohc_out_a).all())
-    self.assertTrue((combined_output[1][3] == ohc_out_b).all())
-    self.assertTrue((combined_output[0][4] == agc_out_a).all())
-    self.assertTrue((combined_output[1][4] == agc_out_b).all())
+    self.assertTrue((combined_output[0][1] == nap_fibers_out_a).all())
+    self.assertTrue((combined_output[1][1] == nap_fibers_out_b).all())
+    self.assertTrue((combined_output[0][3] == bm_out_a).all())
+    self.assertTrue((combined_output[1][3] == bm_out_b).all())
+    self.assertTrue((combined_output[0][4] == ohc_out_a).all())
+    self.assertTrue((combined_output[1][4] == ohc_out_b).all())
+    self.assertTrue((combined_output[0][5] == agc_out_a).all())
+    self.assertTrue((combined_output[1][5] == agc_out_b).all())
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][1])
+            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][2])
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][1])
+            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][2])
         )
     )
 
@@ -112,7 +111,7 @@ class CarfacUtilTest(absltest.TestCase):
         axis=0,
     )
 
-    nap_out_a, state_out_a, bm_out_a, ohc_out_a, agc_out_a = (
+    nap_out_a, nap_fibers_out_a, state_out_a, bm_out_a, ohc_out_a, agc_out_a = (
         carfac.run_segment_jit(
             self.sample_a,
             self.hypers,
@@ -124,7 +123,7 @@ class CarfacUtilTest(absltest.TestCase):
 
     # Run sample B twice, so we have a separate "starting" state for the
     # test for shmap.
-    _, state_out_b_first, _, _, _ = carfac.run_segment_jit(
+    _, _, state_out_b_first, _, _, _ = carfac.run_segment_jit(
         self.sample_b,
         self.hypers,
         self.weights,
@@ -132,7 +131,7 @@ class CarfacUtilTest(absltest.TestCase):
         self.open_loop,
     )
 
-    nap_out_b, state_out_b, bm_out_b, ohc_out_b, agc_out_b = (
+    nap_out_b, nap_fibers_out_b, state_out_b, bm_out_b, ohc_out_b, agc_out_b = (
         carfac.run_segment_jit(
             self.sample_b,
             self.hypers,
@@ -150,20 +149,22 @@ class CarfacUtilTest(absltest.TestCase):
     )
     self.assertTrue((combined_output[0][0] == nap_out_a).all())
     self.assertTrue((combined_output[1][0] == nap_out_b).all())
-    self.assertTrue((combined_output[0][2] == bm_out_a).all())
-    self.assertTrue((combined_output[1][2] == bm_out_b).all())
-    self.assertTrue((combined_output[0][3] == ohc_out_a).all())
-    self.assertTrue((combined_output[1][3] == ohc_out_b).all())
-    self.assertTrue((combined_output[0][4] == agc_out_a).all())
-    self.assertTrue((combined_output[1][4] == agc_out_b).all())
+    self.assertTrue((combined_output[0][1] == nap_fibers_out_a).all())
+    self.assertTrue((combined_output[1][1] == nap_fibers_out_b).all())
+    self.assertTrue((combined_output[0][3] == bm_out_a).all())
+    self.assertTrue((combined_output[1][3] == bm_out_b).all())
+    self.assertTrue((combined_output[0][4] == ohc_out_a).all())
+    self.assertTrue((combined_output[1][4] == ohc_out_b).all())
+    self.assertTrue((combined_output[0][5] == agc_out_a).all())
+    self.assertTrue((combined_output[1][5] == agc_out_b).all())
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][1])
+            jax.tree.map(jnp.allclose, state_out_a, combined_output[0][2])
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][1])
+            jax.tree.map(jnp.allclose, state_out_b, combined_output[1][2])
         )
     )
 
@@ -171,12 +172,12 @@ class CarfacUtilTest(absltest.TestCase):
     # equality is complete and double sided.
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, combined_output[0][1], state_out_a)
+            jax.tree.map(jnp.allclose, combined_output[0][2], state_out_a)
         )
     )
     self.assertTrue(
         jax.tree_util.tree_all(
-            jax.tree.map(jnp.allclose, combined_output[1][1], state_out_b)
+            jax.tree.map(jnp.allclose, combined_output[1][2], state_out_b)
         )
     )
 

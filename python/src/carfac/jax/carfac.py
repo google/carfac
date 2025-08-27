@@ -13,7 +13,7 @@ import dataclasses
 import functools
 import math
 import numbers
-from typing import List, Optional, Tuple, Union
+from typing import ClassVar, List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -79,27 +79,6 @@ import numpy as np
 # TPU/GPU?
 
 
-# TODO(honglinyu): can we use inheritance instead? Also, can we define a general
-# hashing function too?
-def _are_two_equal_hypers(hypers1, hypers2):
-  """Used in comparing whether two `*Hypers` objects are equal in `__eq__()`."""
-  if not isinstance(hypers1, type(hypers2)):
-    return False
-  children1, _ = hypers1.tree_flatten()
-  children2, _ = hypers2.tree_flatten()
-  for child1, child2 in zip(children1, children2):
-    # Notice that when `__eq__` returns true for two objects, their `__hash__`
-    # must return the same. So if `__hash__` hashes member variables' `id`, we
-    # must compare `id` in `__eq__` too.
-    if isinstance(child1, jnp.ndarray):
-      if id(child1) != id(child2):
-        return False
-    else:
-      if child1 != child2:
-        return False
-  return True
-
-
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class CarDesignParameters:
@@ -109,6 +88,7 @@ class CarDesignParameters:
   the user. It is the input to the design/init functions and shouldn't be used
   in any model functions.
   """
+
   velocity_scale: float = 0.1  # for the velocity nonlinearity
   v_offset: float = 0.04  # offset gives a quadratic part
   min_zeta: float = 0.10  # minimum damping factor in mid-freq channels
@@ -121,40 +101,44 @@ class CarDesignParameters:
   erb_break_freq: float = 165.3  # Greenwood map's break freq.
   erb_q: float = 1000 / (24.7 * 4.37)  # Glasberg and Moore's high-cf ratio
   use_delay_buffer: bool = False
-  linear_car: bool = True
+  linear_car: bool = False
   ac_corner_hz: float = 20  # AC couple at 20 Hz corner
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.velocity_scale,
-                self.v_offset,
-                self.min_zeta,
-                self.max_zeta,
-                self.first_pole_theta,
-                self.zero_ratio,
-                self.high_f_damping_compression,
-                self.erb_per_step,
-                self.min_pole_hz,
-                self.erb_break_freq,
-                self.erb_q,
-                self.use_delay_buffer,
-                self.linear_car,
-                self.ac_corner_hz)
-    aux_data = ('velocity_scale',
-                'v_offset',
-                'min_zeta',
-                'max_zeta',
-                'first_pole_theta',
-                'zero_ratio',
-                'high_f_damping_compression',
-                'erb_per_step',
-                'min_pole_hz',
-                'erb_break_freq',
-                'erb_q',
-                'use_delay_buffer',
-                'linear_car',
-                'ac_corner_hz')
+    children = (
+        self.velocity_scale,
+        self.v_offset,
+        self.min_zeta,
+        self.max_zeta,
+        self.first_pole_theta,
+        self.zero_ratio,
+        self.high_f_damping_compression,
+        self.erb_per_step,
+        self.min_pole_hz,
+        self.erb_break_freq,
+        self.erb_q,
+        self.use_delay_buffer,
+        self.linear_car,
+        self.ac_corner_hz,
+    )
+    aux_data = (
+        'velocity_scale',
+        'v_offset',
+        'min_zeta',
+        'max_zeta',
+        'first_pole_theta',
+        'zero_ratio',
+        'high_f_damping_compression',
+        'erb_per_step',
+        'min_pole_hz',
+        'erb_break_freq',
+        'erb_q',
+        'use_delay_buffer',
+        'linear_car',
+        'ac_corner_hz',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -173,13 +157,14 @@ class CarHypers:
   parameters that would change the structure of the graph, and thus are
   undifferentiable.
   """
+
   n_ch: int = 0
   use_delay_buffer: bool = False
   linear_car: bool = False
 
-  # After cl/536107240, `r1_coeffs`, `a0_coeffs`, `c0_coeffs`, `h_coeffs`,
-  # `g0_coeffs` and `zr_coeffs` are not used in model computation so they are
-  # moved to `CarHypers`.
+  # After https://github.com/google/carfac/commit/559a2f83, `r1_coeffs`,
+  # `a0_coeffs`, `c0_coeffs`, `h_coeffs`, `g0_coeffs` and `zr_coeffs` are not
+  # used in model computation so they are moved to `CarHypers`.
   r1_coeffs: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.zeros(())
   )
@@ -230,9 +215,8 @@ class CarHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    return hash((
+  def _eq_key(self):
+    return (
         self.n_ch,
         self.use_delay_buffer,
         self.linear_car,
@@ -242,10 +226,16 @@ class CarHypers:
         id(self.h_coeffs),
         id(self.g0_coeffs),
         id(self.zr_coeffs),
-    ))
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, CarHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
@@ -256,6 +246,7 @@ class CarWeights:
   As part of the `CarfacWeights`, it will be passed to the model functions but
   shouldn't be modified in the model computations.
   """
+
   velocity_scale: float = 0.0
   v_offset: float = 0.0
 
@@ -307,6 +298,7 @@ class CarWeights:
 @dataclasses.dataclass
 class CarState:
   """All the state variables for the CAR filterbank."""
+
   z1_memory: jnp.ndarray
   z2_memory: jnp.ndarray
   za_memory: jnp.ndarray
@@ -320,24 +312,28 @@ class CarState:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.z1_memory,
-                self.z2_memory,
-                self.za_memory,
-                self.zb_memory,
-                self.dzb_memory,
-                self.zy_memory,
-                self.g_memory,
-                self.dg_memory,
-                self.ac_coupler)
-    aux_data = ('z1_memory',
-                'z2_memory',
-                'za_memory',
-                'zb_memory',
-                'dzb_memory',
-                'zy_memory',
-                'g_memory',
-                'dg_memory',
-                'ac_coupler')
+    children = (
+        self.z1_memory,
+        self.z2_memory,
+        self.za_memory,
+        self.zb_memory,
+        self.dzb_memory,
+        self.zy_memory,
+        self.g_memory,
+        self.dg_memory,
+        self.ac_coupler,
+    )
+    aux_data = (
+        'z1_memory',
+        'z2_memory',
+        'za_memory',
+        'zb_memory',
+        'dzb_memory',
+        'zy_memory',
+        'g_memory',
+        'dg_memory',
+        'ac_coupler',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -349,30 +345,44 @@ class CarState:
 @dataclasses.dataclass
 class AgcDesignParameters:
   """All the parameters set manually to design the AGC filters."""
+
   n_stages: int = 4
   time_constants: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 0.002 * 4**jnp.arange(4)
+      default_factory=lambda: 0.002 * 4.0 ** jnp.arange(4, dtype=float)
   )
-  agc_stage_gain: float = 2.  # gain from each stage to next slower stage
+  agc_stage_gain: float = 2.0  # gain from each stage to next slower stage
   # how often to update the AGC states
   decimation: Tuple[int, ...] = (8, 2, 2, 2)
   agc1_scales: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 1.0 * jnp.sqrt(2)**jnp.arange(4)  # 1 per channel
+      default_factory=lambda: 1.0
+      * math.sqrt(2) ** jnp.arange(4, dtype=float)  # 1 per channel
   )
   agc2_scales: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: 1.65 * math.sqrt(2)**jnp.arange(4)
+      default_factory=lambda: 1.65 * math.sqrt(2) ** jnp.arange(4, dtype=float)
   )
   agc_mix_coeffs: float = 0.5
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.n_stages, self.time_constants, self.agc_stage_gain,
-                self.decimation, self.agc1_scales, self.agc2_scales,
-                self.agc_mix_coeffs)
-    aux_data = ('n_stages', 'time_constants', 'agc_stage_gain',
-                'decimation', 'agc1_scales', 'agc2_scales',
-                'agc_mix_coeffs')
+    children = (
+        self.n_stages,
+        self.time_constants,
+        self.agc_stage_gain,
+        self.decimation,
+        self.agc1_scales,
+        self.agc2_scales,
+        self.agc_mix_coeffs,
+    )
+    aux_data = (
+        'n_stages',
+        'time_constants',
+        'agc_stage_gain',
+        'decimation',
+        'agc1_scales',
+        'agc2_scales',
+        'agc_mix_coeffs',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -397,49 +407,57 @@ class AgcHypers:
     agc_spatial_iterations: how many times FIR smoothings will be run.
     agc_spatial_n_taps: number of taps of the FIR filter.
     reverse_cumulative_decimation: the cumulative decimation of each stage in
-    reverse order.
+      reverse order.
     max_cumulative_decimation: the maximum cumulative decimation across all AGC
-    stages.
+      stages.
   """
+
   n_ch: int
   n_agc_stages: int
   decimation: int = 0
   agc_spatial_iterations: int = 0
   agc_spatial_n_taps: int = 0
   reverse_cumulative_decimation: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([64, 32, 16, 8])
+      default_factory=lambda: jnp.array([64, 32, 16, 8], dtype=int)
   )
   max_cumulative_decimation: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(64)
+      default_factory=lambda: jnp.array(64, dtype=int)
   )
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.n_ch, self.n_agc_stages,
-                self.decimation, self.agc_spatial_iterations,
-                self.agc_spatial_n_taps,
-                self.reverse_cumulative_decimation,
-                self.max_cumulative_decimation)
-    aux_data = ('n_ch', 'n_agc_stages',
-                'decimation', 'agc_spatial_iterations',
-                'agc_spatial_n_taps',
-                'reverse_cumulative_decimation',
-                'max_cumulative_decimation')
+    children = (
+        self.n_ch,
+        self.n_agc_stages,
+        self.decimation,
+        self.agc_spatial_iterations,
+        self.agc_spatial_n_taps,
+        self.reverse_cumulative_decimation,
+        self.max_cumulative_decimation,
+    )
+    aux_data = (
+        'n_ch',
+        'n_agc_stages',
+        'decimation',
+        'agc_spatial_iterations',
+        'agc_spatial_n_taps',
+        'reverse_cumulative_decimation',
+        'max_cumulative_decimation',
+    )
     return (children, aux_data)
 
   @classmethod
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+  def _eq_key(self):
+    # Notice that we use the `id` of `jnp.ndarray` rather than its content for
     # speed. This should always be correct because `jnp.ndarray` is immutable.
-    # But this also means the hash will be different if this field is assigned
-    # to a different array with exactly the same value. We think such case
-    # should be very rare in usage.
-    return hash((
+    # But this also means the equality and hash will be different if this field
+    # is assigned to a different array with exactly the same value. We think
+    # such case should be very rare in usage.
+    return (
         self.n_ch,
         self.n_agc_stages,
         self.decimation,
@@ -447,16 +465,23 @@ class AgcHypers:
         self.agc_spatial_n_taps,
         id(self.reverse_cumulative_decimation),
         id(self.max_cumulative_decimation),
-    ))
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, AgcHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class AgcWeights:
   """Trainable weights of the AGC step."""
+
   agc_epsilon: float = 0.0
   agc_stage_gain: float = 0.0
   agc_spatial_fir: Optional[List[Union[float, jnp.ndarray]]] = None
@@ -497,6 +522,7 @@ class AgcWeights:
 @dataclasses.dataclass
 class AgcState:
   """All the state variables for one stage of the AGC."""
+
   decim_phase: int
   agc_memory: jnp.ndarray
   input_accum: jnp.ndarray
@@ -517,6 +543,7 @@ class AgcState:
 @dataclasses.dataclass
 class IhcDesignParameters:
   """Variables needed for the inner hair cell implementation."""
+
   ihc_style: str = 'two_cap'
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
@@ -558,8 +585,204 @@ class IhcDesignParameters:
 
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
+class SynDesignParameters:
+  """Variables needed for the synapse implementation.
+
+  `healthy_n_fibers` and `agc_weights` are not automatically adjusted for IHCs
+  per channel different from the default. Use `from_ihcs_per_channel` to create
+  an instance with the aforementioned parameters adjusted.
+  """
+  _DEFAULT_IHCS_PER_CHANNEL: ClassVar[int] = 10  # Maybe 20 would be better?
+  _DEFAULT_HEALTHY_N_FIBERS: ClassVar[np.ndarray] = np.array(
+      [50.0, 35.0, 25.0], dtype=float
+  )
+  # Tweaked.
+  # The weights 1.2 were picked before correctly account for sample rate
+  # and number of fibers. This way works for more different numbers.
+  _DEFAULT_AGC_WEIGHTS: ClassVar[np.ndarray] = (
+      np.array([1.2, 1.2, 1.2], dtype=float) / 22050
+  )
+
+  n_classes: int = 3  # Default. Modify params and redesign to change.
+  healthy_n_fibers: jnp.ndarray = dataclasses.field(
+      default_factory=lambda: jnp.array(
+          # pytype does not recognise that this is lazily evaluated.
+          SynDesignParameters._DEFAULT_HEALTHY_N_FIBERS  # pytype: disable=name-error
+          * SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+      )
+  )
+  spont_rates: jnp.ndarray = dataclasses.field(
+      default_factory=lambda: jnp.array([50.0, 6.0, 1.0], dtype=float)
+  )
+  sat_rates: float = 200.0
+  sat_reservoir: float = 0.2
+  v_width: float = 0.02
+  tau_lpf: float = 0.000080
+  reservoir_tau: float = 0.02
+  agc_weights: jnp.ndarray = dataclasses.field(
+      default_factory=lambda: jnp.array(
+          # pytype does not recognise that this is lazily evaluated.
+          SynDesignParameters._DEFAULT_AGC_WEIGHTS  # pytype: disable=name-error
+          / SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+      )
+  )
+
+  @classmethod
+  def from_ihcs_per_channel(
+      cls,
+      ihcs_per_channel: Optional[int] = None,
+      healthy_n_fibers: Optional[jnp.ndarray] = None,
+      agc_weights: Optional[jnp.ndarray] = None,
+      **kwargs
+  ):
+    """Creates an instance, adjusting parameters for ihcs_per_channel."""
+    ihcs_per_channel = ihcs_per_channel or cls._DEFAULT_IHCS_PER_CHANNEL
+    healthy_n_fibers = healthy_n_fibers or jnp.array(
+        cls._DEFAULT_HEALTHY_N_FIBERS
+    )
+    agc_weights = agc_weights or jnp.array(cls._DEFAULT_AGC_WEIGHTS)
+
+    healthy_n_fibers *= ihcs_per_channel
+    agc_weights /= ihcs_per_channel
+
+    return cls(
+        healthy_n_fibers=healthy_n_fibers, agc_weights=agc_weights, **kwargs
+    )
+
+  # The following 2 functions are boiler code required by pytree.
+  # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
+  def tree_flatten(self):  # pylint: disable=missing-function-docstring
+    children = (
+        self.n_classes,
+        self.healthy_n_fibers,
+        self.spont_rates,
+        self.sat_rates,
+        self.sat_reservoir,
+        self.v_width,
+        self.tau_lpf,
+        self.reservoir_tau,
+        self.agc_weights,
+    )
+    aux_data = (
+        'n_classes',
+        'healthy_n_fibers',
+        'spont_rates',
+        'sat_rates',
+        'sat_reservoir',
+        'v_width',
+        'tau_lpf',
+        'reservoir_tau',
+        'agc_weights',
+    )
+    return (children, aux_data)
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
+
+
+@jax.tree_util.register_pytree_node_class
+# A hash is needed if this class is used as a static parameter in a `jax.jit`ted
+# function. However, we don't want to mark this class as frozen for convenience.
+@dataclasses.dataclass(unsafe_hash=True)
+class SynHypers:
+  """Hyperparameters for the IHC synapse. Tagged `static` in `jax.jit`."""
+
+  do_syn: bool = False
+
+  # The following 2 functions are boiler code required by pytree.
+  # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
+  def tree_flatten(self):
+    children = [self.do_syn]
+    aux_data = ('do_syn',)
+    return (children, aux_data)
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
+
+
+@jax.tree_util.register_pytree_node_class
+@dataclasses.dataclass
+class SynWeights:
+  """Trainable weights of the IHC synapse."""
+
+  n_fibers: jnp.ndarray
+  v_widths: jnp.ndarray
+  v_halfs: jnp.ndarray  # Same units as v_recep and v_widths.
+  a1: float  # Feedback gain
+  a2: float  # Output gain
+  agc_weights: jnp.ndarray  # For making a nap out to agc in.
+  spont_p: jnp.ndarray  # Used only to init the output LPF
+  spont_sub: jnp.ndarray
+  res_lpf_inits: jnp.ndarray
+  res_coeff: float
+  lpf_coeff: float
+
+  # The following 2 functions are boiler code required by pytree.
+  # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
+  def tree_flatten(self):
+    """Flatten tree for pytree."""
+    children = (
+        self.n_fibers,
+        self.v_widths,
+        self.v_halfs,
+        self.a1,
+        self.a2,
+        self.agc_weights,
+        self.spont_p,
+        self.spont_sub,
+        self.res_lpf_inits,
+        self.res_coeff,
+        self.lpf_coeff,
+    )
+    aux_data = (
+        'n_fibers',
+        'v_widths',
+        'v_halfs',
+        'a1',
+        'a2',
+        'agc_weights',
+        'spont_p',
+        'spont_sub',
+        'res_lpf_inits',
+        'res_coeff',
+        'lpf_coeff',
+    )
+    return (children, aux_data)
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
+
+
+@jax.tree_util.register_pytree_node_class
+@dataclasses.dataclass
+class SynState:
+  """All the state variables for the IHC synapse."""
+
+  reservoirs: jnp.ndarray
+  lpf_state: jnp.ndarray
+
+  # The following 2 functions are boiler code required by pytree.
+  # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
+  def tree_flatten(self):
+    children = (self.reservoirs, self.lpf_state)
+    aux_data = ('reservoirs', 'lpf_state')
+    return (children, aux_data)
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
+
+
+@jax.tree_util.register_pytree_node_class
+# A hash is needed if this class is used as a static parameter in a `jax.jit`ted
+# function. However, we don't want to mark this class as frozen for convenience.
+@dataclasses.dataclass(unsafe_hash=True)
 class IhcHypers:
   """Hyperparameters for the inner hair cell. Tagged `static` in `jax.jit`."""
+
   n_ch: int
   # 0 is just_hwr, 1 is one_cap, 2 is two_cap.
   ihc_style: int
@@ -575,19 +798,12 @@ class IhcHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    children, _ = self.tree_flatten()
-    return hash(tuple(children))
-
-  def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
-
 
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class IhcWeights:
   """Trainable weights of the IHC step."""
+
   lpf_coeff: float = 0.0
   out1_rate: Union[float, jnp.ndarray] = 0.0
   in1_rate: float = 0.0
@@ -646,24 +862,25 @@ class IhcWeights:
 @dataclasses.dataclass
 class IhcState:
   """All the state variables for the inner-hair cell implementation."""
+
   ihc_accum: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   cap_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   lpf1_state: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   lpf2_state: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
 
   cap1_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
   cap2_voltage: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array(0)
+      default_factory=lambda: jnp.array(0, dtype=float)
   )
 
   # The following 2 functions are boiler code required by pytree.
@@ -696,6 +913,7 @@ class IhcState:
 @dataclasses.dataclass
 class EarDesignParameters:
   """Parameters manually set to design Carfac for 1 ear."""
+
   car: CarDesignParameters = dataclasses.field(
       default_factory=CarDesignParameters
   )
@@ -704,6 +922,9 @@ class EarDesignParameters:
   )
   ihc: IhcDesignParameters = dataclasses.field(
       default_factory=IhcDesignParameters
+  )
+  syn: SynDesignParameters = dataclasses.field(
+      default_factory=SynDesignParameters
   )
 
   # The following 2 functions are boiler code required by pytree.
@@ -722,63 +943,83 @@ class EarDesignParameters:
 @dataclasses.dataclass
 class EarHypers:
   """Hyperparameters (tagged as static in `jax.jit`) of 1 ear."""
-  n_ch: int = 0
-  pole_freqs: jnp.ndarray = dataclasses.field(
-      default_factory=lambda: jnp.array([])
-  )
-  max_channels_per_octave: float = 0.
-  car: Optional[CarHypers] = None
-  agc: Optional[List[AgcHypers]] = dataclasses.field(
-      default_factory=list  # One element per AGC layer.
-  )
-  ihc: Optional[IhcHypers] = None
+
+  n_ch: int
+  pole_freqs: jnp.ndarray
+  max_channels_per_octave: float
+  car: CarHypers
+  agc: List[AgcHypers]  # One element per AGC layer.
+  ihc: IhcHypers
+  syn: SynHypers
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.n_ch, self.pole_freqs, self.max_channels_per_octave,
-                self.car, self.agc, self.ihc)
-    aux_data = ('n_ch', 'pole_freqs', 'max_channels_per_octave',
-                'car', 'agc', 'ihc')
+    children = (
+        self.n_ch,
+        self.pole_freqs,
+        self.max_channels_per_octave,
+        self.car,
+        self.agc,
+        self.ihc,
+        self.syn,
+    )
+    aux_data = (
+        'n_ch',
+        'pole_freqs',
+        'max_channels_per_octave',
+        'car',
+        'agc',
+        'ihc',
+        'syn',
+    )
     return (children, aux_data)
 
   @classmethod
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
-  # Needed by `static_argnums` of `jax.jit`.
-  def __hash__(self):
-    # Notice that we hash the `id` of `jnp.ndarray` rather than its content for
+  def _eq_key(self):
+    # Notice that we use the `id` of `jnp.ndarray` rather than its content for
     # speed. This should always be correct because `jnp.ndarray` is immutable.
-    # But this also means the hash will be different if this field is assigned
-    # to a different array with exactly the same value. We think such case
-    # should be very rare in usage.
-    return hash((
+    # But this also means the hash/equality will be different if this field is
+    # assigned to a different array with exactly the same value. We think such
+    # case should be very rare in usage.
+    return (
         self.n_ch,
         id(self.pole_freqs),
         self.max_channels_per_octave,
         self.car,
         tuple(self.agc),
         self.ihc,
-    ))
+        self.syn,
+    )
+
+  # Needed by `static_argnums` of `jax.jit`.
+  def __hash__(self):
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, EarHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class EarWeights:
   """Trainable weights of 1 ear."""
-  car: Optional[CarWeights] = None
-  agc: Optional[List[AgcWeights]] = None
-  ihc: Optional[IhcWeights] = None
+
+  car: CarWeights
+  agc: List[AgcWeights]
+  ihc: IhcWeights
+  syn: SynWeights
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.car, self.agc, self.ihc)
-    aux_data = ('car', 'agc', 'ihc')
+    children = (self.car, self.agc, self.ihc, self.syn)
+    aux_data = ('car', 'agc', 'ihc', 'syn')
     return (children, aux_data)
 
   @classmethod
@@ -790,15 +1031,17 @@ class EarWeights:
 @dataclasses.dataclass
 class EarState:
   """The state of 1 ear."""
-  car: Optional[CarState] = None
-  ihc: Optional[IhcState] = None
-  agc: Optional[List[AgcState]] = None
+
+  car: CarState
+  ihc: IhcState
+  agc: List[AgcState]
+  syn: SynState
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.car, self.ihc, self.agc)
-    aux_data = ('car', 'ihc', 'agc')
+    children = (self.car, self.ihc, self.agc, self.syn)
+    aux_data = ('car', 'ihc', 'agc', 'syn')
     return (children, aux_data)
 
   @classmethod
@@ -810,8 +1053,8 @@ class EarState:
 @dataclasses.dataclass
 class CarfacDesignParameters:
   """All the parameters set manually for designing CARFAC."""
+
   fs: float = 22050.0
-  n_ears: int = 1
   ears: List[EarDesignParameters] = dataclasses.field(
       default_factory=lambda: [EarDesignParameters()]
   )
@@ -826,16 +1069,22 @@ class CarfacDesignParameters:
         car_step.
     """
     self.fs = fs
-    self.n_ears = n_ears
-    self.ears = [EarDesignParameters() for _ in range(n_ears)]
-    for ear in self.ears:
-      ear.car.use_delay_buffer = use_delay_buffer
+    self.ears = [
+        EarDesignParameters(
+            car=CarDesignParameters(use_delay_buffer=use_delay_buffer)
+        )
+        for _ in range(n_ears)
+    ]
+
+  @property
+  def n_ears(self) -> int:
+    return len(self.ears)
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):
-    children = (self.fs, self.n_ears, self.ears)
-    aux_data = ('fs', 'n_ears', 'ears')
+    children = (self.fs, self.ears)
+    aux_data = ('fs', 'ears')
     return (children, aux_data)
 
   @classmethod
@@ -847,6 +1096,7 @@ class CarfacDesignParameters:
 @dataclasses.dataclass
 class CarfacHypers:
   """All the static variables (tagged as `static` in jax.jit)."""
+
   ears: List[EarHypers] = dataclasses.field(default_factory=list)
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
@@ -860,19 +1110,24 @@ class CarfacHypers:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
+  def _eq_key(self):
+    return tuple(self.ears)
+
   # Needed by `static_argnums` of `jax.jit`.
   def __hash__(self):
-    children, _ = self.tree_flatten()
-    return hash(tuple(map(tuple, children)))
+    return hash(self._eq_key())
 
   def __eq__(self, other):
-    return _are_two_equal_hypers(self, other)
+    if not isinstance(other, CarfacHypers):
+      return False
+    return self._eq_key() == other._eq_key()
 
 
 @jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass
 class CarfacWeights:
   """All the trainable weights."""
+
   ears: List[EarWeights] = dataclasses.field(default_factory=list)
 
   # The following 2 functions are boiler code required by pytree.
@@ -891,6 +1146,7 @@ class CarfacWeights:
 @dataclasses.dataclass
 class CarfacState:
   """All the state variables."""
+
   ears: List[EarState] = dataclasses.field(default_factory=list)
 
   # The following 2 functions are boiler code required by pytree.
@@ -917,9 +1173,11 @@ class CarfacState:
 # "init" into separate functions?
 
 
-def hz_to_erb(cf_hz: Union[float, jnp.ndarray],
-              erb_break_freq: float = 1000 / 4.37,
-              erb_q: float = 1000 / (24.7 * 4.37)):
+def hz_to_erb(
+    cf_hz: Union[float, jnp.ndarray],
+    erb_break_freq: float = 1000 / 4.37,
+    erb_q: float = 1000 / (24.7 * 4.37),
+):
   """Auditory filter nominal Equivalent Rectangular Bandwidth.
 
   Ref: Glasberg and Moore: Hearing Research, 47 (1990), 103-138
@@ -942,30 +1200,29 @@ def hz_to_erb(cf_hz: Union[float, jnp.ndarray],
 
 
 def design_and_init_filters(
-    ear: int, params: CarfacDesignParameters, hypers: CarfacHypers
+    ear: int, params: CarfacDesignParameters, pole_freqs: jnp.ndarray
 ) -> Tuple[CarHypers, CarWeights, CarState]:
   """Design the actual CAR filters.
 
   Args:
     ear: the index of the ear to be designed and initialised.
     params: The design parameters.
-    hypers: The hyperparameters. This is needed because things like `n_ch`
-    are not in `DesignParameters`.
+    pole_freqs: Where to put the poles for each channel.
 
   Returns:
     The CAR coefficient structure which allows the filters be computed quickly.
   """
 
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
-  n_ch = len(ear_hypers.pole_freqs)
+  n_ch = len(pole_freqs)
 
   # Declares return values.
   car_hypers = CarHypers(
       n_ch=n_ch,
       use_delay_buffer=ear_params.car.use_delay_buffer,
-      linear_car=ear_params.car.linear_car)
+      linear_car=ear_params.car.linear_car,
+  )
   car_weights = CarWeights()
   car_weights.velocity_scale = ear_params.car.velocity_scale
   car_weights.v_offset = ear_params.car.v_offset
@@ -981,7 +1238,7 @@ def design_and_init_filters(
 
   # Make pole positions, s and c coeffs, h and g coeffs, etc.,
   # which mostly depend on the pole angle theta:
-  theta = ear_hypers.pole_freqs * (2 * math.pi / params.fs)
+  theta = pole_freqs * (2 * math.pi / params.fs)
 
   c0 = jnp.sin(theta)
   a0 = jnp.cos(theta)
@@ -1002,11 +1259,11 @@ def design_and_init_filters(
   # 25% of the way toward hz_to_erb/pole_freqs (close to 0.1 at high f)
   min_zetas = min_zeta + 0.25 * (
       hz_to_erb(
-          ear_hypers.pole_freqs,
+          pole_freqs,
           ear_params.car.erb_break_freq,
           ear_params.car.erb_q,
       )
-      / ear_hypers.pole_freqs
+      / pole_freqs
       - min_zeta
   )
   car_hypers.zr_coeffs = zr_coeffs * (max_zeta - min_zetas)
@@ -1021,7 +1278,8 @@ def design_and_init_filters(
   car_hypers.h_coeffs = h
 
   # Efficient approximation with g as quadratic function of undamping.
-  # First get g at both ends and the half-way point. (ref: cl/536107240)
+  # First get g at both ends and the half-way point. (ref:
+  # https://github.com/google/carfac/commit/559a2f83)
   undamping = 0.0
   g0 = design_stage_g(car_hypers, undamping)
   undamping = 1.0
@@ -1062,8 +1320,8 @@ def design_stage_g(
   Args:
     car_hypers: The hyperparameters for the filterbank.
     relative_undamping:  The r variable, defined in section 17.4 of Lyon's book
-    to be  (1-b) * NLF(v). The first term is undamping (because b is the
-    gain).
+      to be  (1-b) * NLF(v). The first term is undamping (because b is the
+      gain).
 
   Returns:
     A float vector with the gain for each AGC stage.
@@ -1109,34 +1367,112 @@ def ihc_detect(x: Union[float, jnp.ndarray]) -> Union[float, jnp.ndarray]:
   return conductance
 
 
+def design_and_init_ihc_syn(
+    ear: int, params: CarfacDesignParameters, n_ch: int
+) -> Tuple[SynHypers, Optional[SynWeights], Optional[SynState]]:
+  """Design the IHC Synapse Hypers/Weights/State.
+
+  Only returns State and Weights if Params and CarfacHypers are set up to use
+  synapse.
+
+  Args:
+    ear: the index of the ear.
+    params: all the design parameters
+    n_ch: How many channels there are in the filterbank.
+
+  Returns:
+    A tuple containing the newly created and initialised synapse coefficients,
+    weights and state.
+  """
+  ear_params = params.ears[ear]
+  ihc_params = ear_params.ihc
+  syn_params = ear_params.syn
+  if ihc_params.ihc_style != 'two_cap_with_syn':
+    hypers = SynHypers(do_syn=False)
+    return hypers, None, None
+
+  hypers = SynHypers(do_syn=True)
+  fs = params.fs
+  n_classes = syn_params.n_classes
+  v_widths = syn_params.v_width * jnp.ones((1, n_classes))
+  # Do some design.  First, gains to get sat_rate when sigmoid is 1, which
+  # involves the reservoir steady-state solution.
+  # Most of these are not per-channel, but could be expanded that way
+  # later if desired.
+  # Mean sat prob of spike per sample per neuron, likely same for all
+  # classes.
+  # Use names 1 for sat and 0 for spont in some of these.
+  p1 = syn_params.sat_rates / fs
+  p0 = syn_params.spont_rates / fs
+  w1 = syn_params.sat_reservoir
+  q1 = 1 - w1
+  # Assume the sigmoid is switching between 0 and 1 at 50% duty cycle, so
+  # normalized mean value is 0.5 at saturation.
+  s1 = 0.5
+  r1 = s1 * w1
+  # solve q1 = a1*r1 for gain coeff a1:
+  a1 = q1 / r1
+  # solve p1 = a2*r1 for gain coeff a2:
+  a2 = p1 / r1
+  # Now work out how to get the desired spont.
+  r0 = p0 / a2
+  q0 = r0 * a1
+  w0 = 1 - q0
+  s0 = r0 / w0
+  # Solve for (negative) sigmoid midpoint offset that gets s0 right.
+  offsets = jnp.log((1 - s0) / s0)
+  spont_p = a2 * w0 * s0  # should match p0; check it; yes it does
+  agc_weights = fs * syn_params.agc_weights
+  spont_sub = (syn_params.healthy_n_fibers * spont_p) @ jnp.transpose(
+      agc_weights
+  )
+  weights = SynWeights(
+      n_fibers=jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :],
+      v_widths=v_widths,
+      v_halfs=offsets[None, :] * v_widths,
+      a1=a1,
+      a2=a2,
+      agc_weights=agc_weights,
+      spont_p=spont_p,
+      spont_sub=spont_sub,
+      res_lpf_inits=q0,
+      res_coeff=1 - math.exp(-1 / (syn_params.reservoir_tau * fs)),
+      lpf_coeff=1 - math.exp(-1 / (syn_params.tau_lpf * fs)),
+  )
+  state = SynState(
+      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None, :],
+      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None, :],
+  )
+  return hypers, weights, state
+
+
 def design_and_init_ihc(
-    ear: int,
-    params: CarfacDesignParameters,
-    hypers: CarfacHypers) -> Tuple[IhcHypers, IhcWeights, IhcState]:
+    ear: int, params: CarfacDesignParameters, n_ch: int
+) -> Tuple[IhcHypers, IhcWeights, IhcState]:
   """Design the inner hair cell implementation from parameters.
 
   Args:
     ear: the index of the ear.
     params: all the design parameters
-    hypers: all the coefficients. This is needed because things like `n_ch` is
-    not in `Parameters`.
+    n_ch: How many channels there are in the filterbank.
 
   Returns:
     A tuple containing the newly created and initialised IHC coefficients,
     weights and state.
   """
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
   ihc_params = ear_params.ihc
 
-  n_ch = ear_hypers.n_ch
   ihc_style_num = 0
   if ihc_params.ihc_style == 'just_hwr':
     ihc_style_num = 0
   elif ihc_params.ihc_style == 'one_cap':
     ihc_style_num = 1
-  elif ihc_params.ihc_style == 'two_cap':
+  elif (
+      ihc_params.ihc_style == 'two_cap'
+      or ihc_params.ihc_style == 'two_cap_with_syn'
+  ):
     ihc_style_num = 2
   else:
     raise NotImplementedError
@@ -1167,7 +1503,10 @@ def design_and_init_ihc(
         lpf1_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
         lpf2_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
     )
-  elif ihc_params.ihc_style == 'two_cap':
+  elif (
+      ihc_params.ihc_style == 'two_cap'
+      or ihc_params.ihc_style == 'two_cap_with_syn'
+  ):
     g1_max = ihc_detect(10)  # receptor conductance at high level
 
     r1min = 1 / g1_max
@@ -1261,10 +1600,12 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
     ok = fir[2 - 1] >= 0.25
   elif n_taps == 5:
     # based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((delay_variance + mean_delay * mean_delay) * 2 / 5 -
-         mean_delay * 2 / 3) / 2
-    b = ((delay_variance + mean_delay * mean_delay) * 2 / 5 +
-         mean_delay * 2 / 3) / 2
+    a = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 - mean_delay * 2 / 3
+    ) / 2
+    b = (
+        (delay_variance + mean_delay * mean_delay) * 2 / 5 + mean_delay * 2 / 3
+    ) / 2
     # first and last coeffs are implicitly duplicated to make 5-point FIR:
     fir = [a / 2, 1 - a - b, b / 2]
     ok = fir[2 - 1] >= 0.15
@@ -1275,24 +1616,24 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
 
 
 def design_and_init_agc(
-    ear: int, params: CarfacDesignParameters, hypers: CarfacHypers
+    ear: int, params: CarfacDesignParameters, n_ch: int
 ) -> Tuple[List[AgcHypers], List[AgcWeights], List[AgcState]]:
   """Design the AGC implementation from the parameters.
+
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
 
   Args:
     ear: the index of the ear.
     params: all the design parameters.
-    hypers: all the coefficients. This is needed because things like `n_ch` is
-      not in `Parameters`.
+    n_ch: How many channels there are in the filterbank.
 
   Returns:
     The coefficients for all the stages.
   """
   ear_params = params.ears[ear]
-  ear_hypers = hypers.ears[ear]
 
   fs = params.fs
-  n_ch = ear_hypers.n_ch
 
   n_agc_stages = ear_params.agc.n_stages
 
@@ -1313,9 +1654,13 @@ def design_and_init_agc(
   for stage in range(n_agc_stages):
     agc_hypers.append(AgcHypers(n_ch=n_ch, n_agc_stages=n_agc_stages))
     agc_weights.append(AgcWeights())
-    agc_states.append(AgcState(decim_phase=0,
-                               agc_memory=jnp.zeros((n_ch,)),
-                               input_accum=jnp.zeros((n_ch,))))
+    agc_states.append(
+        AgcState(
+            decim_phase=0,
+            agc_memory=jnp.zeros((n_ch,)),
+            input_accum=jnp.zeros((n_ch,)),
+        )
+    )
 
     agc_hypers[stage].decimation = ear_params.agc.decimation[stage]
     tau = ear_params.agc.time_constants[stage]
@@ -1334,7 +1679,7 @@ def design_and_init_agc(
     # response as a distribution to be convolved ntimes:
     # TODO(dicklyon): specify spread and delay instead of scales?
     delay = (agc2_scales[stage] - agc1_scales[stage]) / ntimes
-    spread_sq = (agc1_scales[stage]**2 + agc2_scales[stage]**2) / ntimes
+    spread_sq = (agc1_scales[stage] ** 2 + agc2_scales[stage] ** 2) / ntimes
 
     # get pole positions to better match intended spread and delay of
     # [[geometric distribution]] in each direction (see wikipedia)
@@ -1368,8 +1713,9 @@ def design_and_init_agc(
         # and in Design_fir_coeffs
         raise ValueError('Bad n_taps (%d) in design_agc' % n_taps)
 
-      [agc_spatial_fir, done] = design_fir_coeffs(n_taps, spread_sq, delay,
-                                                  n_iterations)
+      [agc_spatial_fir, done] = design_fir_coeffs(
+          n_taps, spread_sq, delay, n_iterations
+      )
 
     # When done, store the resulting FIR design in coeffs:
     agc_hypers[stage].agc_spatial_iterations = n_iterations
@@ -1388,7 +1734,7 @@ def design_and_init_agc(
 
     # TODO(dicklyon) -- is this the best binaural mixing plan?
     if stage == 0:
-      agc_weights[stage].agc_mix_coeffs = 0.
+      agc_weights[stage].agc_mix_coeffs = 0.0
     else:
       agc_weights[stage].agc_mix_coeffs = ear_params.agc.agc_mix_coeffs / (
           tau * (fs / decim)
@@ -1417,18 +1763,14 @@ def design_and_init_carfac(
   state = CarfacState()
 
   for ear, ear_params in enumerate(params.ears):
-    ear_hypers = EarHypers()
-    ear_weights = EarWeights()
-    ear_state = EarState()
-    hypers.ears.append(ear_hypers)
-
     # first figure out how many filter stages (PZFC/CARFAC channels):
     pole_hz = ear_params.car.first_pole_theta * params.fs / (2 * math.pi)
     n_ch = 0
     while pole_hz > ear_params.car.min_pole_hz:
       n_ch = n_ch + 1
       pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
-          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q)
+          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
+      )
 
     # Now we have n_ch, the number of channels, so can make the array
     # and compute all the frequencies again to put into it:
@@ -1440,36 +1782,46 @@ def design_and_init_carfac(
       else:
         pole_freqs[ch] = pole_hz
       pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
-          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q)
+          pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
+      )
     # Now we have n_ch, the number of channels, and pole_freqs array.
     max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 
-    ear_hypers.n_ch = n_ch
-    ear_hypers.pole_freqs = pole_freqs
-    ear_hypers.max_channels_per_octave = max_channels_per_octave
-
     # Convert to include an ear_array, each w coeffs and state...
     car_hypers, car_weights, car_state = design_and_init_filters(
-        ear, params, hypers
+        ear, params, pole_freqs
     )
-    agc_hypers, agc_weights, agc_state = design_and_init_agc(
-        ear, params, hypers
-    )
-    ihc_hypers, ihc_weights, ihc_state = design_and_init_ihc(
-        ear, params, hypers
+    agc_hypers, agc_weights, agc_state = design_and_init_agc(ear, params, n_ch)
+    ihc_hypers, ihc_weights, ihc_state = design_and_init_ihc(ear, params, n_ch)
+    syn_hypers, syn_weights, syn_state = design_and_init_ihc_syn(
+        ear, params, n_ch
     )
 
-    ear_hypers.car = car_hypers
-    ear_weights.car = car_weights
-    ear_state.car = car_state
-    ear_hypers.agc = agc_hypers
-    ear_weights.agc = agc_weights
-    ear_state.agc = agc_state
-    ear_hypers.ihc = ihc_hypers
-    ear_weights.ihc = ihc_weights
-    ear_state.ihc = ihc_state
+    ear_hypers = EarHypers(
+        n_ch=n_ch,
+        pole_freqs=pole_freqs,
+        max_channels_per_octave=max_channels_per_octave,
+        car=car_hypers,
+        agc=agc_hypers,
+        ihc=ihc_hypers,
+        syn=syn_hypers,
+    )
+    hypers.ears.append(ear_hypers)
 
+    ear_weights = EarWeights(
+        car=car_weights,
+        agc=agc_weights,
+        ihc=ihc_weights,
+        syn=syn_weights,
+    )
     weights.ears.append(ear_weights)
+
+    ear_state = EarState(
+        car=car_state,
+        agc=agc_state,
+        ihc=ihc_state,
+        syn=syn_state,
+    )
     state.ears.append(ear_state)
 
   return hypers, weights, state
@@ -1524,26 +1876,27 @@ def ohc_nlf(velocities: jnp.ndarray, car_weights: CarWeights) -> jnp.ndarray:
 
 
 def ear_ch_scan(
-    carry: Tuple[jax.Array, jax.Array, jax.Array], ch: int
-) -> Tuple[Tuple[jax.Array, jax.Array, jax.Array], jax.Array]:
+    in_out: jax.Array, g_zy: Tuple[jax.Array, jax.Array]
+) -> Tuple[jax.Array, jax.Array]:
   """Propagates the BM action down the cochlea, to new channels.
 
   This function is the guts of a jax.lax.scan call.
 
   Args:
-    carry: the g, zy, and in_out matrices need to implement the CAR filters.
-    ch: The current channel number of the current scan step.
+    in_out: the output from the previous channel.
+    g_zy: the g and zy values for the current channel.
 
   Returns:
-    the new carry, and the output for the current channel.
+    the output for the current channel (as a carry), and the output for the
+    current channel (as an output for the scan).
   """
-  g, zy, in_out = carry
-  new_in_out = g[ch] * (in_out + zy[ch])
-  return (g, zy, new_in_out), new_in_out
+  g, zy = g_zy
+  new_in_out = g * (in_out + zy)
+  return new_in_out, new_in_out
 
 
 def car_step(
-    x_in: float,
+    x_in: jax.Array,
     ear: int,
     hypers: CarfacHypers,
     weights: CarfacWeights,
@@ -1590,11 +1943,7 @@ def car_step(
     # Ripple input-output path to avoid delay...
     # this is the only part that doesn't get computed "in parallel":
     zy = hypers.ears[ear].car.h_coeffs * z2  # partial output
-    in_out = x_in
-    # Copied from @malcolmslaney's version.
-    _, zy = jax.lax.scan(
-        ear_ch_scan, (g, zy, in_out), jnp.arange(g.shape[-1])
-    )
+    _, zy = jax.lax.scan(ear_ch_scan, x_in, (g, zy))
     z1 += jnp.hstack((x_in, zy[:-1]))
 
   #  put new car_state back in place of old
@@ -1612,13 +1961,61 @@ def car_step(
   return ac_diff, car_state
 
 
+def syn_step(
+    v_recep: jnp.ndarray,
+    ear: int,
+    weights: CarfacWeights,
+    syn_state: SynState,
+) -> Tuple[jnp.ndarray, jnp.ndarray, SynState]:
+  """Step the inner-hair cell model with ont input sample."""
+  syn_weights = weights.ears[ear].syn
+
+  # Drive multiple synapse classes with receptor potential from IHC,
+  # returning instantaneous spike rates per class, for a group of neurons
+  # associated with the CF channel, including reductions due to synaptopathy.
+  # Normalized offset position into neurotransmitter release sigmoid.
+  x = (v_recep[None, :] - jnp.transpose(syn_weights.v_halfs)) / jnp.transpose(
+      syn_weights.v_widths
+  )
+  x = jnp.transpose(x)
+  s = 1 / (1 + jnp.exp(-x))  # Between 0 and 1; positive at rest.
+  q = syn_state.reservoirs  # aka 1 - w, between 0 and 1; positive at rest.
+  r = (1 - q) * s  # aka w*s, between 0 and 1, proportional to release rate.
+
+  # Smooth once with LPF (receptor potential was already smooth), after
+  # applying the gain coeff a2 to convert to firing prob per sample.
+  syn_state.lpf_state = syn_state.lpf_state + syn_weights.lpf_coeff * (
+      syn_weights.a2 * r - syn_state.lpf_state
+  )  # this is firing probs.
+  firing_probs = syn_state.lpf_state  # Poisson rate per neuron per sample.
+  # Include number of effective neurons per channel here, and interval T;
+  # so the rates (instantaneous action potentials per second) can be huge.
+  firings = syn_weights.n_fibers * firing_probs
+
+  # Feedback, to update reservoir state q for next time.
+  syn_state.reservoirs = q + syn_weights.res_coeff * (syn_weights.a1 * r - q)
+  # Make an output that resembles ihc_out, to go to agc_in
+  # (collapse over classes).
+  # Includes synaptopathy's presumed effect of reducing feedback via n_fibers.
+  # But it's relative to the healthy nominal spont, so could potentially go
+  # a bit negative in quiet is there was loss of high-spont or medium-spont
+  # units.
+  # The weight multiplication is an inner product, reducing n_classes
+  # columns to 1 column (first transpose the agc_weights row to a column).
+  syn_out = (
+      syn_weights.n_fibers * firing_probs
+  ) @ syn_weights.agc_weights - syn_weights.spont_sub
+
+  return syn_out, firings, syn_state
+
+
 def ihc_step(
     bm_out: jnp.ndarray,
     ear: int,
     hypers: CarfacHypers,
     weights: CarfacWeights,
     ihc_state: IhcState,
-) -> Tuple[jnp.ndarray, IhcState]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, IhcState]:
   """Step the inner-hair cell model with ont input sample.
 
   One sample-time update of inner-hair-cell (IHC) model, including the
@@ -1632,15 +2029,15 @@ def ihc_step(
     ihc_state: The ihc state.
 
   Returns:
-    The firing probability of the hair cells in each channel
-    and the new state.
+    The firing probability of the hair cells in each channel,
+    the receptor potential output and the new state.
   """
 
   ihc_weights = weights.ears[ear].ihc
   ihc_hypers = hypers.ears[ear].ihc
-
+  v_recep = jnp.zeros(hypers.ears[ear].car.n_ch)
   if ihc_hypers.ihc_style == 0:
-    ihc_out = jnp.min(2, jnp.max(0, bm_out))  # pytype: disable=wrong-arg-types  # jnp-type
+    ihc_out = jnp.minimum(2, jnp.maximum(0, bm_out))
     #  limit it for stability
   else:
     conductance = ihc_detect(bm_out)  # rectifying nonlinearity
@@ -1683,11 +2080,12 @@ def ihc_step(
           ihc_out - ihc_state.lpf1_state
       )
       ihc_out = ihc_state.lpf1_state - ihc_weights.rest_output
+      v_recep = ihc_weights.rest_cap1 - ihc_state.cap1_voltage
 
   # for where decimated output is useful
   ihc_state.ihc_accum = ihc_state.ihc_accum + ihc_out
 
-  return ihc_out, ihc_state
+  return ihc_out, v_recep, ihc_state
 
 
 def _agc_step_jit_helper(
@@ -1844,33 +2242,55 @@ def agc_step(
 
   agc_in = agc_weights[0].detect_scale * detects
 
-  def _build_branch_fn(d, n, e):
-    return lambda w, a, s: _agc_step_jit_helper(d, n, e, hypers, w, a, s)
-
   branch_fns = [
-      _build_branch_fn(i, n_agc_stages, ear) for i in range(n_agc_stages + 1)
+      functools.partial(_agc_step_jit_helper, i, n_agc_stages, ear, hypers)
+      for i in range(n_agc_stages + 1)
   ]
   state = jax.lax.switch(depth, branch_fns, weights, agc_in, state)
 
   return updated, state
 
 
-def _shift_right(s: jax.Array, amount: int) -> jax.Array:
-  """Rotate a vector to the right by amount, or to the left if negative."""
-  if amount > 0:
-    return jnp.concatenate((s[0:amount, ...], s[:-amount, ...]), axis=0)
-  elif amount < 0:
-    return jnp.concatenate(
-        (s[-amount:, ...], jnp.flip(s[amount:, ...])), axis=0
-    )
-  else:
-    return s
+def _shift_right_one(s: jax.Array) -> jax.Array:
+  """Shifts a vector to the right by one.
+
+  The blank element at the start of the vector is filled in with a copy of the
+  first element. For example, [1, 2, 3, 4, 5] becomes [1, 1, 2, 3, 4].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return jnp.concat((s[0, jnp.newaxis, ...], s[:-1, ...]))
+
+
+def _shift_left_one(s: jax.Array) -> jax.Array:
+  """Shifts a vector to the left by one.
+
+  The blank element at the end of the vector is filled in with a copy of the
+  last element. For example, [1, 2, 3, 4, 5] becomes [2, 3, 4, 5, 5].
+
+  Args:
+    s: The vector to shift.
+
+  Returns:
+    The shifted vector.
+  """
+  return jnp.concat((s[1:, ...], s[-1, jnp.newaxis, ...]))
 
 
 def spatial_smooth_jit(
     agc_hypers: AgcHypers, weights: AgcWeights, stage_state: jax.Array
 ) -> jax.Array:
   """Does the spatial smoothing.
+
+  This has not been updated with MATLAB's `new_way` branch, which enforces a
+  1 iteration 3-tap FIR.
+
+  This also does not support a 5-tap filter in the non-`new_way` branch, despite
+  the code in `design_and_init_agc` and `design_fir_coeffs` to support it.
 
   Args:
     agc_hypers: The AGC coefficients for this state.
@@ -1888,9 +2308,9 @@ def spatial_smooth_jit(
       0,
       n_iterations,
       lambda _, stage_state: (  # pylint: disable=g-long-lambda
-          fir_coeffs[0] * _shift_right(stage_state, 1)
-          + fir_coeffs[1] * _shift_right(stage_state, 0)
-          + fir_coeffs[2] * _shift_right(stage_state, -1)
+          fir_coeffs[0] * _shift_right_one(stage_state)
+          + fir_coeffs[1] * stage_state
+          + fir_coeffs[2] * _shift_left_one(stage_state)
       ),
       stage_state,
   )
@@ -1973,7 +2393,9 @@ def run_segment(
     weights: CarfacWeights,
     state: CarfacState,
     open_loop: bool = False,
-) -> Tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """This function runs the entire CARFAC model.
 
   That is, filters a 1 or more channel
@@ -2007,6 +2429,8 @@ def run_segment(
 
   Returns:
     naps: neural activity pattern
+    naps_fibers: neural activity of different fibers
+        (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
     seg_ohc & seg_agc are optional extra outputs useful for seeing what the
@@ -2014,7 +2438,8 @@ def run_segment(
   """
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
-  [n_samp, n_ears] = input_waves.shape
+  n_ears = input_waves.shape[1]
+  n_fibertypes = SynDesignParameters.n_classes
 
   # TODO(honglinyu): add more assertions using checkify.
   # if n_ears != cfp.n_ears:
@@ -2023,10 +2448,6 @@ def run_segment(
   #       (n_ears, cfp.n_ears))
 
   n_ch = hypers.ears[0].car.n_ch
-  naps = jnp.zeros((n_samp, n_ch, n_ears))  # allocate space for result
-  bm = jnp.zeros((n_samp, n_ch, n_ears))
-  seg_ohc = jnp.zeros((n_samp, n_ch, n_ears))
-  seg_agc = jnp.zeros((n_samp, n_ch, n_ears))
 
   # A 2022 addition to make open-loop running behave:
   if open_loop:
@@ -2041,31 +2462,45 @@ def run_segment(
 
   # Note that we can use naive for loops here because it will make gradient
   # computation very slow.
-  def run_segment_scan_helper(carry, k):
-    naps, state, bm, seg_ohc, seg_agc, input_waves = carry
+  def run_segment_scan_helper(state, input_wave):
+    naps = jnp.zeros((n_ch, n_ears))  # allocate space for result
+    naps_fibers = jnp.zeros((n_ch, n_fibertypes, n_ears))
+    bm = jnp.zeros((n_ch, n_ears))
+    seg_ohc = jnp.zeros((n_ch, n_ears))
+    seg_agc = jnp.zeros((n_ch, n_ears))
     agc_updated = False
     for ear in range(n_ears):
       # This would be cleaner if we could just get and use a reference to
       # cfp.ears(ear), but Matlab doesn't work that way...
       car_out, state.ears[ear].car = car_step(
-          input_waves[k, ear], ear, hypers, weights, state.ears[ear].car
+          input_wave[ear], ear, hypers, weights, state.ears[ear].car
       )
 
       # update IHC state & output on every time step, too
-      ihc_out, state.ears[ear].ihc = ihc_step(
+      ihc_out, v_recep, state.ears[ear].ihc = ihc_step(
           car_out, ear, hypers, weights, state.ears[ear].ihc
       )
+
+      if hypers.ears[ear].syn.do_syn:
+        ihc_out, firings, state.ears[ear].syn = syn_step(
+            v_recep, ear, weights, state.ears[ear].syn
+        )
+        naps_fibers = naps_fibers.at[:, :, ear].set(firings)
+      else:
+        naps_fibers = naps_fibers.at[:, :, ear].set(
+            jnp.zeros([jnp.shape(ihc_out)[0], n_fibertypes])
+        )
 
       # run the AGC update step, decimating internally,
       agc_updated, state.ears[ear].agc = agc_step(
           ihc_out, ear, hypers, weights, state.ears[ear].agc
       )
       # save some output data:
-      naps = naps.at[k, :, ear].set(ihc_out)
-      bm = bm.at[k, :, ear].set(car_out)
+      naps = naps.at[:, ear].set(ihc_out)
+      bm = bm.at[:, ear].set(car_out)
       car_state = state.ears[ear].car
-      seg_ohc = seg_ohc.at[k, :, ear].set(car_state.za_memory)
-      seg_agc = seg_agc.at[k, :, ear].set(car_state.zb_memory)
+      seg_ohc = seg_ohc.at[:, ear].set(car_state.za_memory)
+      seg_agc = seg_agc.at[:, ear].set(car_state.zb_memory)
 
     def close_agc_loop_helper(
         hypers: CarfacHypers, weights: CarfacWeights, state: CarfacState
@@ -2087,13 +2522,28 @@ def run_segment(
         state,
     )
 
-    return (naps, state, bm, seg_ohc, seg_agc, input_waves), None
+    return state, (
+        naps,
+        naps_fibers,
+        bm,
+        seg_ohc,
+        seg_agc,
+    )
 
-  return jax.lax.scan(
+  state, (naps, naps_fibers, bm, seg_ohc, seg_agc) = jax.lax.scan(
       run_segment_scan_helper,
-      (naps, state, bm, seg_ohc, seg_agc, input_waves),
-      jnp.arange(n_samp),
-  )[0][:-1]
+      state,
+      input_waves,
+  )
+
+  return (
+      naps,
+      naps_fibers,
+      state,
+      bm,
+      seg_ohc,
+      seg_agc,
+  )
 
 
 @functools.partial(
@@ -2109,7 +2559,9 @@ def run_segment_jit(
     weights: CarfacWeights,
     state: CarfacState,
     open_loop: bool = False,
-) -> Tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """A JITted version of run_segment for convenience.
 
   Care should be taken with the hyper parameters in hypers. If the hypers object
@@ -2125,6 +2577,22 @@ def run_segment_jit(
 
   If no modifications to the CarfacHypers are made, the same hypers object
   should be reused.
+
+  As this JITted function is global, all calls will share the same *global*
+  JIT cache, which may cause excessive memory usage if this is called with
+  multiple different hypers or input shapes. Note that two seemingly identical
+  hypers may be treated as different due to having different array references!
+
+  Prefer compiling `run_segment` directly at the callsite, rather than using
+  this wrapper, to ensure that the cache is cleared automatically upon garbage
+  collection:
+
+      segment_runner = jax.jit(functools.partial(run_segment, hypers=hypers))
+      naps, _, _, _, _ = segment_runner(input, weights=weights, state=state)
+
+  If this function must be used, use `run_segment_jit.clear_cache()` to clear
+  the cache when needed.
+
   Args:
     input_waves: the audio input.
     hypers: all the coefficients of the model. It will be passed to all the
@@ -2135,6 +2603,8 @@ def run_segment_jit(
 
   Returns:
     naps: neural activity pattern
+    naps_fibers: neural activity of the different fiber types
+        (only populated with non-zeros when ihc_style equals "two_cap_with_syn")
     state: the updated state of the CARFAC model.
     BM: The basilar membrane motion
     seg_ohc & seg_agc are optional extra outputs useful for seeing what the
@@ -2150,7 +2620,9 @@ def run_segment_jit_in_chunks_notraceable(
     state: CarfacState,
     open_loop: bool = False,
     segment_chunk_length: int = 32 * 48000,
-) -> tuple[jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[
+    jnp.ndarray, jnp.ndarray, CarfacState, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
   """Runs the jitted segment runner in segment groups.
 
   Running CARFAC on an audio segment this way is most useful when running
@@ -2184,7 +2656,7 @@ def run_segment_jit_in_chunks_notraceable(
     RuntimeError: If this function is being JITTed, which it should not be.
   """
   # We add a check for tracer, until a superior fix is fixed. Tracked in
-  # https://github.com/google/jax/issues/18544 .
+  # https://github.com/jax-ml/jax/issues/18544 .
   if isinstance(input_waves, jax.core.Tracer) or isinstance(
       weights, jax.core.Tracer
   ):
@@ -2193,6 +2665,7 @@ def run_segment_jit_in_chunks_notraceable(
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
   naps_out = []
+  naps_fibers_out = []
   bm_out = []
   ohc_out = []
   agc_out = []
@@ -2201,10 +2674,11 @@ def run_segment_jit_in_chunks_notraceable(
     [n_samp, _] = input_waves.shape
     if n_samp >= segment_length:
       [current_waves, input_waves] = jnp.split(input_waves, [segment_length], 0)
-      naps_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = run_segment_jit(
-          current_waves, hypers, weights, state, open_loop
+      naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+          run_segment_jit(current_waves, hypers, weights, state, open_loop)
       )
       naps_out.append(naps_jax)
+      naps_fibers_out.append(naps_fibers_jax)
       bm_out.append(bm_jax)
       ohc_out.append(seg_ohc_jax)
       agc_out.append(seg_agc_jax)
@@ -2213,15 +2687,17 @@ def run_segment_jit_in_chunks_notraceable(
   [n_samp, _] = input_waves.shape
   # Take the last few items and just run them.
   if n_samp > 0:
-    naps_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = run_segment_jit(
-        input_waves, hypers, weights, state, open_loop
+    naps_jax, naps_fibers_jax, state, bm_jax, seg_ohc_jax, seg_agc_jax = (
+        run_segment_jit(input_waves, hypers, weights, state, open_loop)
     )
     naps_out.append(naps_jax)
+    naps_fibers_out.append(naps_fibers_jax)
     bm_out.append(bm_jax)
     ohc_out.append(seg_ohc_jax)
     agc_out.append(seg_agc_jax)
   naps_out = np.concatenate(naps_out, 0)
+  naps_fibers_out = np.concatenate(naps_fibers_out, 0)
   bm_out = np.concatenate(bm_out, 0)
   ohc_out = np.concatenate(ohc_out, 0)
   agc_out = np.concatenate(agc_out, 0)
-  return naps_out, state, bm_out, ohc_out, agc_out
+  return naps_out, naps_fibers_out, state, bm_out, ohc_out, agc_out

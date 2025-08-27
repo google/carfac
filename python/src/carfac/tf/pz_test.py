@@ -21,11 +21,12 @@
 
 from typing import Callable
 import unittest
+
 from absl import app
 import numpy as np
 import tensorflow as tf
 
-from . import pz
+from carfac.tf import pz
 
 
 class CoeffTest(unittest.TestCase):
@@ -57,37 +58,38 @@ class CoeffTest(unittest.TestCase):
 
 class PZTest(unittest.TestCase):
 
-  def assert_impulse_response(self,
-                              filt: Callable[[tf.Tensor],
-                                             tf.Tensor],
-                              dtype: tf.DType,
-                              gain: tf.Tensor,
-                              poles: tf.Tensor,
-                              zeros: tf.Tensor):
+  def assert_impulse_response(
+      self,
+      filt: Callable[[tf.Tensor], tf.Tensor],
+      dtype: tf.DType,
+      gain: tf.Tensor,
+      poles: tf.Tensor,
+      zeros: tf.Tensor,
+  ):
     window_size = 64
     impulse: np.ndarray = np.zeros([window_size], dtype=np.float32)
     impulse[0] = 1
     impulse_spectrum: np.ndarray = np.fft.fft(impulse)
 
-    z: np.ndarray = np.exp(np.linspace(0,
-                                       2 * np.pi,
-                                       window_size,
-                                       endpoint=False) * 1j)
+    z: np.ndarray = np.exp(
+        np.linspace(0, 2 * np.pi, window_size, endpoint=False) * 1j
+    )
     transfer_function: np.ndarray = (
-        tf.cast(gain, tf.complex128) *
-        np.prod(zeros[None, :] - z[:, None],
-                axis=1) /
-        np.prod(poles[None, :] - z[:, None],
-                axis=1))
+        tf.cast(gain, tf.complex128)
+        * np.prod(zeros[None, :] - z[:, None], axis=1)
+        / np.prod(poles[None, :] - z[:, None], axis=1)
+    )
 
     expected_impulse_response: np.ndarray = np.fft.ifft(
-        impulse_spectrum * transfer_function)
+        impulse_spectrum * transfer_function
+    )
 
     # Since the filter requires batch and cell i/o dimensions.
     impulse_response = filt(tf.cast(impulse[None, :, None], dtype))[0, :, 0]
 
-    np.testing.assert_array_almost_equal(impulse_response,
-                                         expected_impulse_response)
+    np.testing.assert_array_almost_equal(
+        impulse_response, expected_impulse_response
+    )
 
   def testPZCell(self):
     for dtype in [tf.float32, tf.float64]:
@@ -96,13 +98,10 @@ class PZTest(unittest.TestCase):
       zeros: np.ndarray = 0.75 * np.exp([np.pi * 0.25j])
       zeros: tf.Tensor = tf.concat([zeros, tf.math.conj(zeros)], axis=0)
       gain: tf.Tensor = tf.constant(1.5)
-      pz_cell = pz.PZCell(gain,
-                          poles,
-                          zeros,
-                          dtype=dtype)
-      pz_layer = tf.keras.layers.RNN(pz_cell,
-                                     return_sequences=True,
-                                     dtype=dtype)
+      pz_cell = pz.PZCell(gain, poles, zeros, dtype=dtype)
+      pz_layer = tf.keras.layers.RNN(
+          pz_cell, return_sequences=True, dtype=dtype
+      )
       self.assert_impulse_response(pz_layer, dtype, gain, poles, zeros)
 
   def testTFFunction(self):
@@ -112,13 +111,11 @@ class PZTest(unittest.TestCase):
       zeros: np.ndarray = 0.75 * np.exp(np.pi * np.array([0.25j]))
       zeros: tf.Tensor = tf.concat([zeros, tf.math.conj(zeros)], axis=0)
       gain: tf.Tensor = tf.constant(2.4)
-      pz_cell = pz.PZCell(gain,
-                          poles,
-                          zeros,
-                          dtype=dtype)
-      pz_layer = tf.keras.layers.RNN(pz_cell,
-                                     return_sequences=True,
-                                     dtype=dtype)
+      pz_cell = pz.PZCell(gain, poles, zeros, dtype=dtype)
+      pz_layer = tf.keras.layers.RNN(
+          pz_cell, return_sequences=True, dtype=dtype
+      )
+
       @tf.function
       def compute(inputs):
         # pylint: disable=cell-var-from-loop
@@ -128,14 +125,17 @@ class PZTest(unittest.TestCase):
 
   def testGradients(self):
     tape = tf.GradientTape(persistent=True)
-    pz_cell = pz.PZCell(1,
-                        0.5 * np.exp([np.pi * 0.2j, np.pi * 0.5j]),
-                        0.3 * np.exp([np.pi * 0.6j]))
+    pz_cell = pz.PZCell(
+        1,
+        0.5 * np.exp([np.pi * 0.2j, np.pi * 0.5j]),
+        0.3 * np.exp([np.pi * 0.6j]),
+    )
     with tape:
       current: tf.Tensor = tf.ones([2, 1], dtype=pz_cell.dtype)
-      state = tuple(tf.zeros(shape=[current.shape[0], size],
-                             dtype=pz_cell.dtype)
-                    for size in pz_cell.state_size)
+      state = tuple(
+          tf.zeros(shape=[current.shape[0], size], dtype=pz_cell.dtype)
+          for size in pz_cell.state_size
+      )
       for _ in range(6):
         current, state = pz_cell.call(current, state)
     for v in [pz_cell.poles, pz_cell.zeros, pz_cell.gain]:
@@ -144,6 +144,7 @@ class PZTest(unittest.TestCase):
 
 def main(_):
   unittest.main()
+
 
 if __name__ == '__main__':
   app.run(main)

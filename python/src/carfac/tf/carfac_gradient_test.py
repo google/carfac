@@ -23,7 +23,7 @@
 import numpy as np
 import tensorflow as tf
 
-from . import carfac
+from carfac.tf import carfac
 
 
 class CARFACGradientTest(tf.test.TestCase):
@@ -35,9 +35,9 @@ class CARFACGradientTest(tf.test.TestCase):
     ihc_params.one_capacitor = tf.constant(0.0)
     car_params = carfac.CARParams()
     car_params.erb_per_step = tf.constant(3.0)
-    carfac_cell = carfac.CARFACCell(ihc_params=ihc_params,
-                                    car_params=car_params,
-                                    num_ears=1)
+    carfac_cell = carfac.CARFACCell(
+        ihc_params=ihc_params, car_params=car_params, num_ears=1
+    )
     carfac_cell.call = tf.function(carfac_cell.call)
     carfac_layer = tf.keras.layers.RNN(carfac_cell)
     impulse: np.ndarray = np.zeros([1, 64, 1, 1], dtype=np.float32)
@@ -69,8 +69,9 @@ class CARFACGradientTest(tf.test.TestCase):
         carfac_cell.agc_params.agc2_scales0,
         carfac_cell.agc_params.agc2_scales_mul,
     ]:
-      self.assertIsNotNone(tape.gradient(output, tfvar),
-                           f'No gradient to {tfvar}')
+      self.assertIsNotNone(
+          tape.gradient(output, tfvar), f'No gradient to {tfvar}'
+      )
 
 
 if __name__ == '__main__':

@@ -32,12 +32,14 @@ ArrayLike = Union[np.ndarray, tf.Tensor]
 FloatLike = Union[float, tf.Tensor]
 
 
-def plot_z(z: ArrayLike,
-           sample_rate: float = 48000,
-           figsize: Tuple[float, float] = (10, 5),
-           xlim: Tuple[float, float] = (10, 20000),
-           ylim: Tuple[float, float] = (-20, 100),
-           frequency_log_scale: bool = True) -> plt.Figure:
+def plot_z(
+    z: ArrayLike,
+    sample_rate: float = 48000,
+    figsize: Tuple[float, float] = (10, 5),
+    xlim: Tuple[float, float] = (10, 20000),
+    ylim: Tuple[float, float] = (-20, 100),
+    frequency_log_scale: bool = True,
+) -> plt.Figure:
   """Plots a number of transfer functions in dB FS on a log frequency scale.
 
   Args:
@@ -48,13 +50,17 @@ def plot_z(z: ArrayLike,
     ylim: The limits of the y axis of the returned figure.
     frequency_log_scale: Whether the frequency axis of the plot should be in log
       scale.
+
   Returns:
     A matplotlib.Figure.
   """
   num_transfer_functions, num_samples = z.shape
   xaxis = np.tile(
-      np.linspace(0, (num_samples - 1) * sample_rate * 0.5 / num_samples,
-                  num_samples), [num_transfer_functions, 1])
+      np.linspace(
+          0, (num_samples - 1) * sample_rate * 0.5 / num_samples, num_samples
+      ),
+      [num_transfer_functions, 1],
+  )
   fig, ax = plt.subplots(figsize=figsize)
   if frequency_log_scale:
     ax.set_xscale('log')
@@ -62,15 +68,15 @@ def plot_z(z: ArrayLike,
   ax.set_ylim(ylim)
   ax.set_xlabel('Hz')
   ax.set_ylabel('dB')
-  x = (xaxis[:, :xaxis.shape[1]//2]).T
-  y = (20 * np.log10(1e-20+np.abs(z[:, :z.shape[1]//2]))).T
+  x = (xaxis[:, : xaxis.shape[1] // 2]).T
+  y = (20 * np.log10(1e-20 + np.abs(z[:, : z.shape[1] // 2]))).T
   ax.plot(x, y)
   return fig
 
 
-def plot_pz(poles: ArrayLike,
-            zeros: ArrayLike,
-            figsize: Tuple[float, float] = (4.2, 4)) -> plt.Figure:
+def plot_pz(
+    poles: ArrayLike, zeros: ArrayLike, figsize: Tuple[float, float] = (4.2, 4)
+) -> plt.Figure:
   """Creates a pole/zero plot.
 
   Args:
@@ -78,33 +84,43 @@ def plot_pz(poles: ArrayLike,
     zeros: [num-zeros]-complex array of zeros to plot.
     figsize: (width, height)-int tuple with the matplotlib figure size to use
       when plotting.
+
   Returns:
     A matplotlib.Figure.
   """
   fig, ax = plt.subplots(figsize=figsize)
-  ax.add_patch(patches.Circle((0, 0),
-                              radius=1,
-                              fill=False,
-                              color='black',
-                              ls='solid',
-                              alpha=0.1))
+  ax.add_patch(
+      patches.Circle(
+          (0, 0), radius=1, fill=False, color='black', ls='solid', alpha=0.1
+      )
+  )
   ax.axvline(0, color='0.7')
   ax.axhline(0, color='0.7')
   ax.set_xlim((-1.1, 1.1))
   ax.set_ylim((-1.1, 1.1))
 
-  ax.plot(tf.reshape(tf.math.real(poles), [-1, 1]),
-          tf.reshape(tf.math.imag(poles), [-1, 1]),
-          'x', markersize=9, alpha=0.5)
-  ax.plot(tf.reshape(tf.math.real(zeros), [-1, 1]),
-          tf.reshape(tf.math.imag(zeros), [-1, 1]),
-          'o', color='none', markeredgecolor='red',
-          markersize=9, alpha=0.5)
+  ax.plot(
+      tf.reshape(tf.math.real(poles), [-1, 1]),
+      tf.reshape(tf.math.imag(poles), [-1, 1]),
+      'x',
+      markersize=9,
+      alpha=0.5,
+  )
+  ax.plot(
+      tf.reshape(tf.math.real(zeros), [-1, 1]),
+      tf.reshape(tf.math.imag(zeros), [-1, 1]),
+      'o',
+      color='none',
+      markeredgecolor='red',
+      markersize=9,
+      alpha=0.5,
+  )
   return fig
 
 
 def coeffs_from_zeros(
-    polynomial_zeros: Union[tf.Tensor, tf.Variable]) -> tf.Tensor:
+    polynomial_zeros: Union[tf.Tensor, tf.Variable],
+) -> tf.Tensor:
   """Computes the coefficients of a polynomial, given the zeroes.
 
     Assuming we have a filter H, with poles P and zeros Q:
@@ -128,10 +144,10 @@ def coeffs_from_zeros(
     the difference equation for the given zeros.
   """
   length = polynomial_zeros.shape[0]
-  res = tf.TensorArray(size=length+1, dtype=polynomial_zeros.dtype)
+  res = tf.TensorArray(size=length + 1, dtype=polynomial_zeros.dtype)
   c0 = tf.constant(0.0, dtype=polynomial_zeros.dtype)
   c1 = tf.constant(1.0, dtype=polynomial_zeros.dtype)
-  for num in range(length+1):
+  for num in range(length + 1):
     # s representes Qc[num] or Pc[num] in the doc comment above.
     s = c0
     for parts in itertools.combinations(np.arange(length), num):
@@ -177,11 +193,9 @@ class PZCell(tf.keras.layers.Layer):
       https://www.tensorflow.org/api_docs/python/tf/keras/layers/RNN.
   """
 
-  def __init__(self,
-               gain: FloatLike,
-               poles: ArrayLike,
-               zeros: ArrayLike,
-               **kwargs):
+  def __init__(
+      self, gain: FloatLike, poles: ArrayLike, zeros: ArrayLike, **kwargs
+  ):
     """Initializes the instance.
 
     Args:
@@ -189,13 +203,16 @@ class PZCell(tf.keras.layers.Layer):
       poles: [n_poles]-complex tensor with the initial poles of the filter.
       zeros: [n_zeros]-complex tensor with the initial zeros of the filter.
       **kwargs: Forwarded to superclass.
+
     Raises:
       TypeError: If the dtype isn't either tf.float32 or tf.float64.
     """
     super().__init__(**kwargs)
     if self.dtype != tf.float32 and self.dtype != tf.float64:
-      raise TypeError(f'Got `dtype` parameter {self.dtype}, expected to be '
-                      'either tf.float32 or tf.float64')
+      raise TypeError(
+          f'Got `dtype` parameter {self.dtype}, expected to be either'
+          ' tf.float32 or tf.float64'
+      )
     self._complex_dtype = tf.complex64
     if self.dtype == tf.float64:
       self._complex_dtype = tf.complex128
@@ -203,23 +220,29 @@ class PZCell(tf.keras.layers.Layer):
         name='gain',
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
-            tf.cast(gain, self._complex_dtype)))
+            tf.cast(gain, self._complex_dtype)
+        ),
+    )
     self.poles = self.add_weight(
         name='poles',
         shape=poles.shape,
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
-            tf.cast(poles, self._complex_dtype)))
+            tf.cast(poles, self._complex_dtype)
+        ),
+    )
     self._n_poles = poles.shape[0]
     self.zeros = self.add_weight(
         name='zeros',
         shape=zeros.shape,
         dtype=self._complex_dtype,
         initializer=tf.keras.initializers.Constant(
-            tf.cast(zeros, self._complex_dtype)))
+            tf.cast(zeros, self._complex_dtype)
+        ),
+    )
     self._n_zeros = zeros.shape[0]
     self.output_size = 1
-    self.state_size = (self.poles.shape[0]+1, self.poles.shape[0]+1)
+    self.state_size = (self.poles.shape[0] + 1, self.poles.shape[0] + 1)
 
   def get_config(self) -> Dict[str, float]:
     return {
@@ -229,13 +252,15 @@ class PZCell(tf.keras.layers.Layer):
 
   @classmethod
   def from_config(cls, config: Dict[str, float]):
-    return cls(0,
-               np.zeros(shape=[config.pop('n_poles')]),
-               np.zeros(shape=[config.pop('n_zeros')]))
+    return cls(
+        0,
+        np.zeros(shape=[config.pop('n_poles')]),
+        np.zeros(shape=[config.pop('n_zeros')]),
+    )
 
-  def call(self,
-           input_at_t: tf.Tensor,
-           states_at_t: Tuple[tf.Tensor, tf.Tensor]):
+  def call(
+      self, input_at_t: tf.Tensor, states_at_t: Tuple[tf.Tensor, tf.Tensor]
+  ):
     """Computes output_at_t given input_at_t and states_at_t.
 
     Args:
@@ -255,20 +280,23 @@ class PZCell(tf.keras.layers.Layer):
     x_memory = tf.cast(states_at_t[0], self._complex_dtype)
     y_memory = tf.cast(states_at_t[1], self._complex_dtype)
     x_memory = tf.concat(
-        [input_at_t, x_memory[:, :x_memory.shape[1]-1]],
-        axis=1)
+        [input_at_t, x_memory[:, : x_memory.shape[1] - 1]], axis=1
+    )
     pole_coeffs = coeffs_from_zeros(self.poles)
     zero_coeffs = coeffs_from_zeros(self.zeros)
     zero_offset = tf.math.maximum(0, self._n_poles - self._n_zeros)
     output_at_t = tf.constant(0, dtype=self._complex_dtype) * input_at_t
-    zero_components = (x_memory[:, zero_offset:] * self.gain * zero_coeffs)
+    zero_components = x_memory[:, zero_offset:] * self.gain * zero_coeffs
     output_at_t += tf.math.reduce_sum(zero_components, axis=1)[:, None]
-    pole_components = (y_memory[:, :y_memory.shape[1]-1] * pole_coeffs[1:])
+    pole_components = y_memory[:, : y_memory.shape[1] - 1] * pole_coeffs[1:]
     output_at_t -= tf.math.reduce_sum(pole_components, axis=1)[:, None]
     output_at_t = tf.math.divide_no_nan(output_at_t, pole_coeffs[0])
-    y_memory = tf.concat([output_at_t, y_memory[:, :y_memory.shape[1] - 1]],
-                         axis=1)
-    states_at_t_plus_1 = (tf.cast(tf.math.real(x_memory), states_dtype),
-                          tf.cast(tf.math.real(y_memory), states_dtype))
+    y_memory = tf.concat(
+        [output_at_t, y_memory[:, : y_memory.shape[1] - 1]], axis=1
+    )
+    states_at_t_plus_1 = (
+        tf.cast(tf.math.real(x_memory), states_dtype),
+        tf.cast(tf.math.real(y_memory), states_dtype),
+    )
     output_at_t = tf.cast(output_at_t, input_dtype)
     return output_at_t, states_at_t_plus_1

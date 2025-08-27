@@ -1,0 +1,64 @@
+[project]
+name = "carfac"
+version = "0.0.1"
+description = "Python implementation of Cascade of Asymmetric Resonators with Fast-Acting Compression (CARFAC)"
+readme = "../README.md"
+# The lower bound of these versions come from Colab as of 2025-06-20.
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib >=3.9.1",
+    "numpy >=2.0.2",
+]
+
+[project.optional-dependencies]
+tf = [
+    "tensorflow >=2.18.0",
+    "tf-keras >=2.18.0",
+]
+jax = [
+    "jax >=0.5.1",
+]
+
+[dependency-groups]
+dev = [
+    "absl-py >=1.4.0",
+    "chex >=0.1.90",
+    "google-benchmark >=1.9.4",
+    "parameterized >=0.9.0",
+    "pyink[jupyter] >=24.10.1",
+]
+
+[tool.pyink]
+# Formatting configuration to follow Google style-guide
+line-length = 80
+unstable = true
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+pyink-annotation-pragmas = [
+  "noqa",
+  "pylint:",
+  "type: ignore",
+  "pytype:",
+  "mypy:",
+  "pyright:",
+  "pyre-",
+  "@title",
+  "@param",
+  "@markdown",
+  "@tidy",
+  "@test",
+]
+pyink-ipynb-indentation = 2
+pyink-ipynb-unicode-escape = true
+target-version = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Tests and test data are included in distributions, but that is okay as we are
+# only distributing this package as a Git repository (which will include
+# everything when cloned anyway).
+force-include = {"../test_data" = "carfac/test_data"}
+packages = ["src/carfac"]

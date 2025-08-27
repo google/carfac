@@ -21,23 +21,30 @@
 
 import tempfile
 import unittest
+
 from absl import app
 import numpy as np
 import tensorflow as tf
 
-from . import pz
+from carfac.tf import pz
 
 
 class PZTest(unittest.TestCase):
 
   def testSaveLoad(self):
-    poles = [(-0.05429768147702485+1.4172655611120915e-05j),
-             (0.6598943546882394-0.46728573398560225j)]
-    zeros = [(0.635496172349615+0.14499945287904842j),
-             (0.5721096307971768-2.2915816453724273e-05j)]
-    pz_cell = pz.PZCell(1.34,
-                        tf.concat([poles, tf.math.conj(poles)], axis=0),
-                        tf.concat([zeros, tf.math.conj(zeros)], axis=0))
+    poles = [
+        (-0.05429768147702485 + 1.4172655611120915e-05j),
+        (0.6598943546882394 - 0.46728573398560225j),
+    ]
+    zeros = [
+        (0.635496172349615 + 0.14499945287904842j),
+        (0.5721096307971768 - 2.2915816453724273e-05j),
+    ]
+    pz_cell = pz.PZCell(
+        1.34,
+        tf.concat([poles, tf.math.conj(poles)], axis=0),
+        tf.concat([zeros, tf.math.conj(zeros)], axis=0),
+    )
     car_layer = tf.keras.layers.RNN(pz_cell, return_sequences=True)
     model = tf.keras.Sequential()
     model.add(car_layer)
@@ -48,13 +55,16 @@ class PZTest(unittest.TestCase):
     with tempfile.TemporaryDirectory() as savefile:
       model.save(savefile)
       loaded_model: tf.keras.models.Model = tf.keras.models.load_model(
-          savefile, custom_objects={'PZCell': pz.PZCell})
-      np.testing.assert_array_almost_equal(model(impulse),
-                                           loaded_model(impulse))
+          savefile, custom_objects={'PZCell': pz.PZCell}
+      )
+      np.testing.assert_array_almost_equal(
+          model(impulse), loaded_model(impulse)
+      )
 
 
 def main(_):
   unittest.main()
+
 
 if __name__ == '__main__':
   app.run(main)
