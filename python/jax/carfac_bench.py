@@ -143,10 +143,10 @@ def bench_jax_grad(state: google_benchmark.State):
   Args:
     state: The Benchmark state for this run.
   """
-  one_cap = False
+  ihc_style = 'two_cap'
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
-  params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+  params_jax.ears[0].ihc.ihc_style = ihc_style
   params_jax.ears[0].car.linear_car = False
   random_generator = jax.random.PRNGKey(random_seed)
   n_samp = state.range(0)
@@ -202,10 +202,10 @@ def bench_jit_compile_time(state: google_benchmark.State):
   Args:
     state: The benchmark state to execute over.
   """
-  one_cap = False
+  ihc_style = 'two_cap'
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
-  params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+  params_jax.ears[0].ihc.ihc_style = ihc_style
   params_jax.ears[0].car.linear_car = False
   random_generator = jax.random.PRNGKey(random_seed)
   n_samp = 1
@@ -251,10 +251,10 @@ def bench_jax_in_slices(state: google_benchmark.State):
     state: the benchmark state for this execution run.
   """
   # Inits JAX version
-  one_cap = False
+  ihc_style = 'two_cap'
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
-  params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+  params_jax.ears[0].ihc.ihc_style = ihc_style
   params_jax.ears[0].car.linear_car = False
 
   # Generate some random inputs.
@@ -335,11 +335,11 @@ def bench_jax(state: google_benchmark.State):
     state: the benchmark state for this execution run.
   """
   # Inits JAX version
-  one_cap = False
+  ihc_style = 'two_cap'
   random_seed = 1
   params_jax = carfac_jax.CarfacDesignParameters()
   params_jax.ears[0].car.use_delay_buffer = state.range(2)
-  params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+  params_jax.ears[0].ihc.ihc_style = ihc_style
   params_jax.ears[0].car.linear_car = False
 
   # Generate some random inputs.
@@ -393,10 +393,10 @@ def bench_jax_util_mapped(state: google_benchmark.State):
   """
   if jax.device_count() < state.range(0):
     state.skip_with_error(f'requires {state.range(0)} devices')
-  one_cap = False
   random_seed = state.range(0)
+  ihc_style = 'two_cap'
   params_jax = carfac_jax.CarfacDesignParameters()
-  params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+  params_jax.ears[0].ihc.ihc_style = ihc_style
   params_jax.ears[0].car.linear_car = False
   random_generator = jax.random.PRNGKey(random_seed)
   hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(

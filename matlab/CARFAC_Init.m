@@ -89,5 +89,5 @@ n_ch = coeffs.n_ch;
 n_cl = coeffs.n_classes;
 state = struct( ...
   'reservoirs', ones(n_ch, 1) * coeffs.res_lpf_inits, ...  % 0 full, 1 empty.
-  'lpf_state', ones(n_ch, 1) * coeffs.spont_p); 
+  'lpf_state', ones(n_ch, 1) * coeffs.spont_p);
 

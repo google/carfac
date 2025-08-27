@@ -29,9 +29,7 @@ class CarfacJaxTest(parameterized.TestCase):
     hypers.ears[0].car = carfac_jax.CarHypers()
     hypers.ears[0].agc = [carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2),
                           carfac_jax.AgcHypers(n_ch=1, n_agc_stages=2)]
-    hypers.ears[0].ihc = carfac_jax.IhcHypers(n_ch=1,
-                                              just_hwr=True,
-                                              n_caps=1)
+    hypers.ears[0].ihc = carfac_jax.IhcHypers(n_ch=1, ihc_style=1)
     h1 = hash(hypers)
     hypers.ears[0].car.n_ch += 1
     h2 = hash(hypers)
@@ -39,7 +37,7 @@ class CarfacJaxTest(parameterized.TestCase):
     hypers.ears[0].agc[1].reverse_cumulative_decimation += 1
     h3 = hash(hypers)
     self.assertNotEqual(h2, h3)
-    hypers.ears[0].ihc.just_hwr = not hypers.ears[0].ihc.just_hwr
+    hypers.ears[0].ihc.ihc_style = 2
     h4 = hash(hypers)
     self.assertNotEqual(h3, h4)
 
@@ -110,15 +108,15 @@ class CarfacJaxTest(parameterized.TestCase):
             msg='failed comparison on key item %s' % (k),
         )
 
-  @parameterized.parameters([1, 2])
-  def test_equal_design(self, n_caps):
+  @parameterized.parameters(['one_cap', 'two_cap'])
+  def test_equal_design(self, ihc_style):
     # Test: the designs are similar.
-    cfp = carfac_np.design_carfac(one_cap=(n_caps == 1))
+    cfp = carfac_np.design_carfac(ihc_style=ihc_style)
     carfac_np.carfac_init(cfp)
     cfp.ears[0].car_coeffs.linear = False
 
     params_jax = carfac_jax.CarfacDesignParameters()
-    params_jax.ears[0].ihc.n_caps = n_caps
+    params_jax.ears[0].ihc.ihc_style = ihc_style
     params_jax.ears[0].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
         params_jax
@@ -169,11 +167,11 @@ class CarfacJaxTest(parameterized.TestCase):
       self.container_comparison(
           hypers_jax.ears[ear_idx].ihc,
           ear_params_np.ihc_coeffs,
-          exclude_keys={'n_caps'},
+          exclude_keys={'ihc_style'},
       )
       self.assertEqual(
-          ear_params_np.ihc_coeffs.one_cap,
-          hypers_jax.ears[ear_idx].ihc.n_caps == 1,
+          ear_params_np.ihc_coeffs.ihc_style,
+          hypers_jax.ears[ear_idx].ihc.ihc_style,
       )
 
       self.container_comparison(
@@ -182,7 +180,7 @@ class CarfacJaxTest(parameterized.TestCase):
           exclude_keys='lpf2_state',
       )
 
-      if ear_params_np.ihc_coeffs.one_cap:
+      if ear_params_np.ihc_coeffs.ihc_style == 1:
         self.assertSequenceAlmostEqual(
             state_jax.ears[ear_idx].ihc.lpf2_state,
             ear_params_np.ihc_state.lpf2_state,
@@ -195,11 +193,7 @@ class CarfacJaxTest(parameterized.TestCase):
       # now we only check these one by one. We could add tests for 2 cap
       # similarly.
       self.assertEqual(
-          cfp.ihc_params.one_cap, params_jax.ears[ear_idx].ihc.n_caps == 1
-      )
-
-      self.assertEqual(
-          cfp.ihc_params.just_hwr, params_jax.ears[ear_idx].ihc.just_hwr
+          cfp.ihc_params.ihc_style, params_jax.ears[ear_idx].ihc.ihc_style
       )
 
       self.assertEqual(
@@ -250,13 +244,14 @@ class CarfacJaxTest(parameterized.TestCase):
         )
 
   @parameterized.product(
-      random_seed=[x for x in range(5)], one_cap=[False, True]
+      random_seed=[x for x in range(5)],
+      ihc_style=['one_cap', 'two_cap'],
   )
-  def test_chunked_naps_same_as_jit(self, random_seed, one_cap):
+  def test_chunked_naps_same_as_jit(self, random_seed, ihc_style):
     """Tests whether `run_segment` produces the same results as np version."""
     # Inits JAX version
     params_jax = carfac_jax.CarfacDesignParameters()
-    params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+    params_jax.ears[0].ihc.ihc_style = ihc_style
     params_jax.ears[0].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
         params_jax
@@ -294,11 +289,13 @@ class CarfacJaxTest(parameterized.TestCase):
 
   @parameterized.product(
       random_seed=[x for x in range(20)],
-      one_cap=[False, True],
+      ihc_style=['one_cap', 'two_cap'],
       n_ears=[1, 2],
       delay_buffer=[False, True],
   )
-  def test_equal_forward_pass(self, random_seed, one_cap, n_ears, delay_buffer):
+  def test_equal_forward_pass(
+      self, random_seed, ihc_style, n_ears, delay_buffer
+  ):
     """Tests whether `run_segment` produces the same results as np version."""
     # Inits JAX version
     params_jax = carfac_jax.CarfacDesignParameters(
@@ -306,14 +303,14 @@ class CarfacJaxTest(parameterized.TestCase):
     )
     params_jax.n_ears = n_ears
     for ear in range(n_ears):
-      params_jax.ears[ear].ihc.n_caps = 1 if one_cap else 2
+      params_jax.ears[ear].ihc.ihc_style = ihc_style
       params_jax.ears[ear].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
         params_jax
     )
     # Inits numpy version
     cfp = carfac_np.design_carfac(
-        one_cap=one_cap, n_ears=n_ears, use_delay_buffer=delay_buffer
+        ihc_style=ihc_style, n_ears=n_ears, use_delay_buffer=delay_buffer
     )
 
     carfac_np.carfac_init(cfp)
@@ -419,7 +416,7 @@ class CarfacJaxTest(parameterized.TestCase):
           state_np.ears[ear].ihc_state.lpf1_state,
           delta=1e-3,  # Low Precision
       )
-      if cfp.ears[ear].ihc_coeffs.one_cap:
+      if cfp.ears[ear].ihc_coeffs.ihc_style == 1:
         self.assertSequenceAlmostEqual(
             state_jax.ears[ear].ihc.lpf2_state,
             state_np.ears[ear].ihc_state.lpf2_state,
@@ -430,7 +427,7 @@ class CarfacJaxTest(parameterized.TestCase):
             state_np.ears[ear].ihc_state.cap_voltage,
             delta=2e-5,  # Low Precision
         )
-      else:
+      elif cfp.ears[ear].ihc_coeffs.ihc_style == 2:
         # `state_np` won't have `cap1_voltage` or `cap2_voltage` if
         # `one_cap==True`.
         self.assertSequenceAlmostEqual(
@@ -443,6 +440,8 @@ class CarfacJaxTest(parameterized.TestCase):
             state_np.ears[ear].ihc_state.cap2_voltage,
             delta=1e-5,  # Low Precision
         )
+      else:
+        self.fail('Unsupported IHC style.')
       # Comapares agc state
       for stage in range(hypers_jax.ears[ear].agc[0].n_agc_stages):
         self.assertSequenceAlmostEqual(

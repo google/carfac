@@ -22,7 +22,7 @@ function status = CARFAC_Test(do_plots)
 % optional, defaults to 1 (as when executing the file as a script).
 % Run CARFAC_Test(0) to suppress plotting.
 
-if nargin < 1, 
+if nargin < 1,
   do_plots = 1;
   close ALL  % So plots don't accumulate.
 end  % Produce plots by default.
