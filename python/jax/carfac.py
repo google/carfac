@@ -517,8 +517,7 @@ class AgcState:
 @dataclasses.dataclass
 class IhcDesignParameters:
   """Variables needed for the inner hair cell implementation."""
-  just_hwr: bool = False
-  n_caps: int = 2
+  ihc_style: str = 'two_cap'
   tau_lpf: float = 0.000080  # 80 microseconds smoothing twice
   tau_out: float = 0.0005  # depletion tau is pretty fast
   tau_in: float = 0.010  # recovery tau is slower
@@ -530,24 +529,26 @@ class IhcDesignParameters:
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):  # pylint: disable=missing-function-docstring
-    children = (self.just_hwr,
-                self.n_caps,
-                self.tau_lpf,
-                self.tau_out,
-                self.tau_in,
-                self.tau1_out,
-                self.tau1_in,
-                self.tau2_out,
-                self.tau2_in)
-    aux_data = ('just_hwr',
-                'n_caps',
-                'tau_lpf',
-                'tau_out',
-                'tau_in',
-                'tau1_out',
-                'tau1_in',
-                'tau2_out',
-                'tau2_in')
+    children = (
+        self.ihc_style,
+        self.tau_lpf,
+        self.tau_out,
+        self.tau_in,
+        self.tau1_out,
+        self.tau1_in,
+        self.tau2_out,
+        self.tau2_in,
+    )
+    aux_data = (
+        'ihc_style',
+        'tau_lpf',
+        'tau_out',
+        'tau_in',
+        'tau1_out',
+        'tau1_in',
+        'tau2_out',
+        'tau2_in',
+    )
     return (children, aux_data)
 
   @classmethod
@@ -560,14 +561,14 @@ class IhcDesignParameters:
 class IhcHypers:
   """Hyperparameters for the inner hair cell. Tagged `static` in `jax.jit`."""
   n_ch: int
-  just_hwr: bool
-  n_caps: int
+  # 0 is just_hwr, 1 is one_cap, 2 is two_cap.
+  ihc_style: int
 
   # The following 2 functions are boiler code required by pytree.
   # Reference: https://jax.readthedocs.io/en/latest/pytrees.html
   def tree_flatten(self):
-    children = (self.n_ch, self.just_hwr, self.n_caps)
-    aux_data = ('n_ch', 'just_hwr', 'n_caps')
+    children = (self.n_ch, self.ihc_style)
+    aux_data = ('n_ch', 'ihc_style')
     return (children, aux_data)
 
   @classmethod
@@ -1130,13 +1131,20 @@ def design_and_init_ihc(
   ihc_params = ear_params.ihc
 
   n_ch = ear_hypers.n_ch
-  ihc_hypers = IhcHypers(
-      n_ch=n_ch, just_hwr=ihc_params.just_hwr, n_caps=ihc_params.n_caps
-  )
-  if ihc_params.just_hwr:
+  ihc_style_num = 0
+  if ihc_params.ihc_style == 'just_hwr':
+    ihc_style_num = 0
+  elif ihc_params.ihc_style == 'one_cap':
+    ihc_style_num = 1
+  elif ihc_params.ihc_style == 'two_cap':
+    ihc_style_num = 2
+  else:
+    raise NotImplementedError
+  ihc_hypers = IhcHypers(n_ch=n_ch, ihc_style=ihc_style_num)
+  if ihc_params.ihc_style == 'just_hwr':
     ihc_weights = IhcWeights()
     ihc_state = IhcState(ihc_accum=jnp.zeros((n_ch,)))
-  elif ihc_params.n_caps == 1:
+  elif ihc_params.ihc_style == 'one_cap':
     ro = 1 / ihc_detect(10)  # output resistance at a very high level
     c = ihc_params.tau_out / ro
     ri = ihc_params.tau_in / c
@@ -1159,7 +1167,7 @@ def design_and_init_ihc(
         lpf1_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
         lpf2_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
     )
-  elif ihc_params.n_caps == 2:
+  elif ihc_params.ihc_style == 'two_cap':
     g1_max = ihc_detect(10)  # receptor conductance at high level
 
     r1min = 1 / g1_max
@@ -1631,13 +1639,13 @@ def ihc_step(
   ihc_weights = weights.ears[ear].ihc
   ihc_hypers = hypers.ears[ear].ihc
 
-  if ihc_hypers.just_hwr:
+  if ihc_hypers.ihc_style == 0:
     ihc_out = jnp.min(2, jnp.max(0, bm_out))  # pytype: disable=wrong-arg-types  # jnp-type
     #  limit it for stability
   else:
     conductance = ihc_detect(bm_out)  # rectifying nonlinearity
 
-    if ihc_hypers.n_caps == 1:
+    if ihc_hypers.ihc_style == 1:
       ihc_out = conductance * ihc_state.cap_voltage
       ihc_state.cap_voltage = (
           ihc_state.cap_voltage

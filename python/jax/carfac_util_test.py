@@ -25,11 +25,11 @@ class CarfacUtilTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.one_cap = False
+    self.ihc_style = 'two_cap'
     self.random_seed = 17234
     self.open_loop = False
     params_jax = carfac.CarfacDesignParameters()
-    params_jax.ears[0].ihc.n_caps = 1 if self.one_cap else 2
+    params_jax.ears[0].ihc.ihc_style = self.ihc_style
     params_jax.ears[0].car.linear_car = False
     self.random_generator = jax.random.PRNGKey(self.random_seed)
     self.hypers, self.weights, self.init_state = carfac.design_and_init_carfac(

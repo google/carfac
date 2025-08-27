@@ -35,9 +35,11 @@ class CarfacJaxFloat64Test(parameterized.TestCase):
     self.assertSequenceAlmostEqual(elements1, elements2, delta=delta)
 
   @parameterized.product(
-      random_seed=[x for x in range(20)], one_cap=[False, True], n_ears=[1, 2]
+      random_seed=[x for x in range(20)],
+      ihc_style=['one_cap', 'two_cap'],
+      n_ears=[1, 2],
   )
-  def test_backward_pass(self, random_seed, one_cap, n_ears):
+  def test_backward_pass(self, random_seed, ihc_style, n_ears):
     # Tests `jax.grad` can give similar gradients computed by numeric method.
     @functools.partial(jax.jit, static_argnames=('hypers',))
     def loss(weights, input_waves, hypers, state):
@@ -66,7 +68,7 @@ class CarfacJaxFloat64Test(parameterized.TestCase):
     # Computes gradients by `jax.grad`.
     gfunc = jax.grad(loss, has_aux=True)
     params_jax = carfac_jax.CarfacDesignParameters(n_ears=n_ears)
-    params_jax.ears[0].ihc.n_caps = 1 if one_cap else 2
+    params_jax.ears[0].ihc.ihc_style = ihc_style
     params_jax.ears[0].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
         params_jax
