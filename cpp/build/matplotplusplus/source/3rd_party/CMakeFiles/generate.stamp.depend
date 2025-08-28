@@ -1,0 +1,19 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.1/Modules/CheckCSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CheckFunctionExists.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CheckIncludeFile.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CheckLibraryExists.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindBLAS.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindJPEG.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindLAPACK.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindPkgConfig.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindTIFF.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindThreads.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FindZLIB.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Internal/CheckSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/SelectLibraryConfigurations.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/FindFFTW.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/FindOpenCV.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/CMakeLists.txt

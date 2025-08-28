@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\algebra.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\fruchterman_reingold.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\kamada_kawai.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\layout.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\nodesoup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\algebra.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\fruchterman_reingold.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\kamada_kawai.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\src\layout.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include\nodesoup.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{24D2F6D6-4FED-3F4F-827A-048B006DCFE3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3F613B1C-5B8B-3606-94CA-60DEF55997D8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

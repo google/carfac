@@ -1,0 +1,13 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakePackageConfigHelpers.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/ExternalProject/shared_internal_commands.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/FetchContent.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/GNUInstallDirs.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/WriteBasicConfigVersionFile.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/CMakeLists.txt
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions/ensure_build_type.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions/link_external_libraries.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions/project_flags.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions/sanitizers.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/cmake/functions/target_options.cmake

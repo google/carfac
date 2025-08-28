@@ -1,0 +1,3 @@
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/RealTimeCARFACSAI.dir
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/ZERO_CHECK.dir

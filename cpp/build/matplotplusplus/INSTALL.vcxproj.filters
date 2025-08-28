@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\CMakeFiles\1002b2c8c24e341dd15e9899ea57b16a\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{3C3961D0-DDDD-3809-853D-4FB63FF20451}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -19,7 +19,7 @@
 #if EMSCRIPTEN
 #include <emscripten/bind.h>
 #endif
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 
 #include <algorithm>
 #include <cmath>

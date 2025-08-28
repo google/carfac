@@ -1,0 +1,10 @@
+^C:\USERS\MARUK\DOWNLOADS\PYTHON310\CARFAC-SAI\CPP\BUILD\CMAKEFILES\6438751E16227D055D7427F79DF3FA45\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/RealTimeCARFACSAI.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

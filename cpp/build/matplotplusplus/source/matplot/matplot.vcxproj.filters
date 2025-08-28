@@ -1,0 +1,252 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_interface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\gnuplot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_registry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_type.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_object.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axis_type.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_type.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_registry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\legend.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\line_spec.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\colors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\common.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\contourc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\popen.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_cities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_10m.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_50m.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_110m.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\bars.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\box_chart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\circles.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\contours.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\error_bar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\filled_area.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\function_line.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\histogram.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\labels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\line.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\matrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\parallel_lines.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\stair.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\string_function.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\surface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\vectors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_functions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\histcounts.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\matplot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_interface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\gnuplot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_registry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_type.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_object.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axis_type.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_type.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_registry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\legend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\line_spec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\colors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\concepts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\contourc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\geodata.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\handle_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\keywords.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\popen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\type_traits.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\bars.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\box_chart.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\circles.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\contours.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\error_bar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\filled_area.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\function_line.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\histogram.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\labels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\line.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\matrix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\network.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\parallel_lines.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\stair.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\string_function.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\surface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\vectors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_functions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_lim.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\histcounts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\plot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{24D2F6D6-4FED-3F4F-827A-048B006DCFE3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3F613B1C-5B8B-3606-94CA-60DEF55997D8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

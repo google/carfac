@@ -1,0 +1,398 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{BB0C5F14-CD03-3D2C-ACB2-99AC0F2F3FD0}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>matplot</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">matplot.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">matplot</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">matplot.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">matplot</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">matplot.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">matplot</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">matplot.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">matplot</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/cimg" /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/nodesoup/include"</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/cimg" /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/nodesoup/include"</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/cimg" /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/nodesoup/include"</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/cimg" /external:I "C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/3rd_party/nodesoup/include"</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <UseFullPaths>false</UseFullPaths>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;NOMINMAX;MATPLOT_BUILD_HIGH_RESOLUTION_WORLD_MAP;cimg_display=2;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\eigen-3.4.0;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\portaudio\include;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\cimg;C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\3rd_party\nodesoup\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/matplot/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/matplotplusplus/source/matplot/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.1\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckFlagCommonConfig.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/matplot/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/matplotplusplus/source/matplot/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.1\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckFlagCommonConfig.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/matplot/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/matplotplusplus/source/matplot/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.1\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckFlagCommonConfig.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/matplotplusplus/source/matplot/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/matplotplusplus/source/matplot/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.1\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\GenerateExportHeader.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckCompilerFlag.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckFlagCommonConfig.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.1\Modules\exportheader.cmake.in;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\matplot\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\matplot.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_interface.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_interface.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\gnuplot.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\gnuplot.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_registry.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\backend\backend_registry.cpp" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_type.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_type.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_object.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axes_object.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axis_type.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\axis_type.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_type.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_type.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_registry.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\figure_registry.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\legend.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\legend.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\line_spec.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\core\line_spec.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\colors.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\colors.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\common.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\common.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\concepts.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\contourc.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\contourc.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\geodata.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\handle_types.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\keywords.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\popen.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\popen.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\type_traits.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_cities.cpp" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_10m.cpp" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_50m.cpp" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\util\world_map_110m.cpp" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\bars.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\bars.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\box_chart.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\box_chart.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\circles.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\circles.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\contours.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\contours.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\error_bar.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\error_bar.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\filled_area.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\filled_area.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\function_line.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\function_line.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\histogram.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\histogram.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\labels.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\labels.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\line.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\line.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\matrix.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\matrix.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\network.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\network.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\parallel_lines.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\parallel_lines.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\stair.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\stair.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\string_function.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\string_function.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\surface.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\surface.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\vectors.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\axes_objects\vectors.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_functions.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_functions.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\axes_lim.h" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\histcounts.h" />
+    <ClCompile Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\histcounts.cpp" />
+    <ClInclude Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\matplotplusplus\source\matplot\freestanding\plot.h" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\ZERO_CHECK.vcxproj">
+      <Project>{4B301F03-5DE9-3F8A-BBA6-DE5368A6AE91}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\maruk\Downloads\Python310\carfac-SAI\cpp\build\matplotplusplus\source\3rd_party\nodesoup.vcxproj">
+      <Project>{6FD94FC7-1FBD-3A63-B3A5-16956EC30BD8}</Project>
+      <Name>nodesoup</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

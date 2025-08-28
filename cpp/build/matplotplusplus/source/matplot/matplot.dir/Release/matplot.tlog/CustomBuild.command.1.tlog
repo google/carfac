@@ -1,0 +1,10 @@
+^C:\USERS\MARUK\DOWNLOADS\PYTHON310\CARFAC-SAI\CPP\MATPLOTPLUSPLUS\SOURCE\MATPLOT\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp -BC:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build --check-stamp-file C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/matplotplusplus/source/matplot/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

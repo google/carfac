@@ -1,0 +1,34 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeCXXInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeCommonLanguageInclude.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeGenericSystem.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeInitializeConfigs.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeLanguageInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeRCInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeSystemSpecificInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/CMakeSystemSpecificInitialize.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Compiler/CMakeCommonCompilerMacros.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Compiler/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Compiler/MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Compiler/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Internal/CMakeCLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Internal/CMakeCXXLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Internal/CMakeCommonLinkerInformation.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Linker/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Linker/MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Linker/MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Linker/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Linker/Windows-MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Linker/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Windows-Initialize.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Windows-MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/Windows.cmake
+C:/Program Files/CMake/share/cmake-4.1/Modules/Platform/WindowsPaths.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/CMakeLists.txt
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/4.1.0/CMakeCCompiler.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/4.1.0/CMakeCXXCompiler.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/4.1.0/CMakeRCCompiler.cmake
+C:/Users/maruk/Downloads/Python310/carfac-SAI/cpp/build/CMakeFiles/4.1.0/CMakeSystem.cmake
