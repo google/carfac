@@ -25,10 +25,16 @@ function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
 if coeffs.non_decimating  
   % 2025 new decimation-free structure, intended to be GPU friendly.
   % state is a column per stage, to be updated in parallel.
-  % First the time-update step with detect as input:
-  % New state is linear function of old state and inputs, within channels
-  % (rows):
-  state.AGC_memory = [state.AGC_memory, detects] * coeffs.temporal_IIR;
+  % First the time-update step with detects as input;
+  % new state is a linear function of old state and inputs, and we allow
+  % a sample of delay per stage, not using each new stage state until the
+  % the next time step, to make it parallelize efficiently and to make
+  % the delay a bit closer to what happens in the decimating version.
+  state.AGC_memory = ...  % Broadcasting gain rows across channels
+    coeffs.feedback_gains .* state.AGC_memory + ...
+    coeffs.input_gains .* detects + ...
+    coeffs.next_stage_gains .* ...
+      [state.AGC_memory(:, 2:end), zeros(coeffs.n_ch, 1)];
   % Then the 3-point FIR spatial smooth.
   % Just mix in some left and right neighbors like in book figure 19.6.
   % The .* broadcasts the row of coeffs across channels (rows); all
@@ -68,10 +74,10 @@ if decim_phase == 0
   state.input_accum(:, stage) = 0;  % reset accumulator
 
   AGC_stage_state = state.AGC_memory(:, stage);
-  % first-order recursive smoothing filter update, in time:
+  % First-order recursive smoothing filter update, in time:
   AGC_stage_state = ...
-    coeffs.temporal_IIR(stage, stage) * AGC_stage_state + ...
-    coeffs.temporal_IIR(coeffs.n_AGC_stages + 1, stage) * AGC_in;
+    coeffs.feedback_gains(stage) * AGC_stage_state + ...
+    coeffs.input_gains(stage) * AGC_in;
   if stage < coeffs.n_AGC_stages
     % Add in state from next stage, if exists, whether it updates or not.
     % This call maybe updates stage+1 and later ones, doesn't touch this
@@ -80,7 +86,7 @@ if decim_phase == 0
     % The coefficient for adding in the next stage state is premultiplied
     % by the AGC_epsilon.
     AGC_stage_state = AGC_stage_state + ...
-      coeffs.temporal_IIR(stage+1, stage) * state.AGC_memory(:, stage+1);
+      coeffs.next_stage_gains(stage) * state.AGC_memory(:, stage+1);
   end
   % spatial smooth:
   FIR_coeffs = coeffs.spatial_FIR(:, stage);
