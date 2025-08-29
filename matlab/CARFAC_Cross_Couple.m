@@ -26,7 +26,7 @@ if n_ears > 1
     if ears(1).AGC_coeffs.non_decimating || ...
         (ears(1).AGC_state.decim_phase(stage) == 0)
       mix_coeff = ears(1).AGC_coeffs.mix_coeffs(stage);
-      if mix_coeff > 0  % Typically stage 1 has 0 so no work on that one.
+      if mix_coeff > 0  % Non-critical optimization, typically for stage 1.
         this_stage_sum = 0;
         % sum up over the ears and get their mean:
         for ear = 1:n_ears

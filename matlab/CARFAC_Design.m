@@ -173,7 +173,6 @@ CAR_coeffs.g0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.ga_coeffs = zeros(n_ch, 1);
 CAR_coeffs.gb_coeffs = zeros(n_ch, 1);
 CAR_coeffs.gc_coeffs = zeros(n_ch, 1);
-
 CAR_coeffs.OHC_health = ones(n_ch, 1);  % 0 to 1 to derate OHC activity.
 
 % zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
@@ -185,7 +184,6 @@ f = CAR_params.zero_ratio^2 - 1;  % nominally 1 for half-octave
 % Make pole positions, s and c coeffs, h and g coeffs, etc.,
 % which mostly depend on the pole angle theta:
 theta = pole_freqs .* (2 * pi / fs);
-
 c0 = sin(theta);
 a0 = cos(theta);
 
@@ -304,7 +302,8 @@ for stage = 1:n_AGC_stages
   AGC_coeffs.spatial_FIR(:, stage) = spatial_FIR';
 end
 
-%%
+
+%% Design the AGC's 3-point FIR spatial filter:
 function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
 % function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
 % The smoothing function is a space-domain smoothing, but it considered
@@ -318,9 +317,6 @@ function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
 % too much about the shape of the distribution, which will be some kind of
 % blob not too far from Gaussian if we run several FIR iterations.
 
-% reduce mean and variance of smoothing distribution by n_iterations:
-mean_delay = mean_delay;
-delay_variance = delay_variance;
 % based on solving to match mean and variance of [a, 1-a-b, b]:
 a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
 b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
@@ -328,7 +324,7 @@ FIR = [a, 1 - a - b, b];
 OK = all(FIR >= [0.0, 0.25, 0.0]);
 
 
-%% the IHC design coeffs:
+%% Design the IHC coeffs:
 function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
