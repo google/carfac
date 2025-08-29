@@ -4,7 +4,8 @@ import numpy as np
 import pyaudio
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.colors import hsv_to_rgb, ListedColormap, LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.collections import LineCollection
 import threading
 import queue
 import time
@@ -65,28 +66,23 @@ class ImprovedWhisperHandler:
         self.audio_model = whisper.load_model(model_name)
         self.phrase_timeout = phrase_timeout
         
-        # Voice activity detection
         self.recognizer = sr.Recognizer()
         self.recognizer.energy_threshold = energy_threshold
         self.recognizer.dynamic_energy_threshold = False
         
-        # Phrase management
         self.phrase_bytes = bytearray()
         self.phrase_time = None
         self.transcription_lines = ['Listening...']
         self.transcription_lock = threading.Lock()
         
-        # Audio queues
         self.whisper_queue = queue.Queue(maxsize=50)
         self.running = False
         
     def add_audio_chunk(self, audio_chunk):
         try:
-            # Convert to int16 for Whisper
             audio_int16 = (audio_chunk * 32768).astype(np.int16)
             self.whisper_queue.put_nowait(audio_int16.tobytes())
         except queue.Full:
-            # Drop oldest data if queue is full
             try:
                 self.whisper_queue.get_nowait()
                 self.whisper_queue.put_nowait(audio_int16.tobytes())
@@ -99,7 +95,6 @@ class ImprovedWhisperHandler:
                 now = datetime.now()
                 audio_chunks = []
                 
-                # Collect available audio chunks
                 while not self.whisper_queue.empty():
                     try:
                         chunk = self.whisper_queue.get_nowait()
@@ -108,7 +103,6 @@ class ImprovedWhisperHandler:
                         break
                 
                 if audio_chunks:
-                    # Check for phrase boundary
                     phrase_complete = False
                     if self.phrase_time and now - self.phrase_time > timedelta(seconds=self.phrase_timeout):
                         self.phrase_bytes = bytearray()
@@ -116,44 +110,36 @@ class ImprovedWhisperHandler:
                     
                     self.phrase_time = now
                     
-                    # Add new audio to phrase buffer
                     for chunk in audio_chunks:
                         self.phrase_bytes.extend(chunk)
                     
-                    # Limit buffer size to prevent memory issues
                     max_buffer_seconds = 30
-                    max_buffer_bytes = max_buffer_seconds * 22050 * 2  # 16-bit samples
+                    max_buffer_bytes = max_buffer_seconds * 22050 * 2
                     if len(self.phrase_bytes) > max_buffer_bytes:
-                        # Keep only the most recent audio
                         self.phrase_bytes = self.phrase_bytes[-max_buffer_bytes:]
                     
-                    # Convert to numpy for Whisper
                     audio_np = np.frombuffer(self.phrase_bytes, dtype=np.int16).astype(np.float32) / 32768.0
                     
-                    # Only transcribe if we have enough audio
-                    if len(audio_np) > 22050 * 0.5:  # At least 0.5 seconds
+                    if len(audio_np) > 22050 * 0.5:
                         try:
-                            # Transcribe with improved settings
                             result = self.audio_model.transcribe(
                                 audio_np, 
                                 fp16=torch.cuda.is_available(),
-                                language='en',  # Specify language for better accuracy
+                                language='en',
                                 task='transcribe',
-                                temperature=0.0,  # More deterministic output
-                                no_speech_threshold=0.6,  # Filter out non-speech
+                                temperature=0.0,
+                                no_speech_threshold=0.6,
                                 logprob_threshold=-1.0
                             )
                             
                             text = result['text'].strip()
                             
-                            # Update transcription
                             with self.transcription_lock:
                                 if phrase_complete and self.transcription_lines[-1]:
                                     self.transcription_lines.append(text)
                                 else:
                                     self.transcription_lines[-1] = text
                                     
-                                # Limit transcription history
                                 if len(self.transcription_lines) > 10:
                                     self.transcription_lines.pop(0)
                                     
@@ -177,7 +163,7 @@ class ImprovedWhisperHandler:
     def stop(self):
         self.running = False
 
-# ---------------- Real-Time Visualization + Improved Whisper ----------------
+# ---------------- Real-Time Visualization + Color-Blended Waveform ----------------
 class RealTimePitchogramWhisper:
     def __init__(self, chunk_size=512, sample_rate=22050, sai_width=400, whisper_model="small", colormap_style="enhanced"):
         self.chunk_size = chunk_size
@@ -185,52 +171,55 @@ class RealTimePitchogramWhisper:
         self.sai_width = sai_width
         self.colormap_style = colormap_style
 
-        # CARFAC + Pitchogram
         self.carfac = RealCARFACProcessor(fs=sample_rate)
         self.pitchogram = RealTimePitchogram(num_channels=self.carfac.n_channels, sai_width=sai_width)
         self.n_channels = self.carfac.n_channels
 
-        # Improved Whisper handler
         self.whisper_handler = ImprovedWhisperHandler(
             model_name=whisper_model,
             energy_threshold=1000,
             phrase_timeout=3.0
         )
 
-        # Audio processing
         self.audio_queue = queue.Queue(maxsize=20)
         self.running = False
-        self.intensity_history = []
-        self.max_history_length = 100
 
-        # Visualization setup
+        self.temporal_buffer_width = 200
+        self.temporal_buffer = np.zeros((self.n_channels, self.temporal_buffer_width))
+        self.audio_buffer = np.zeros(self.temporal_buffer_width)
+
         self._setup_visualization()
         self.p = None
         self.stream = None
 
     def _setup_visualization(self):
         self.fig, self.ax = plt.subplots(figsize=(16, 10))
-        self.temporal_buffer_width = 200
-        self.temporal_buffer = np.zeros((self.n_channels, self.temporal_buffer_width))
         self.frame_counter = 0
         
         cmap = self._create_enhanced_colormap(self.colormap_style)
+        self.cmap = cmap
         self.im = self.ax.imshow(self.temporal_buffer, aspect='auto', origin='lower',
                                  cmap=cmap, interpolation='bilinear', vmin=0, vmax=1,
                                  extent=[0, self.temporal_buffer_width, 0, self.n_channels])
         
-       # self.cbar = plt.colorbar(self.im, ax=self.ax, shrink=0.8, pad=0.02)
-        
         self.pitch_text = self.ax.text(0.98, 0.98, '', transform=self.ax.transAxes,
                                        verticalalignment='top', horizontalalignment='right', fontsize=10,
                                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9))
-        
         self.transcription_text = self.ax.text(0.02, 0.02, '', transform=self.ax.transAxes,
                                               verticalalignment='bottom', fontsize=11, color='black',
                                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9))
+        
+        # LineCollection for waveform
+        x = np.arange(self.temporal_buffer_width)
+        y = np.zeros_like(x)
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        self.waveform_line = LineCollection(segments, linewidths=2, cmap=self.cmap)
+        self.waveform_line.set_array(np.zeros(self.temporal_buffer_width - 1))
+        self.ax.add_collection(self.waveform_line)
+        
         plt.tight_layout()
         self.ax.axis("off")
-
 
     def _create_enhanced_colormap(self, style="enhanced"):
         colors = ['#000022','#000055','#0033AA','#0066FF','#00AAFF','#00FFAA','#33FF77','#77FF33','#AAFF00',
@@ -240,12 +229,9 @@ class RealTimePitchogramWhisper:
     def audio_callback(self, in_data, frame_count, time_info, status):
         try:
             audio_data = np.frombuffer(in_data, dtype=np.float32)
-            audio_data = np.clip(audio_data * 2.0, -1.0, 1.0)  # Reduced gain
+            audio_data = np.clip(audio_data * 2.0, -1.0, 1.0)
             self.audio_queue.put_nowait(audio_data)
-            
-            # Send to improved Whisper handler
             self.whisper_handler.add_audio_chunk(audio_data)
-            
         except queue.Full:
             pass
         return (in_data, pyaudio.paContinue)
@@ -257,14 +243,21 @@ class RealTimePitchogramWhisper:
                 nap_output = self.carfac.process_chunk(audio_chunk)
                 pitch_frame = self.pitchogram.run_frame(nap_output)
                 
-                # Update temporal buffer
                 self.temporal_buffer[:, :-1] = self.temporal_buffer[:, 1:]
                 self.temporal_buffer[:, -1] = pitch_frame.max(axis=1)
+                
+                chunk_len = len(audio_chunk)
+                if chunk_len < self.temporal_buffer_width:
+                    self.audio_buffer[:-chunk_len] = self.audio_buffer[chunk_len:]
+                    self.audio_buffer[-chunk_len:] = audio_chunk
+                else:
+                    self.audio_buffer[:] = audio_chunk[-self.temporal_buffer_width:]
+                
                 self.frame_counter += 1
                 
             except queue.Empty:
                 continue
-            except Exception as e:
+            except Exception:
                 continue
 
     def _analyze_pitch_content(self):
@@ -272,34 +265,35 @@ class RealTimePitchogramWhisper:
         if np.max(current_frame) > 0.2:
             max_ch = np.argmax(current_frame)
             freq_ratio = max_ch / max(1, len(current_frame)-1)
-            # Improved frequency estimation
             estimated_freq = 80 * (8000/80) ** freq_ratio
             intensity = np.max(current_frame)
             return f"~{estimated_freq:.0f} Hz ({intensity:.2f})"
         return "No clear pitch"
 
     def update_visualization(self, frame):
-        # Update pitchogram display
         current_max = np.max(self.temporal_buffer) if self.temporal_buffer.size else 1.0
         self.im.set_data(self.temporal_buffer)
         self.im.set_clim(vmin=0, vmax=max(0.001, min(1.0, current_max * 1.2)))
         
-        # Update pitch analysis
         pitch_info = self._analyze_pitch_content()
         self.pitch_text.set_text(pitch_info)
         
-        # Update transcription from improved handler
         transcription_text = self.whisper_handler.get_transcription()
         self.transcription_text.set_text(transcription_text)
         
-        return [self.im, self.pitch_text, self.transcription_text]
+        # Update waveform as LineCollection
+        waveform_scaled = 0.5 + 0.5 * self.audio_buffer
+        x = np.arange(self.temporal_buffer_width)
+        y = waveform_scaled
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        self.waveform_line.set_segments(segments)
+        self.waveform_line.set_array(waveform_scaled[:-1])
+        
+        return [self.im, self.pitch_text, self.transcription_text, self.waveform_line]
 
     def start(self):
-        
-        # Start Whisper handler
         self.whisper_handler.start()
-        
-        # Initialize PyAudio
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(
             format=pyaudio.paFloat32,
@@ -311,22 +305,18 @@ class RealTimePitchogramWhisper:
             start=False
         )
 
-        # Start processing
         self.running = True
         threading.Thread(target=self.process_audio, daemon=True).start()
         self.stream.start_stream()
         
-        # Start animation
         self.animation = animation.FuncAnimation(
             self.fig, self.update_visualization, interval=50, blit=False
         )
-        
         plt.show()
 
     def stop(self):
         self.running = False
         self.whisper_handler.stop()
-        
         if self.stream:
             try:
                 self.stream.stop_stream()
@@ -342,7 +332,6 @@ class RealTimePitchogramWhisper:
 
 # ---------------- Run ----------------
 if __name__ == "__main__":
-    
     try:
         system = RealTimePitchogramWhisper(
             chunk_size=512, 
@@ -357,3 +346,4 @@ if __name__ == "__main__":
     except Exception as e:
         if 'system' in locals():
             system.stop()
+        print(f"Error: {e}")
