@@ -231,7 +231,7 @@ class RealTimePitchogramWhisper:
         y = np.zeros_like(x)
         points = np.array([x, y]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        self.waveform_line = LineCollection(segments, linewidths=2, alpha=0.7)
+        self.waveform_line = LineCollection(segments, linewidths=2, alpha=0.7, colors='white')
         self.waveform_line.set_array(np.zeros(self.temporal_buffer_width - 1))
         self.ax.add_collection(self.waveform_line)
         
