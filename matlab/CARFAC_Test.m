@@ -595,7 +595,7 @@ return
 
 
 function status = test_whole_carfac(do_plots, version_string, non_decimating)
-% Test: Make sure that the AGC adapts to a tone. 
+% Test: Make sure that the AGC adapts to a tone.
 % Test with open-loop impulse response.
 
 status = 0;

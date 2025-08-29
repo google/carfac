@@ -22,7 +22,7 @@ function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
 % one time step of the AGC state update; maybe decimates internally.
 % AGC input is detects; detect_scale is already in the coefficients.
 
-if coeffs.non_decimating  
+if coeffs.non_decimating
   % 2025 new decimation-free structure, intended to be GPU friendly.
   % state is a column per stage, to be updated in parallel.
   % First the time-update step with detects as input;
