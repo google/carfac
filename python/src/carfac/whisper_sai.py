@@ -226,15 +226,6 @@ class RealTimePitchogramWhisper:
                                       color='yellow', weight='normal',
                                       bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.7))
         
-        # Waveform overlay
-        x = np.arange(self.temporal_buffer_width)
-        y = np.zeros_like(x)
-        points = np.array([x, y]).T.reshape(-1, 1, 2)
-        segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        self.waveform_line = LineCollection(segments, linewidths=2, alpha=0.7, colors='white')
-        self.waveform_line.set_array(np.zeros(self.temporal_buffer_width - 1))
-        self.ax.add_collection(self.waveform_line)
-        
         plt.tight_layout()
         self.ax.axis('off')
 
@@ -302,14 +293,6 @@ class RealTimePitchogramWhisper:
                 # Update temporal buffer for visualization
                 self.temporal_buffer[:, :-1] = self.temporal_buffer[:, 1:]
                 self.temporal_buffer[:, -1] = pitch_frame.max(axis=1)
-
-                # Update audio waveform buffer
-                chunk_len = len(audio_chunk)
-                if chunk_len <= self.temporal_buffer_width:
-                    self.audio_buffer[:-chunk_len] = self.audio_buffer[chunk_len:]
-                    self.audio_buffer[-chunk_len:] = audio_chunk
-                else:
-                    self.audio_buffer[:] = audio_chunk[-self.temporal_buffer_width:]
 
                 # Voice activity detection for Whisper processing
                 energy = np.mean(np.square(audio_chunk))
@@ -445,21 +428,11 @@ class RealTimePitchogramWhisper:
                 debug_info = f"Buffer: {buffer_seconds:.1f}s | Energy: {current_energy:.4f} | Threshold: {self.energy_threshold:.4f}"
                 self.debug_text.set_text(debug_info)
             
-            # Update waveform
-            waveform_scaled = self.n_channels * 0.1 + (self.n_channels * 0.3) * self.audio_buffer
-            x = np.arange(self.temporal_buffer_width)
-            y = waveform_scaled
-            points = np.array([x, y]).T.reshape(-1, 1, 2)
-            segments = np.concatenate([points[:-1], points[1:]], axis=1)
-            self.waveform_line.set_segments(segments)
-            colors = np.abs(self.audio_buffer[:-1])
-            self.waveform_line.set_array(colors)
-            self.waveform_line.set_cmap(self.cmap)
             
         except Exception as e:
             print(f"Visualization update error: {e}")
         
-        return [self.im, self.pitch_text, self.transcription_text, self.debug_text, self.waveform_line]
+        return [self.im, self.pitch_text, self.transcription_text, self.debug_text]
 
     def start(self):
         
