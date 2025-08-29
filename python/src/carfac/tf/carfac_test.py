@@ -26,7 +26,7 @@ import numpy as np
 from parameterized import parameterized
 import tensorflow as tf
 
-import python.src.carfac.better_whisper_sai as carfac_testing
+import python.src.carfac.ok_sai as carfac_testing
 from carfac.tf import carfac
 
 

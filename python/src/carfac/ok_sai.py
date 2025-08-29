@@ -1,4 +1,7 @@
+#! python3.7
+
 import sys
+import os
 import numpy as np
 import pyaudio
 import matplotlib.pyplot as plt
@@ -59,32 +62,52 @@ class RealTimePitchogram:
 
 # ---------------- Whisper Handler ----------------
 class WhisperHandler:
-    def __init__(self, model_name="base", non_english=False, debug=True):
-        self.debug = debug
+    def __init__(self, model_name="base", non_english=False):
+        print(f"Loading Whisper model: {model_name} (non_english={non_english})")
         model = model_name
         if model_name != "large" and not non_english:
             model = model + ".en"
         
         try:
             self.audio_model = whisper.load_model(model)
-            self.sample_rate = 16000
+            self.sample_rate = 16000  # Store sample rate for validation
+            print(f"Whisper model '{model}' loaded successfully")
         except Exception as e:
+            print(f"Failed to load Whisper model: {e}")
+            print("Falling back to 'tiny' model...")
             try:
                 self.audio_model = whisper.load_model("tiny")
                 self.sample_rate = 16000
+                print("Tiny model loaded successfully")
             except Exception as e2:
+                print(f"Failed to load any Whisper model: {e2}")
                 self.audio_model = None
                 self.sample_rate = 16000
         
         self.transcription = []
         self.lock = threading.Lock()
         self.last_transcription_time = time.time()
-        self.min_transcription_interval = 0.1
+        self.min_transcription_interval = 1.0  # Minimum time between transcriptions
 
     def transcribe_audio(self, audio_data, language='en'):
+        if self.audio_model is None:
+            return None
         
-        # Reduced minimum length for more responsive transcription
-        min_samples = int(self.sample_rate * 0.5)  # Reduced from 1.0 second
+        # Validate input data
+        if audio_data is None or len(audio_data) == 0:
+            return None
+            
+        # Convert to numpy array if needed
+        if not isinstance(audio_data, np.ndarray):
+            try:
+                audio_data = np.array(audio_data)
+            except:
+                return None
+        
+        # Check minimum length (at least 1 second for reliable transcription)
+        min_samples = int(self.sample_rate * 1.0)
+        if len(audio_data) < min_samples:
+            return None
         
         # Ensure audio is float32 in range [-1, 1]
         if audio_data.dtype == np.int16:
@@ -92,37 +115,45 @@ class WhisperHandler:
         else:
             audio_float = audio_data.astype(np.float32)
         
+        # Check for valid audio data
+        if np.all(audio_float == 0) or not np.isfinite(audio_float).all():
+            return None
+        
         # Normalize to [-1, 1] if needed
         max_val = np.abs(audio_float).max()
         if max_val > 1.0:
             audio_float = audio_float / max_val
+        elif max_val < 0.001:  # Too quiet
+            return None
         
         # Pad or trim to ensure consistent length
         target_length = max(min_samples, len(audio_float))
         if len(audio_float) < target_length:
+            # Pad with zeros
             audio_float = np.pad(audio_float, (0, target_length - len(audio_float)), 'constant')
-        elif len(audio_float) > self.sample_rate * 30:
+        elif len(audio_float) > self.sample_rate * 30:  # Limit to 30 seconds max
             audio_float = audio_float[-self.sample_rate * 30:]
         
         try:
-            # More permissive Whisper settings
+            # Use no_speech_threshold to avoid transcribing silence
             result = self.audio_model.transcribe(
                 audio_float, 
                 fp16=torch.cuda.is_available(),
                 language=language,
-                no_speech_threshold=0.2,  # Lowered from 0.4 - more sensitive to speech
-                logprob_threshold=-1.5,   # More permissive
-                compression_ratio_threshold=3.0,  # More permissive
-                condition_on_previous_text=False
+                no_speech_threshold=0.4,  # Higher threshold to filter silence better
+                logprob_threshold=-1.0,   
+                compression_ratio_threshold=2.4,
+                condition_on_previous_text=False  # Avoid context from previous transcriptions
             )
             text = result.get('text', '').strip()
             
-            # More lenient filtering
-            if len(text) < 1:
+            # Filter out very short, repetitive, or low-quality results
+            if len(text) < 2 or text.lower() in ['you', 'the', 'a', 'i', 'to', 'and', 'of']:
                 return None
                 
             return text
-        except Exception:
+        except Exception as e:
+            print(f"Whisper transcription error: {e}")
             return None
 
     def add_transcription_line(self, text):
@@ -130,7 +161,7 @@ class WhisperHandler:
             if text is None or not text.strip():
                 return
             
-            # More lenient rate limiting
+            # Rate limiting to prevent spam
             current_time = time.time()
             if current_time - self.last_transcription_time < self.min_transcription_interval:
                 return
@@ -138,10 +169,14 @@ class WhisperHandler:
             # Avoid adding duplicate consecutive transcriptions
             if self.transcription and self.transcription[-1] == text:
                 return
+            
+            # Filter out single words that are likely false positives
+            if len(text.split()) == 1 and len(text) < 4:
+                return
                 
             self.transcription.append(text)
             self.last_transcription_time = current_time
-            print(f"[Transcribed]: {text}")
+            print(f"[Transcribed]: {text}")  # Debug output
             
             # Keep manageable history
             if len(self.transcription) > 20:
@@ -163,12 +198,11 @@ class WhisperHandler:
 # ---------------- Real-Time Visualization + Whisper ----------------
 class RealTimePitchogramWhisper:
     def __init__(self, chunk_size=1024, sample_rate=16000, sai_width=400,
-                 whisper_model="tiny", whisper_interval=1.5, debug=True):
+                 whisper_model="base", whisper_interval=2.0):
         self.chunk_size = chunk_size
         self.sample_rate = sample_rate
         self.sai_width = sai_width
         self.whisper_interval = whisper_interval
-        self.debug = debug
 
         # CARFAC and pitchogram
         self.carfac = RealCARFACProcessor(fs=sample_rate)
@@ -176,7 +210,7 @@ class RealTimePitchogramWhisper:
         self.n_channels = self.carfac.n_channels
 
         # Whisper
-        self.whisper_handler = WhisperHandler(model_name=whisper_model, debug=debug)
+        self.whisper_handler = WhisperHandler(model_name=whisper_model)
 
         # Audio buffering for Whisper
         self.audio_queue = queue.Queue(maxsize=50)
@@ -184,11 +218,10 @@ class RealTimePitchogramWhisper:
         self.whisper_buffer_lock = threading.Lock()
         self.last_whisper_time = time.time()
         
-        # Much more sensitive voice activity detection
-        self.energy_threshold = 0.0001  # Significantly lowered
+        # Energy-based voice activity detection
+        self.energy_threshold = 0.01
         self.silence_counter = 0
-        self.max_silence_chunks = 5  # Reduced silence requirement
-        self.audio_chunk_counter = 0
+        self.max_silence_chunks = 10  # ~0.5 seconds of silence before processing
 
         # Visualization
         self.temporal_buffer_width = 200
@@ -216,15 +249,9 @@ class RealTimePitchogramWhisper:
                                        bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.7))
         
         self.transcription_text = self.ax.text(0.02, 0.02, '', transform=self.ax.transAxes,
-                                              verticalalignment='bottom', fontsize=12,
-                                              color='lime', weight='bold',
-                                              bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.9))
-        
-        # Debug info text
-        self.debug_text = self.ax.text(0.02, 0.98, '', transform=self.ax.transAxes,
-                                      verticalalignment='top', fontsize=8,
-                                      color='yellow', weight='normal',
-                                      bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.7))
+                                              verticalalignment='bottom', fontsize=11,
+                                              color='white', weight='bold',
+                                              bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.8))
         
         # Waveform overlay
         x = np.arange(self.temporal_buffer_width)
@@ -236,7 +263,9 @@ class RealTimePitchogramWhisper:
         self.ax.add_collection(self.waveform_line)
         
         plt.tight_layout()
+        self.ax.set_title('Real-Time Audio Analysis with Whisper', fontsize=14, color='white', weight='bold')
         self.ax.axis('off')
+        self.fig.patch.set_facecolor('black')
 
     def _create_enhanced_colormap(self):
         colors = ['#000022', '#000055', '#0033AA', '#0066FF', '#00AAFF',
@@ -244,26 +273,10 @@ class RealTimePitchogramWhisper:
                   '#FF7700', '#FF3300', '#FF0044', '#CC0077', '#FFFFFF']
         return LinearSegmentedColormap.from_list("enhanced_audio", colors, N=256)
 
-    def list_audio_devices(self):
-        """List available audio input devices"""
-        if self.p is None:
-            self.p = pyaudio.PyAudio()
-        
-        print("\nAvailable audio input devices:")
-        for i in range(self.p.get_device_count()):
-            info = self.p.get_device_info_by_index(i)
-            if info['maxInputChannels'] > 0:
-                print(f"  Device {i}: {info['name']} (Channels: {info['maxInputChannels']})")
-        print()
-
     def audio_callback(self, in_data, frame_count, time_info, status):
         try:
             # Convert int16 to float32
             audio_float = np.frombuffer(in_data, dtype=np.int16).astype(np.float32) / 32768.0
-            energy = np.mean(np.square(audio_float))
-            
-            self.audio_chunk_counter += 1
-
             
             # Add to processing queue
             try:
@@ -279,8 +292,8 @@ class RealTimePitchogramWhisper:
             with self.whisper_buffer_lock:
                 self.whisper_audio_buffer.extend(audio_float)
                 
-                # Keep buffer manageable (max 15 seconds for better context)
-                max_buffer_size = self.sample_rate * 15
+                # Keep buffer manageable (max 10 seconds)
+                max_buffer_size = self.sample_rate * 10
                 if len(self.whisper_audio_buffer) > max_buffer_size:
                     excess = len(self.whisper_audio_buffer) - max_buffer_size
                     self.whisper_audio_buffer = self.whisper_audio_buffer[excess:]
@@ -329,28 +342,16 @@ class RealTimePitchogramWhisper:
             try:
                 current_time = time.time()
                 
-                with self.whisper_buffer_lock:
-                    buffer_size = len(self.whisper_audio_buffer)
-                    if buffer_size > 0:
-                        audio_energy = np.mean(np.square(self.whisper_audio_buffer[-min(1000, buffer_size):]))
-                    else:
-                        audio_energy = 0
-                
-                # Simplified processing logic - process based on time interval OR sufficient audio
-                time_condition = (current_time - self.last_whisper_time) >= self.whisper_interval
-                buffer_condition = buffer_size >= int(self.sample_rate * 1.0)  # At least 1 second of audio
-                
-                should_process = time_condition and buffer_condition
-                
-                if self.debug and self.audio_chunk_counter % 100 == 0:
-                    print(f"DEBUG: Buffer size: {buffer_size/self.sample_rate:.1f}s, "
-                          f"Energy: {audio_energy:.6f}, "
-                          f"Should process: {should_process}, "
-                          f"Time since last: {current_time - self.last_whisper_time:.1f}s")
+                # Process Whisper periodically or when silence is detected
+                should_process = (
+                    (current_time - self.last_whisper_time) >= self.whisper_interval and
+                    self.silence_counter >= self.max_silence_chunks
+                )
                 
                 if should_process:
                     with self.whisper_buffer_lock:
-                        min_required_samples = int(self.sample_rate * 0.8)  # Reduced minimum
+                        # Check if we have enough audio data
+                        min_required_samples = int(self.sample_rate * 1.5)  # At least 1.5 seconds
                         
                         if len(self.whisper_audio_buffer) >= min_required_samples:
                             # Copy buffer for processing
@@ -358,38 +359,29 @@ class RealTimePitchogramWhisper:
                             
                             # Check audio quality before processing
                             energy = np.mean(np.square(audio_to_process))
-                            max_amplitude = np.max(np.abs(audio_to_process))
-                            
-                            if self.debug:
-                                print(f"DEBUG: Processing audio chunk: {len(audio_to_process)/self.sample_rate:.1f}s, "
-                                      f"energy={energy:.6f}, max_amp={max_amplitude:.4f}")
-                            
-                            # More lenient energy check
-                            if energy > self.energy_threshold * 0.1 and max_amplitude > 0.001:
+                            if energy > self.energy_threshold * 0.5:  # Only process if there's some audio activity
                                 
-                                # Keep more overlap for better context
-                                overlap_size = int(self.sample_rate * 1.0)  # 1 second overlap
+                                # Clear processed audio from buffer (keep last 0.5 seconds for context)
+                                overlap_size = int(self.sample_rate * 0.5)
                                 if len(self.whisper_audio_buffer) > overlap_size:
                                     self.whisper_audio_buffer = self.whisper_audio_buffer[-overlap_size:]
                                 else:
                                     self.whisper_audio_buffer = []
                                 
-                                # Process in separate thread
+                                # Process in separate thread to avoid blocking
                                 threading.Thread(
                                     target=self._process_whisper_chunk,
                                     args=(audio_to_process,),
                                     daemon=True
                                 ).start()
                             else:
-                                if self.debug:
-                                    print(f"DEBUG: Skipping processing - insufficient audio quality")
-                                # Only clear buffer if audio is extremely quiet
-                                if energy < self.energy_threshold * 0.01:
-                                    self.whisper_audio_buffer = []
+                                # Clear buffer if audio is too quiet
+                                self.whisper_audio_buffer = []
                             
                     self.last_whisper_time = current_time
+                    self.silence_counter = 0
                 
-                time.sleep(0.1)  # Faster polling for more responsive transcription
+                time.sleep(0.2)  # Slightly longer sleep to reduce CPU usage
                 
             except Exception as e:
                 print(f"Whisper processing loop error: {e}")
@@ -397,17 +389,9 @@ class RealTimePitchogramWhisper:
 
     def _process_whisper_chunk(self, audio_data):
         try:
-            if self.debug:
-                print(f"DEBUG: Starting Whisper transcription for {len(audio_data)/self.sample_rate:.1f}s of audio")
-            
             text = self.whisper_handler.transcribe_audio(audio_data, language='en')
-            if text and len(text.strip()) > 0:
+            if text:
                 self.whisper_handler.add_transcription_line(text)
-                if self.debug:
-                    print(f"DEBUG: Successfully transcribed: '{text}'")
-            else:
-                if self.debug:
-                    print(f"DEBUG: No transcription result")
         except Exception as e:
             print(f"Whisper chunk processing error: {e}")
 
@@ -433,17 +417,7 @@ class RealTimePitchogramWhisper:
             
             # Update transcription
             transcription_text = self.whisper_handler.get_display_text()
-            if not transcription_text:
-                transcription_text = "Listening... (speak into microphone)"
             self.transcription_text.set_text(transcription_text)
-            
-            # Update debug info
-            if self.debug:
-                with self.whisper_buffer_lock:
-                    buffer_seconds = len(self.whisper_audio_buffer) / self.sample_rate
-                current_energy = np.mean(np.square(self.audio_buffer)) if len(self.audio_buffer) > 0 else 0
-                debug_info = f"Buffer: {buffer_seconds:.1f}s | Energy: {current_energy:.4f} | Threshold: {self.energy_threshold:.4f}"
-                self.debug_text.set_text(debug_info)
             
             # Update waveform
             waveform_scaled = self.n_channels * 0.1 + (self.n_channels * 0.3) * self.audio_buffer
@@ -459,19 +433,15 @@ class RealTimePitchogramWhisper:
         except Exception as e:
             print(f"Visualization update error: {e}")
         
-        return [self.im, self.pitch_text, self.transcription_text, self.debug_text, self.waveform_line]
+        return [self.im, self.pitch_text, self.transcription_text, self.waveform_line]
 
     def start(self):
+        print("Starting real-time audio analysis with Whisper...")
         
         # Initialize PyAudio
         self.p = pyaudio.PyAudio()
         
-        # List available devices for debugging
-        if self.debug:
-            self.list_audio_devices()
-        
         try:
-            # Try to use default input device first
             self.stream = self.p.open(
                 format=pyaudio.paInt16,
                 channels=1,
@@ -483,31 +453,9 @@ class RealTimePitchogramWhisper:
             )
             print(f"Audio stream opened: {self.sample_rate}Hz, {self.chunk_size} frames/buffer")
         except Exception as e:
-            print(f"Failed to open audio stream with default device: {e}")
-            # Try to find a working input device
-            for i in range(self.p.get_device_count()):
-                try:
-                    info = self.p.get_device_info_by_index(i)
-                    if info['maxInputChannels'] > 0:
-                        print(f"Trying device {i}: {info['name']}")
-                        self.stream = self.p.open(
-                            format=pyaudio.paInt16,
-                            channels=1,
-                            rate=self.sample_rate,
-                            input=True,
-                            input_device_index=i,
-                            frames_per_buffer=self.chunk_size,
-                            stream_callback=self.audio_callback,
-                            start=False
-                        )
-                        print(f"Successfully opened device {i}")
-                        break
-                except:
-                    continue
-            else:
-                print("Failed to open any audio input device")
-                self.cleanup()
-                return
+            print(f"Failed to open audio stream: {e}")
+            self.cleanup()
+            return
 
         # Start processing threads
         self.running = True
@@ -517,12 +465,11 @@ class RealTimePitchogramWhisper:
         # Start audio stream
         self.stream.start_stream()
         print("System started. Speak into the microphone. Press Ctrl+C to stop.")
-        print("Debug mode enabled - watch the console for detailed information.")
         
-        # Start visualization
+        # Start visualization with explicit save_count to avoid warning
         self.animation = animation.FuncAnimation(
             self.fig, self.update_visualization, interval=50, blit=False,
-            cache_frame_data=False
+            cache_frame_data=False  # Disable caching to avoid warning
         )
         plt.show()
 
@@ -550,12 +497,11 @@ if __name__ == "__main__":
     system = None
     try:
         system = RealTimePitchogramWhisper(
-            chunk_size=1024,
-            sample_rate=16000,
+            chunk_size=1024,          # Slightly larger chunks for better performance
+            sample_rate=16000,        # Standard rate for Whisper
             sai_width=400,
-            whisper_model="middle",    # Using tiny model for faster processing
-            whisper_interval=1.5,    # Process every 1.5 seconds
-            debug=True               # Enable debug mode
+            whisper_model="base",     # Start with base model (faster than medium)
+            whisper_interval=2.0      # Process every 2 seconds
         )
         system.start()
     except KeyboardInterrupt:
