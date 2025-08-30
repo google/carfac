@@ -113,9 +113,9 @@ class WhisperHandler:
                 audio_float, 
                 fp16=torch.cuda.is_available(),
                 language=language,
-                #no_speech_threshold=0.4,  # Lowered from 0.4 - more sensitive to speech
-                #logprob_threshold=-1,   # More permissive
-                #compression_ratio_threshold=2.4,  # More permissive
+                #no_speech_threshold=0.6,  # Lowered from 0.4 - more sensitive to speech
+                #logprob_threshold=-1.0,   # More permissive
+                #compression_ratio_threshold=3.0,  # More permissive
                 condition_on_previous_text=False
             )
             text = result.get('text', '').strip()
