@@ -12,6 +12,9 @@ import torch
 import whisper
 from datetime import datetime, timedelta
 
+import argostranslate.package
+import argostranslate.translate
+
 sys.path.append('./jax')
 import jax
 import jax.numpy as jnp
@@ -110,9 +113,9 @@ class WhisperHandler:
                 audio_float, 
                 fp16=torch.cuda.is_available(),
                 language=language,
-                no_speech_threshold=0.2,  # Lowered from 0.4 - more sensitive to speech
-                logprob_threshold=-1.5,   # More permissive
-                compression_ratio_threshold=3.0,  # More permissive
+                #no_speech_threshold=0.4,  # Lowered from 0.4 - more sensitive to speech
+                #logprob_threshold=-1,   # More permissive
+                #compression_ratio_threshold=2.4,  # More permissive
                 condition_on_previous_text=False
             )
             text = result.get('text', '').strip()
@@ -160,10 +163,64 @@ class WhisperHandler:
             
             return display
 
+# ---------------- Translation Handler ----------------
+class TranslationHandler:
+    """
+    Handles the translation of transcribed audio.
+    Exclusively uses argostranslate as the backend right now.
+    """
+    def __init__(self, from_lang="en", to_lang="zh"):
+        self.from_lang = from_lang
+        self.to_lang = to_lang
+        self.model = None
+        self.loaded = self._load_model()
+
+    def _load_model(self) -> bool: 
+        # Load the translation model
+
+        try:
+            # Check the installed models first.
+            installed_packages = argostranslate.package.get_installed_packages()
+            is_cached = list(filter(lambda x: x.from_code == self.from_lang and x.to_code == self.to_lang, installed_packages))
+            print(f"Translation model {self.from_lang} -> {self.to_lang} cached: {list(is_cached)}")
+
+            if not is_cached:
+                # Download and install the translation model if not found.
+                argostranslate.package.update_package_index()
+                available_packages = argostranslate.package.get_available_packages()
+                package_to_install = next(
+                    filter(
+                        lambda x: x.from_code == self.from_lang and x.to_code == self.to_lang, available_packages
+                    )
+                )
+                argostranslate.package.install_from_path(package_to_install.download())
+        except Exception as e:
+            print(f"Error loading translation model: {e}")
+            return False
+        
+        installed_languages = argostranslate.translate.get_installed_languages()
+        from_model = next(filter(lambda x: x.code == self.from_lang, installed_languages), None)
+        to_model = next(filter(lambda x: x.code == self.to_lang, installed_languages), None)
+
+        self.model = from_model.get_translation(to_model)
+        return True
+
+    def translate(self, from_text: str) -> str:
+        # Perform translation
+        if not self.loaded:
+            print("Translation model not loaded.")
+            return ""
+
+        to_text: str = self.model.translate(from_text)
+
+        return to_text
+
 # ---------------- Real-Time Visualization + Whisper ----------------
 class RealTimePitchogramWhisper:
     def __init__(self, chunk_size=1024, sample_rate=16000, sai_width=400,
-                 whisper_model="tiny", whisper_interval=1.5, debug=True):
+                 whisper_model="tiny", whisper_interval=1.5, 
+                 enable_translation=False, from_lang="zh", to_lang="en",
+                 debug=True):
         self.chunk_size = chunk_size
         self.sample_rate = sample_rate
         self.sai_width = sai_width
@@ -177,6 +234,11 @@ class RealTimePitchogramWhisper:
 
         # Whisper
         self.whisper_handler = WhisperHandler(model_name=whisper_model, debug=debug)
+
+        # Translation
+        self.translation_handler = None
+        if enable_translation:
+            self.translation_handler = TranslationHandler(from_lang=from_lang, to_lang=to_lang)
 
         # Audio buffering for Whisper
         self.audio_queue = queue.Queue(maxsize=50)
@@ -382,12 +444,21 @@ class RealTimePitchogramWhisper:
         try:
             if self.debug:
                 print(f"DEBUG: Starting Whisper transcription for {len(audio_data)/self.sample_rate:.1f}s of audio")
-            
-            text = self.whisper_handler.transcribe_audio(audio_data, language='en')
+
+            language = 'en' # Default language, uses from_lang if translation enabled
+            if self.translation_handler:
+                language = self.translation_handler.from_lang
+
+            text = self.whisper_handler.transcribe_audio(audio_data, language=language)
             if text and len(text.strip()) > 0:
                 self.whisper_handler.add_transcription_line(text)
                 if self.debug:
                     print(f"DEBUG: Successfully transcribed: '{text}'")
+
+                if self.translation_handler:
+                    translated_text = self.translation_handler.translate(text)
+                    if translated_text:
+                        print(f"{self.translation_handler.from_lang}-{self.translation_handler.to_lang}: {translated_text}")
             else:
                 if self.debug:
                     print(f"DEBUG: No transcription result")
@@ -419,7 +490,7 @@ class RealTimePitchogramWhisper:
             if not transcription_text:
                 transcription_text = "Listening... (speak into microphone)"
             self.transcription_text.set_text(transcription_text)
-            
+
             # Update debug info
             if self.debug:
                 with self.whisper_buffer_lock:
@@ -528,6 +599,9 @@ if __name__ == "__main__":
             sai_width=400,
             whisper_model="middle",    # Using tiny model for faster processing
             whisper_interval=1.5,    # Process every 1.5 seconds
+            enable_translation=True,
+            from_lang="zh",
+            to_lang="en",
             debug=True               # Enable debug mode
         )
         system.start()
