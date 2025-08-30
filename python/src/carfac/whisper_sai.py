@@ -18,7 +18,21 @@ import argostranslate.translate
 sys.path.append('./jax')
 import jax
 import jax.numpy as jnp
-import carfac
+import carfac.jax.carfac as carfac
+
+CARPARAMS = {
+    'velocity_scale': 0.1,
+    'v_offset': 0.04,
+    'min_zeta': 0.1,
+    'max_zeta': 0.35,
+    'first_pole_theta': 0.85 * np.pi,
+    'zero_ratio': np.sqrt(2.0),
+    'high_f_damping_compression': 0.5,
+    'erb_per_step': 0.5,
+    'min_pole_hz': 30,
+    'erb_break_freq': 165.3,
+    'erb_q': 1000 / (24.7 * 4.37),
+}
 
 # ---------------- CARFAC Processor ----------------
 class RealCARFACProcessor:
@@ -214,6 +228,100 @@ class TranslationHandler:
         to_text: str = self.model.translate(from_text)
 
         return to_text
+
+# ---------------- Visualization Handler ----------------
+class VisualizationHandler:
+    @staticmethod
+    def car_pole_frequencies(sample_rate_hz, car_params: dict[str, float] = CARPARAMS):
+        """
+        Ported from car.cc: Returns array of pole frequencies for CAR channels.
+        car_params: dict with keys matching C++ CARParams
+        sample_rate_hz: float
+        Returns: np.ndarray of pole frequencies
+        """
+        num_channels = 0
+        pole_hz = car_params['first_pole_theta'] * sample_rate_hz / (2.0 * np.pi)
+        while pole_hz > car_params['min_pole_hz']:
+            num_channels += 1
+            pole_hz -= car_params['erb_per_step'] * \
+                ((car_params['erb_break_freq'] + pole_hz) / car_params['erb_q'])
+
+        pole_freqs = np.zeros(num_channels, dtype=np.float32)
+        pole_hz = car_params['first_pole_theta'] * sample_rate_hz / (2.0 * np.pi)
+        for channel in range(num_channels):
+            pole_freqs[channel] = pole_hz
+            pole_hz -= car_params['erb_per_step'] * \
+                ((car_params['erb_break_freq'] + pole_hz) / car_params['erb_q'])
+        return pole_freqs
+    
+    def __init__(self, temporal_buffer_width: int, n_channels: int):
+        self.temporal_buffer = np.zeros((n_channels, temporal_buffer_width))
+        self.img = np.zeros((n_channels, temporal_buffer_width, 3), dtype=np.uint8)
+
+        # create the vowel matrix
+        self.vowel_matrix = self.create_vowel_matrix(n_channels)
+
+    def create_vowel_matrix(self, num_channels, erb_per_step=0.5):
+        """
+        Ported from pitchogram.cc: creates a vowel embedding matrix for F1 and F2 formants.
+        Returns: vowel_matrix (2, num_channels)
+        """
+        def kernel(center, c):
+            z = (c - center) / 3.3
+            return np.exp((z * z) / -2)
+
+        # These frequency values are from the C++ code
+        f2_hi = self.frequency_to_channel_index(2365, erb_per_step, num_channels)
+        f2_lo = self.frequency_to_channel_index(1100, erb_per_step, num_channels)
+        f1_hi = self.frequency_to_channel_index(700, erb_per_step, num_channels)
+        f1_lo = self.frequency_to_channel_index(265, erb_per_step, num_channels)
+
+        vowel_matrix = np.zeros((2, num_channels), dtype=np.float32)
+        for c in range(num_channels):
+            vowel_matrix[0, c] = kernel(f2_lo, c) - kernel(f2_hi, c)
+            vowel_matrix[1, c] = kernel(f1_lo, c) - kernel(f1_hi, c)
+        vowel_matrix *= erb_per_step / 2
+        return vowel_matrix
+
+    # TODO: probably extract this
+    def frequency_to_channel_index(self, sample_rate_hz: int, erb_per_step: float, num_channels: int):
+        """
+        Implements CARFrequencyToChannelIndex from car.cc.
+        freq: frequency to convert
+        erb_per_step: ERB spacing in Hz
+        num_channels: number of channels
+        Returns: channel index (float)
+        """
+        first_pole_theta: float = 0.85 * np.pi # default value from CARParams
+        erb_q: float = 1000 / (24.7 * 4.37)
+
+        pole0_hz: float = first_pole_theta * sample_rate_hz / (2.0 * np.pi)
+        break_freq: float = 165.3  # The Greenwood map's break frequency in Hertz.
+        ratio: float = 1 - erb_per_step / erb_q
+        min_pole_hz: float = 30 # default value from CARParams
+        # Clamp freq
+        pole_freq = np.clip(sample_rate_hz, min_pole_hz, pole0_hz)
+        return np.log((pole_freq + break_freq) / (pole0_hz + break_freq)) / np.log(ratio)
+
+    def get_vowel_embedding(self, nap, vowel_matrix, cgram, cgram_smoother):
+        """
+        Ported from pitchogram.cc: computes vowel embedding coordinates.
+        nap: (num_channels, ...)
+        vowel_matrix: (2, num_channels)
+        cgram: (num_channels,)
+        cgram_smoother: float
+        Returns: vowel_coords (2,), updated cgram
+        """
+        nap_mean = nap.mean(axis=1)
+        cgram = cgram + cgram_smoother * (nap_mean - cgram)
+        vowel_coords = vowel_matrix @ cgram
+        return vowel_coords, cgram
+
+    def update_frame(self):
+        # Update the visualization frame
+        pass
+
+
 
 # ---------------- Real-Time Visualization + Whisper ----------------
 class RealTimePitchogramWhisper:
