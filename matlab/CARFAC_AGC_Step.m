@@ -22,28 +22,47 @@ function [state, updated] = CARFAC_AGC_Step(detects, coeffs, state)
 % one time step of the AGC state update; maybe decimates internally.
 % AGC input is detects; detect_scale is already in the coefficients.
 
-if coeffs.non_decimating
-  % 2025 new decimation-free structure, intended to be GPU friendly.
-  % state is a column per stage, to be updated in parallel.
-  % First the time-update step with detects as input;
-  % new state is a linear function of old state and inputs, and we allow
-  % a sample of delay per stage, not using each new stage state until the
-  % the next time step, to make it parallelize efficiently and to make
-  % the delay a bit closer to what happens in the decimating version.
-  state.AGC_memory = ...  % Broadcasting gain rows across channels
-    coeffs.feedback_gains .* state.AGC_memory + ...
-    coeffs.input_gains .* detects + ...
-    coeffs.next_stage_gains .* ...
+if coeffs.simpler_decimating
+  % Simpler way:  Just use one decimation factor, which can be 1 or
+  % any positive integer, and update all stages in parallel; no more
+  % recursion and no more special-casing for non-decimating.
+  decim = coeffs.decimation(1);  % Later decimation values are all 1.
+  % decim phase (do work on phase 0 only):
+  decim_phase = mod(state.decim_phase(1) + 1, decim);
+  state.decim_phase(1) = decim_phase;  % only phase(1) is used.
+
+  % Accumulate input for AGC from detects:
+  state.input_accum(:) = state.input_accum(:) + detects;
+
+  % nothing else to do if it's not the right decim_phase
+  if decim_phase == 0
+    AGC_in = state.input_accum(:, 1) / decim;
+    state.input_accum(:, 1) = 0;  % reset accumulator
+
+    % 2025 new decimation-free structure, intended to be GPU friendly.
+    % state is a column per stage, to be updated in parallel.
+    % First the time-update step with detects as input;
+    % new state is a linear function of old state and inputs, and we allow
+    % a sample of delay per stage, not using each new stage state until the
+    % the next time step, to make it parallelize efficiently and to make
+    % the delay a bit closer to what happens in the decimating version.
+    state.AGC_memory = ...  % Broadcasting gain rows across channels
+      coeffs.feedback_gains .* state.AGC_memory + ...
+      coeffs.input_gains .* AGC_in + ...
+      coeffs.next_stage_gains .* ...
       [state.AGC_memory(:, 2:end), zeros(coeffs.n_ch, 1)];
-  % Then the 3-point FIR spatial smooth.
-  % Just mix in some left and right neighbors like in book figure 19.6.
-  % The .* broadcasts the row of coeffs across channels (rows); all
-  % stages are done in parallel.
-  state.AGC_memory = ...  % Mix in neighbors, replicating edges.
-    coeffs.spatial_FIR(1, :) .* state.AGC_memory([1, 1:(end-1)], :) + ...
-    coeffs.spatial_FIR(2, :) .* state.AGC_memory(:, :) + ...
-    coeffs.spatial_FIR(3, :) .* state.AGC_memory([2:end, end], :);
-  updated = 1;  % Updates on every call.
+    % Then the 3-point FIR spatial smooth.
+    % Just mix in some left and right neighbors like in book figure 19.6.
+    % The .* broadcasts the row of coeffs across channels (rows); all
+    % stages are done in parallel.
+    state.AGC_memory = ...  % Mix in neighbors, replicating edges.
+      coeffs.spatial_FIR(1, :) .* state.AGC_memory([1, 1:(end-1)], :) + ...
+      coeffs.spatial_FIR(2, :) .* state.AGC_memory(:, :) + ...
+      coeffs.spatial_FIR(3, :) .* state.AGC_memory([2:end, end], :);
+    updated = 1;  % Updates on every call.
+  else
+    updated = 0;
+  end
 else
   % Old method keeps track of things using the call stack, and uses
   % updates as soon as possible to minimize added delay.
