@@ -11,6 +11,7 @@ import time
 import torch
 import whisper
 from datetime import datetime, timedelta
+from dataclasses import dataclass
 
 import argostranslate.package
 import argostranslate.translate
@@ -20,19 +21,29 @@ import jax
 import jax.numpy as jnp
 import carfac.jax.carfac as carfac
 
-CARPARAMS = {
-    'velocity_scale': 0.1,
-    'v_offset': 0.04,
-    'min_zeta': 0.1,
-    'max_zeta': 0.35,
-    'first_pole_theta': 0.85 * np.pi,
-    'zero_ratio': np.sqrt(2.0),
-    'high_f_damping_compression': 0.5,
-    'erb_per_step': 0.5,
-    'min_pole_hz': 30,
-    'erb_break_freq': 165.3,
-    'erb_q': 1000 / (24.7 * 4.37),
-}
+from carfac.np.carfac import CarParams
+
+@dataclass
+class SAIParams:
+    """
+    These are fake numbers. Use full constructor.
+    """
+    num_channels: int = 200
+    sai_width: int = 400
+    future_lags: int = 5
+    num_triggers_per_frame: int = 10
+    trigger_window_width: int = 20
+    input_segment_width: int = 30
+    channel_smoothing_scale: float = 0.5
+
+@dataclass
+class PitchogramParams:
+    log_lag: bool = True
+    lags_per_octave: float = 36.0
+    min_lag_s: float = 0.0005
+    log_offset_s: float = 0.0025
+    vowel_time_constant_s: float = 0.02
+    light_theme: bool = False
 
 # ---------------- CARFAC Processor ----------------
 class RealCARFACProcessor:
@@ -231,37 +242,126 @@ class TranslationHandler:
 
 # ---------------- Visualization Handler ----------------
 class VisualizationHandler:
-    @staticmethod
-    def car_pole_frequencies(sample_rate_hz, car_params: dict[str, float] = CARPARAMS):
-        """
-        Ported from car.cc: Returns array of pole frequencies for CAR channels.
-        car_params: dict with keys matching C++ CARParams
-        sample_rate_hz: float
-        Returns: np.ndarray of pole frequencies
-        """
-        num_channels = 0
-        pole_hz = car_params['first_pole_theta'] * sample_rate_hz / (2.0 * np.pi)
-        while pole_hz > car_params['min_pole_hz']:
-            num_channels += 1
-            pole_hz -= car_params['erb_per_step'] * \
-                ((car_params['erb_break_freq'] + pole_hz) / car_params['erb_q'])
+    @dataclass
+    class ResamplingCell:
+        left_index: int
+        right_index: int
+        left_weight: float
+        interior_weight: float
+        right_weight: float
 
-        pole_freqs = np.zeros(num_channels, dtype=np.float32)
-        pole_hz = car_params['first_pole_theta'] * sample_rate_hz / (2.0 * np.pi)
-        for channel in range(num_channels):
-            pole_freqs[channel] = pole_hz
-            pole_hz -= car_params['erb_per_step'] * \
-                ((car_params['erb_break_freq'] + pole_hz) / car_params['erb_q'])
-        return pole_freqs
-    
-    def __init__(self, temporal_buffer_width: int, n_channels: int):
-        self.temporal_buffer = np.zeros((n_channels, temporal_buffer_width))
-        self.img = np.zeros((n_channels, temporal_buffer_width, 3), dtype=np.uint8)
+        def __init__(self, left_edge: float, right_edge: float):
+            cell_width: float = right_edge - left_edge
+
+            if (cell_width < 1.0):
+                grow: float = 0.5 * (1.0 - cell_width)
+                left_edge -= grow
+                right_edge += grow
+            
+            left_edge = max(0.0, left_edge)
+            right_edge = max(0.0, right_edge)
+            cell_width = right_edge - left_edge
+
+            self.left_index = int(round(left_edge))
+            self.right_index = int(round(right_edge))
+            if (self.right_index > self.left_index and cell_width > 0.999):
+                self.left_weight = (0.5 - (left_edge - self.left_index)) / cell_width
+                self.interior_weight = 1.0 / cell_width
+                self.right_weight = (0.5 + (right_edge - self.right_index)) / cell_width
+            else:
+                self.left_weight = 1.0
+                self.interior_weight = 0.0
+                self.right_weight = 0.0
+
+        def CellAverage(self, samples: np.ndarray) -> float:
+            if (self.left_index == self.right_index):
+                return samples[self.left_index]
+            return self.left_weight * samples[self.left_index] + \
+                self.interior_weight * samples[self.left_index + 1:self.right_index].sum() + \
+                self.right_weight * samples[self.right_index]
+
+    def __init__(self, sample_rate_hz: int, car_params: CarParams = CarParams(), sai_params: SAIParams = SAIParams(),
+                 pitchogram_params: PitchogramParams = PitchogramParams()):
+        self.temporal_buffer = np.zeros((sai_params.num_channels, sai_params.sai_width))
+        self.img = np.zeros((sai_params.num_channels, sai_params.sai_width, 3), dtype=np.uint8)
+
+        # save the params, i guess
+        self.car_params = car_params
+        self.sai_params = sai_params
+        self.pitchogram_params = pitchogram_params
+
+        # workspace, output declarations
+        self.workspace = np.zeros((sai_params.sai_width))
+        self.output = np.zeros((sai_params.sai_width))
+
+        # get pole frequencies
+        self.pole_frequencies = self.car_pole_frequencies(sample_rate_hz, car_params)
+
+        # Create a binary mask to suppress the SAI's zero-lag peak. For the cth row,
+        # we get the cth pole frequency and mask lags within half a cycle of zero.
+        # (chris: I don't know what this means.)
+        self.mask = np.ones((sai_params.num_channels, sai_params.sai_width), dtype=bool)
+        center: int = sai_params.sai_width - sai_params.future_lags
+        # pole_frequencies is a 1D array, so this is basically .size()
+        for c in range(self.pole_frequencies.shape[0]):
+            half_cycle_samples: float = 0.5 * sample_rate_hz / self.pole_frequencies[c]
+            i_start: int = int(np.clip(np.floor(center - half_cycle_samples), 0, sai_params.sai_width - 1))
+            i_end: int = int(np.clip(np.floor(center + half_cycle_samples), 0, sai_params.sai_width - 1))
+            self.mask[c, i_start:i_end+1] = 0
 
         # create the vowel matrix
-        self.vowel_matrix = self.create_vowel_matrix(n_channels)
+        self.vowel_matrix = self.create_vowel_matrix(sai_params.num_channels)
 
-    def create_vowel_matrix(self, num_channels, erb_per_step=0.5):
+        # set up the cgram
+        frame_rate_hz: float = sample_rate_hz / sai_params.input_segment_width
+        self.cgram_smoother = 1 - np.exp(-1 / (pitchogram_params.vowel_time_constant_s * frame_rate_hz))
+        self.cgram = np.zeros(self.pole_frequencies.shape, dtype=np.float32)
+
+        # log lag stuff
+        self.log_lag_cells: list[VisualizationHandler.ResamplingCell] = list()
+        if (not pitchogram_params.log_lag):
+            self.output.resize((sai_params.sai_width))
+        else:
+            # If log_lag is true, set up ResamplingCells to warp the pitchogram to log axis.
+            # The ith cell covers an interval...
+            spacing: float = np.exp2(1.0 / pitchogram_params.lags_per_octave)
+            log_offset: float = sample_rate_hz * pitchogram_params.log_offset_s
+            left_edge: float = sample_rate_hz * pitchogram_params.min_lag_s
+
+            while True:
+                right_edge: float = (left_edge + log_offset) * spacing - log_offset
+                cell: VisualizationHandler.ResamplingCell = self.ResamplingCell(left_edge, right_edge)
+                if (cell.right_index >= sai_params.sai_width):
+                    break
+                self.log_lag_cells.append(cell)
+                left_edge = right_edge
+
+            self.workspace.resize((sai_params.sai_width))
+            self.output.resize((len(self.log_lag_cells)))
+
+    def car_pole_frequencies(self, sample_rate_hz, car_params: CarParams) -> np.ndarray:
+            """
+            Ported from car.cc: Returns array of pole frequencies for CAR channels.
+            car_params: dict with keys matching C++ CARParams
+            sample_rate_hz: float
+            Returns: np.ndarray of pole frequencies
+            """
+            num_channels: int = 0
+            pole_hz: float = car_params.first_pole_theta * sample_rate_hz / (2.0 * np.pi)
+            while pole_hz > car_params.min_pole_hz:
+                num_channels += 1
+                pole_hz -= car_params.erb_per_step * \
+                    ((car_params.erb_break_freq + pole_hz) / car_params.erb_q)
+
+            pole_freqs = np.zeros(num_channels, dtype=np.float32)
+            pole_hz = car_params.first_pole_theta * sample_rate_hz / (2.0 * np.pi)
+            for channel in range(num_channels):
+                pole_freqs[channel] = pole_hz
+                pole_hz -= car_params.erb_per_step * \
+                    ((car_params.erb_break_freq + pole_hz) / car_params.erb_q)
+            return pole_freqs
+    
+    def create_vowel_matrix(self, num_channels, erb_per_step=0.5) -> np.ndarray:
         """
         Ported from pitchogram.cc: creates a vowel embedding matrix for F1 and F2 formants.
         Returns: vowel_matrix (2, num_channels)
@@ -303,25 +403,40 @@ class VisualizationHandler:
         pole_freq = np.clip(sample_rate_hz, min_pole_hz, pole0_hz)
         return np.log((pole_freq + break_freq) / (pole0_hz + break_freq)) / np.log(ratio)
 
-    def get_vowel_embedding(self, nap, vowel_matrix, cgram, cgram_smoother):
+    def get_vowel_embedding(self, nap) -> np.ndarray:
         """
         Ported from pitchogram.cc: computes vowel embedding coordinates.
         nap: (num_channels, ...)
-        vowel_matrix: (2, num_channels)
-        cgram: (num_channels,)
-        cgram_smoother: float
-        Returns: vowel_coords (2,), updated cgram
+        Returns: vowel_coords (2,)
         """
-        nap_mean = nap.mean(axis=1)
-        cgram = cgram + cgram_smoother * (nap_mean - cgram)
-        vowel_coords = vowel_matrix @ cgram
-        return vowel_coords, cgram
+        self.cgram += self.cgram_smoother * (nap.mean(axis=0) - self.cgram)
+        self.vowel_coords = self.vowel_matrix @ self.cgram
+        return self.vowel_coords
 
-    def update_frame(self):
+    def run_frame(self, sai_frame: np.ndarray):
+        # Process the SAI frame
+        if (not self.pitchogram_params.log_lag):
+            self.output = (sai_frame * self.mask).mean(axis=1)
+        else:
+            self.workspace = (sai_frame * self.mask).mean(axis=1)
+            for i in range(self.output.shape[0]):
+                self.output[i] = self.log_lag_cells[i].CellAverage(self.workspace)
+
+        return self.output
+
+    def draw_column(self, column_ptr: np.ndarray):
         # Update the visualization frame
+        tint: np.ndarray = np.ndarray([0.5 - 0.6 * self.vowel_coords[1],
+                                       0.5 - 0.6 * self.vowel_coords[0],
+                                       0.35 * (self.vowel_coords[0] + self.vowel_coords[1]) + 0.4], dtype=np.float32)
+
+        k_scale: float = 0.5 * 255
+        tint *= k_scale
+
+        for i in range(self.output.shape[0]):
+            column_ptr[i] = np.clip(int((tint * self.output[i])), 0, 255)
+
         pass
-
-
 
 # ---------------- Real-Time Visualization + Whisper ----------------
 class RealTimePitchogramWhisper:
@@ -339,6 +454,17 @@ class RealTimePitchogramWhisper:
         self.carfac = RealCARFACProcessor(fs=sample_rate)
         self.pitchogram = RealTimePitchogram(num_channels=self.carfac.n_channels, sai_width=sai_width)
         self.n_channels = self.carfac.n_channels
+
+        # SAI parameters
+        self.sai_params = SAIParams(
+            num_channels=self.n_channels,
+            sai_width=self.sai_width,
+            future_lags=self.sai_width - 1,
+            num_triggers_per_frame=2, # PPP.num_triggers_per_frame
+            trigger_window_width=256 + 1,   # input_segment_width + 1
+            input_segment_width=256,  # num_samples_per_segment
+            channel_smoothing_scale=0.5
+        )
 
         # Whisper
         self.whisper_handler = WhisperHandler(model_name=whisper_model, debug=debug)
@@ -365,6 +491,8 @@ class RealTimePitchogramWhisper:
         self.temporal_buffer = np.zeros((self.n_channels, self.temporal_buffer_width))
         self.audio_buffer = np.zeros(self.temporal_buffer_width)
         self._setup_visualization()
+
+        self.visualization_handler = VisualizationHandler(sample_rate, sai_params=self.sai_params)
 
         # PyAudio
         self.p = None
