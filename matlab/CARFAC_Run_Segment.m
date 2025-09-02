@@ -17,10 +17,10 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
-  CF, input_waves)
-% function [naps, CF, BM, seg_ohc, seg_agc] = CARFAC_Run_Segment(...
-%   CF, input_waves)
+function [naps, CF, BM, seg_ohc, seg_agc, firings_all] = ...
+  CARFAC_Run_Segment(CF, input_waves)
+% function [naps, CF, BM, seg_ohc, seg_agc, firings_all] = ...
+%   CARFAC_Run_Segment(CF, input_waves)
 %
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input segment to make one or more neural activity patterns (naps);
@@ -76,6 +76,11 @@ if do_BM
   BM = zeros(n_samp, n_ch, n_ears);
   seg_ohc = zeros(n_samp, n_ch, n_ears);
   seg_agc = zeros(n_samp, n_ch, n_ears);
+  if CF.do_syn
+    firings_all = zeros(n_samp, n_ch, CF.SYN_params.n_classes, n_ears);
+  else
+    firings_all = [];  % In case someone asked for it when it's not used.
+  end
 end
 
 % A 2022 addition to make open-loop running behave.  In open_loop mode, these
@@ -125,12 +130,13 @@ for k = 1:n_samp
       % syn_out can go a little negative; should be zero at rest.
       nap = syn_out;
       % Maybe still should add a way to return firings (of the classes).
+      firings_all(k, :, :, ear) = firings;
     else
       % v2, ihc_out already has rest_output subtracted.
       nap = ihc_out;  % If no SYN, ihc_out goes to nap and agc as in v2.
     end
 
-    % Use nap to run the AGC update step, decimating internally,
+    % Use nap to run the AGC update step, maybe decimating internally.
     [CF.ears(ear).AGC_state, AGC_updated] = CARFAC_AGC_Step( ...
       nap, CF.ears(ear).AGC_coeffs, CF.ears(ear).AGC_state);
 
@@ -140,7 +146,10 @@ for k = 1:n_samp
       BM(k, :, ear) = car_out;
       state = CF.ears(ear).CAR_state;
       seg_ohc(k, :, ear) = state.zA_memory;
-      seg_agc(k, :, ear) = state.zB_memory;
+      %  seg_agc(k, :, ear) = state.zB_memory;
+      % Better thing to return, easier to interpret AGC net (stage 1) state:
+      % seg_agc(k, :, ear) = CF.ears(ear).AGC_state(1).AGC_memory;
+      seg_agc(k, :, ear) = CF.ears(ear).AGC_state.AGC_memory(:, 1);
     end
   end
 

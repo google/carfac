@@ -10,7 +10,7 @@
 % You may obtain a copy of the License at
 %
 %     http://www.apache.org/licenses/LICENSE-2.0
-%l
+%
 % Unless required by applicable law or agreed to in writing, software
 % distributed under the License is distributed on an "AS IS" BASIS,
 % WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -69,8 +69,6 @@ switch nargin
   case 7
     last_arg = CF_version_keyword;
 end
-
-
 % Last arg being a keyword can be 'do_syn' or an IHC version.
 if ischar(last_arg)  % string is a character array, not a string array.
   CF_version_keyword = last_arg;
@@ -79,97 +77,28 @@ else
   CF_version_keyword = 'two_cap';  % The CARFAC v2 default
   num_args = nargin;
 end
-
 % Now num_args does not count the version_keyword.  Can be up to 6.
-
 if num_args < 1
   n_ears = 1;  % if more than 1, make them identical channels;
   % then modify the design if necessary for different reasons
 end
-
 if num_args < 2
-  fs = 22050;  % Keeping this poor default in v3 to encourage users to always specify.
+  fs = 48000;  % In v3, revised from 22050 to encourage better realism.
 end
-
 if num_args < 3
-  CF_CAR_params = struct( ...
-    'velocity_scale', 0.1, ...  % for the velocity nonlinearity
-    'v_offset', 0.04, ...  % offset gives a quadratic part
-    'min_zeta', 0.10, ... % minimum damping factor in mid-freq channels
-    'max_zeta', 0.35, ... % maximum damping factor in mid-freq channels
-    'first_pole_theta', 0.85*pi, ...
-    'zero_ratio', sqrt(2), ... % how far zero is above pole
-    'high_f_damping_compression', 0.5, ... % 0 to 1 to compress zeta
-    'ERB_per_step', 0.5, ... % assume G&M's ERB formula
-    'min_pole_Hz', 30, ...
-    'ERB_break_freq', 165.3, ...  % 165.3 is Greenwood map's break freq.
-    'ERB_Q', 1000/(24.7*4.37), ...  % Glasberg and Moore's high-cf ratio
-    'ac_corner_Hz', 20 ...    % AC couple at 20 Hz corner
-    );
+  CF_CAR_params = CAR_params_default;
 end
-
 if num_args < 4
-  CF_AGC_params = struct( ...
-    'n_stages', 4, ...
-    'time_constants', 0.002 * 4.^(0:3), ...
-    'AGC_stage_gain', 2, ...  % gain from each stage to next slower stage
-    'decimation', [8, 2, 2, 2], ...  % how often to update the AGC states
-    'AGC1_scales', 1.0 * sqrt(2).^(0:3), ...   % in units of channels
-    'AGC2_scales', 1.65 * sqrt(2).^(0:3), ... % spread more toward base
-    'AGC_mix_coeff', 0.5);
+  CF_AGC_params = AGC_params_default;
 end
-
-one_cap = 0;         % bool; 1 for Allen model, 0 for new default two-cap
-just_hwr = 0;        % bool; 0 for normal/fancy IHC; 1 for HWR
-do_syn = 0;
-switch CF_version_keyword
-  case 'just_hwr'
-    just_hwr = 1;        % bool; 0 for normal/fancy IHC; 1 for HWR
-  case 'one_cap'
-    one_cap = 1;         % bool; 1 for Allen model, as text states we use
-  case 'do_syn';
-    do_syn = 1;
-  case 'two_cap'
-    % nothing to do; accept the v2 default, two-cap IHC, no SYN.
-  otherwise
-    error('unknown IHC_keyword in CARFAC_Design')
-end
-
 if num_args < 5  % Default IHC_params
-  CF_IHC_params = struct( ...
-    'just_hwr', just_hwr, ...  % not just a simple HWR
-    'one_cap', one_cap, ...    % bool; 0 for new two-cap hack
-    'do_syn', do_syn, ...      % bool; 1 for v3 synapse feature
-    'tau_lpf', 0.000080, ...   % 80 microseconds smoothing twice
-    'tau_out', 0.0005, ...     % depletion tau is pretty fast
-    'tau_in', 0.010, ...       % recovery tau is slower
-    'tau1_out', 0.000500, ...  % depletion tau is fast 500 us
-    'tau1_in', 0.000200, ...   % recovery tau is very fast 200 us
-    'tau2_out', 0.001, ...     % depletion tau is pretty fast 1 ms
-    'tau2_in', 0.010);         % recovery tau is slower 10 ms
+  CF_IHC_params = IHC_params_default(CF_version_keyword);
 end
-
 if num_args < 6  % Default the SYN_params.
-  n_classes = 3;  % Default.  Modify params and redesign to change.
-  IHCs_per_channel = 10;  % Maybe 20 would be better?
-  % Parameters could generally have columns if class-dependent.
-  CF_SYN_params = struct( ...
-    'do_syn', do_syn, ...  % This may just turn it off completely.
-    'fs', fs, ...
-    'n_classes', n_classes, ...
-    'healthy_n_fibers', [50, 35, 25] * IHCs_per_channel, ...
-    'spont_rates', [50, 6, 1], ...
-    'sat_rates', 200, ...
-    'sat_reservoir', 0.2, ...
-    'v_width', 0.02, ...
-    'tau_lpf', 0.000080, ...
-    'reservoir_tau', 0.020, ...
-    'agc_weights', [1.2, 1.2, 1.2] / (22050*IHCs_per_channel));  % Tweaked.
-  % The weights 1.2 were picked before correctly account for sample rate
-  % and number of fibers.  This way works for more different numbers.
+  CF_SYN_params = SYN_params_default(CF_IHC_params.do_syn);
 end
 
-% first figure out how many filter stages (PZFC/CARFAC channels):
+% First count how many filter stages (PZFC/CARFAC channels):
 pole_Hz = CF_CAR_params.first_pole_theta * fs / (2*pi);
 n_ch = 0;
 while pole_Hz > CF_CAR_params.min_pole_Hz
@@ -218,7 +147,7 @@ CF = struct( ...
   'n_ears', n_ears, ...
   'open_loop', 0, ...
   'linear_car', 0, ...
-  'do_syn', do_syn);
+  'do_syn', CF_SYN_params.do_syn);
 
 
 %% Design the filter coeffs:
@@ -245,7 +174,6 @@ CAR_coeffs.g0_coeffs = zeros(n_ch, 1);
 CAR_coeffs.ga_coeffs = zeros(n_ch, 1);
 CAR_coeffs.gb_coeffs = zeros(n_ch, 1);
 CAR_coeffs.gc_coeffs = zeros(n_ch, 1);
-
 CAR_coeffs.OHC_health = ones(n_ch, 1);  % 0 to 1 to derate OHC activity.
 
 % zero_ratio comes in via h.  In book's circuit D, zero_ratio is 1/sqrt(a),
@@ -257,7 +185,6 @@ f = CAR_params.zero_ratio^2 - 1;  % nominally 1 for half-octave
 % Make pole positions, s and c coeffs, h and g coeffs, etc.,
 % which mostly depend on the pole angle theta:
 theta = pole_freqs .* (2 * pi / fs);
-
 c0 = sin(theta);
 a0 = cos(theta);
 
@@ -321,142 +248,65 @@ undamping = CAR_coeffs.OHC_health;  % Typically just ones.
 CAR_coeffs.g0_coeffs = CARFAC_Design_Stage_g(CAR_coeffs, undamping);
 
 
-%% the AGC design coeffs:
+%% Design the AGC coeffs:
 function AGC_coeffs = CARFAC_DesignAGC(AGC_params, fs, n_ch)
 
-n_AGC_stages = AGC_params.n_stages;
-
-% AGC1 pass is smoothing from base toward apex;
-% AGC2 pass is back, which is done first now (in double exp. version)
+% AGC1 pass is smoothing from base toward apex; AGC2 pass is back.
 AGC1_scales = AGC_params.AGC1_scales;
 AGC2_scales = AGC_params.AGC2_scales;
+n_AGC_stages = AGC_params.n_stages;
+% Add up 1, 2, 4, 8, giving 15 by default:
+total_DC_gain = sum(AGC_params.AGC_stage_gain.^(0:(n_AGC_stages - 1)));
+detect_scale = 1 / total_DC_gain;  % Multiply the detect inputs by this.
 
+
+% 2025 new way, one struct instead of an array.
+tau_fs = AGC_params.time_constants * fs;
+mix_coeffs = zeros(1, n_AGC_stages);
+% zero mix at stage 1; compute the others:
+decim = AGC_params.decimation(1);
+for stage = 2:n_AGC_stages
+  decim = decim * AGC_params.decimation(stage);
+  mix_coeffs(stage) = AGC_params.AGC_mix_coeff * decim / tau_fs(stage);
+end
+AGC_coeffs = struct( ...
+  'n_AGC_stages', n_AGC_stages, ...
+  'n_ch', n_ch, ...
+  'decimation', AGC_params.decimation, ...
+  'AGC_stage_gain', AGC_params.AGC_stage_gain, ...
+  'mix_coeffs', mix_coeffs, ...
+  'feedback_gains', zeros(1, n_AGC_stages), ...
+  'input_gains', zeros(1, n_AGC_stages), ...
+  'next_stage_gains', zeros(1, n_AGC_stages), ...
+  'spatial_FIR', zeros(3, n_AGC_stages), ...
+  'non_decimating', all(AGC_params.decimation == 1) ...
+  );
 decim = 1;
-
-total_DC_gain = 0;
-
-%%
-% Convert to vector of AGC coeffs
-AGC_coeffs = struct([]);
 for stage = 1:n_AGC_stages
-  AGC_coeffs(stage).n_ch = n_ch;
-  AGC_coeffs(stage).n_AGC_stages = n_AGC_stages;
-  AGC_coeffs(stage).AGC_stage_gain = AGC_params.AGC_stage_gain;
-  tau = AGC_params.time_constants(stage);  % time constant in seconds
-
-  new_way = 1;  % To try it out...
-  if new_way
-    % Instead of starting with decimation ratios, start with 3-tap FIR
-    % and 1 iteration, and find decimation ratios that work.
-    % decide on target spread (variance) and delay (mean) of impulse
-    % response as a distribution to be convolved ntimes:
-    % TODO (dicklyon): specify spread and delay instead of scales???
-    n_taps = 3;
-    n_iterations = 1;
-    stage_decim = AGC_params.decimation(stage);
-    FIR_OK = 0;
-    while ~FIR_OK
-      try_decim = decim * stage_decim;  % net decim through this stage.
-      ntimes = tau * (fs / try_decim);
-      delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
-      spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
-
-      [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
-        n_taps, spread_sq, delay, n_iterations);
-      if ~FIR_OK
-        stage_decim = stage_decim - 1;
-        if stage_decim < 1
-          error('AGC design failed.')
-        end
-      end
-    end
-    if stage_decim < 2
-      disp('Warning:  No decimation, inefficient AGC design.')
-    end
-    decim = decim * stage_decim;  % Overall decimation through this stage.
-    % Here we should have valid FIR filter and decim for the stage.
-    AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
-    AGC_coeffs(stage).decimation = stage_decim;
-    AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
-    AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
-    AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
-  else
-    AGC_coeffs(stage).decimation = AGC_params.decimation(stage);
-    decim = decim * AGC_params.decimation(stage);  % net decim to this stage
-    % epsilon is how much new input to take at each update step:
-    AGC_coeffs(stage).AGC_epsilon = 1 - exp(-decim / (tau * fs));
-
-    % effective number of smoothings in a time constant:
-    ntimes = tau * (fs / decim);  % typically 5 to 50
-
-    % decide on target spread (variance) and delay (mean) of impulse
-    % response as a distribution to be convolved ntimes:
-    % TODO (dicklyon): specify spread and delay instead of scales???
-    delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
-    spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
-
-    % get pole positions to better match intended spread and delay of
-    % [[geometric distribution]] in each direction (see wikipedia)
-    u = 1 + 1 / spread_sq;  % these are based on off-line algebra hacking.
-    p = u - sqrt(u^2 - 1);  % pole that would give spread if used twice.
-    dp = delay * (1 - 2*p +p^2)/2;
-    polez1 = p - dp;
-    polez2 = p + dp;
-    AGC_coeffs(stage).AGC_polez1 = polez1;
-    AGC_coeffs(stage).AGC_polez2 = polez2;
-
-    % try a 3- or 5-tap FIR as an alternative to the double exponential:
-    n_taps = 0;
-    FIR_OK = 0;
-    n_iterations = 1;
-    while ~FIR_OK
-      switch n_taps
-        case 0
-          % first attempt a 3-point FIR to apply once:
-          n_taps = 3;
-        case 3
-          % second time through, go wider but stick to 1 iteration
-          n_taps = 5;
-        case 5
-          % apply FIR multiple times instead of going wider:
-          n_iterations = n_iterations + 1;
-          if n_iterations > 16
-            error('Too many n_iterations in CARFAC_DesignAGC');
-          end
-        otherwise
-          % to do other n_taps would need changes in CARFAC_Spatial_Smooth
-          % and in Design_FIR_coeffs
-          error('Bad n_taps in CARFAC_DesignAGC');
-      end
-      [AGC_spatial_FIR, FIR_OK] = Design_FIR_coeffs( ...
-        n_taps, spread_sq, delay, n_iterations);
-    end
-    % when FIR_OK, store the resulting FIR design in coeffs:
-    AGC_coeffs(stage).AGC_spatial_iterations = n_iterations;
-    AGC_coeffs(stage).AGC_spatial_FIR = AGC_spatial_FIR;
-    AGC_coeffs(stage).AGC_spatial_n_taps = n_taps;
+  % Temporal design for the parallel of cascades:
+  decim = decim * AGC_params.decimation(stage);
+  ntimes = tau_fs(stage) / decim;  % Number of updates per time tau.
+  AGC_epsilon = 1 - exp(-1 / ntimes);
+  AGC_coeffs.feedback_gains(stage) = 1 - AGC_epsilon;
+  AGC_coeffs.input_gains(stage) = AGC_epsilon / total_DC_gain;
+  % The last of the next_stage_gains just multiplies zeros.
+  AGC_coeffs.next_stage_gains(stage) = AGC_epsilon * AGC_params.AGC_stage_gain;
+  % Spatial design using 3-point FIR smoother across channels:
+  delay = (AGC2_scales(stage) - AGC1_scales(stage)) / ntimes;
+  spread_sq = (AGC1_scales(stage)^2 + AGC2_scales(stage)^2) / ntimes;
+  [spatial_FIR, FIR_OK] = Design_FIR_coeffs(spread_sq, delay);
+  if ~FIR_OK
+    error( ...
+      'AGC 3-point FIR design failed; try less spread or delay or longer time constant.')
   end
-  % accumulate DC gains from all the stages, accounting for stage_gain:
-  total_DC_gain = total_DC_gain + AGC_params.AGC_stage_gain^(stage-1);
-
-  % TODO (dicklyon) -- is this the best binaural mixing plan?
-  if stage == 1
-    AGC_coeffs(stage).AGC_mix_coeffs = 0;
-  else
-    AGC_coeffs(stage).AGC_mix_coeffs = AGC_params.AGC_mix_coeff / ...
-      (tau * (fs / decim));
-  end
+  % If it's feasible (not too much spread or delay requested):
+  AGC_coeffs.spatial_FIR(:, stage) = spatial_FIR';
 end
 
-% adjust stage 1 detect_scale to be the reciprocal DC gain of the AGC filters:
-AGC_coeffs(1).detect_scale = 1 / total_DC_gain;
 
-
-%%
-function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
-  mean_delay, n_iter)
-% function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
-%   mean_delay, n_iter)
+%% Design the AGC's 3-point FIR spatial filter:
+function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
+% function [FIR, OK] = Design_FIR_coeffs(delay_variance, mean_delay)
 % The smoothing function is a space-domain smoothing, but it considered
 % here by analogy to time-domain smoothing, which is why its potential
 % off-centeredness is called a delay.  Since it's a smoothing filter, it is
@@ -468,29 +318,14 @@ function [FIR, OK] = Design_FIR_coeffs(n_taps, delay_variance, ...
 % too much about the shape of the distribution, which will be some kind of
 % blob not too far from Gaussian if we run several FIR iterations.
 
-% reduce mean and variance of smoothing distribution by n_iterations:
-mean_delay = mean_delay / n_iter;
-delay_variance = delay_variance / n_iter;
-switch n_taps
-  case 3
-    % based on solving to match mean and variance of [a, 1-a-b, b]:
-    a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
-    b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
-    FIR = [a, 1 - a - b, b];
-    OK = FIR(2) >= 0.25;
-  case 5
-    % based on solving to match [a/2, a/2, 1-a-b, b/2, b/2]:
-    a = ((delay_variance + mean_delay*mean_delay)*2/5 - mean_delay*2/3) / 2;
-    b = ((delay_variance + mean_delay*mean_delay)*2/5 + mean_delay*2/3) / 2;
-    % first and last coeffs are implicitly duplicated to make 5-point FIR:
-    FIR = [a/2, 1 - a - b, b/2];
-    OK = FIR(2) >= 0.15;
-  otherwise
-    error('Bad n_taps in AGC_spatial_FIR');
-end
+% based on solving to match mean and variance of [a, 1-a-b, b]:
+a = (delay_variance + mean_delay*mean_delay - mean_delay) / 2;
+b = (delay_variance + mean_delay*mean_delay + mean_delay) / 2;
+FIR = [a, 1 - a - b, b];
+OK = all(FIR >= [0.0, 0.25, 0.0]);
 
 
-%% the IHC design coeffs:
+%% Design the IHC coeffs:
 function IHC_coeffs = CARFAC_DesignIHC(IHC_params, fs, n_ch)
 
 if IHC_params.just_hwr
@@ -578,7 +413,8 @@ else
   end
 end
 
-%% the SYN design coeffs:
+
+%% Design the SYN coeffs:
 function SYN_coeffs = CARFAC_DesignSynapses(SYN_params, fs, pole_freqs)
 
 if ~SYN_params.do_syn

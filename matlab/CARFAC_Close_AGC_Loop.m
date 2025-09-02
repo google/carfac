@@ -24,7 +24,10 @@ function CF = CARFAC_Close_AGC_Loop(CF)
 decim1 = CF.AGC_params.decimation(1);
 
 for ear = 1:CF.n_ears
-  undamping = 1 - CF.ears(ear).AGC_state(1).AGC_memory; % stage 1 result
+  % Set the deltas to be applied to g and zB on next CAR_Step.
+  % If decim1 = 1 (non-decimating), the delta goes all the way;
+  % if decim1 > 1, it ramps 1/decim1 of the way on each step.
+  undamping = 1 - CF.ears(ear).AGC_state.AGC_memory(:, 1); % stage 1 result
   % degrade the OHC active undamping if the ear is less than healthy:
   undamping = undamping .* CF.ears(ear).CAR_coeffs.OHC_health;
   % Update the target stage gain for the new damping:
