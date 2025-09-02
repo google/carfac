@@ -48,5 +48,5 @@ sai_struct.nap_buffer = [sai_struct.nap_buffer((1 + num_shift):end,:); ...
                          input];
 
 sai_struct = SAI_StabilizeLayer(sai_struct);
-  
+
 return

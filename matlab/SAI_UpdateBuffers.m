@@ -38,20 +38,20 @@ new_chunk = seg_naps;
 
 gain = 1.05;  % gain from layer to layer; could be layer dependent.
 
-%% 
+%%
 % Decimate using a 2-3-4-filter and partial differencing emphasize onsets:
 kernel = filter([1 1]/2, 1, filter([1 1 1]/3, 1, [1 1 1 1 0 0 0 0]/4));
 % kernel = kernel + 2*diff([0, kernel]);
 % figure(1)
 % plot(kernel)
 
-%% 
+%%
 for layer = 1:n_layers
   [n_lags, n_ch] = size(layer_array(layer).nap_buffer);
   if (n_nap_ch ~= n_ch)
     error('Wrong number of channels in nap_buffer.');
   end
-  
+
   interval = layer_array(layer).update_interval;
   if (0 == mod(seg_num, interval))
     % Account for 2X decimation and infrequent updates; find number of time
@@ -71,7 +71,7 @@ for layer = 1:n_layers
       % new_chunk = gain * new_chunk(7:2:end, :);
       % try a little extra smoothing:
       new_chunk = gain * (new_chunk(7:2:end, :) + new_chunk(6:2:(end-1), :))/2;
-      
+
     end
     % Put new stuff in at latest time indices.
     layer_array(layer).nap_buffer = ...

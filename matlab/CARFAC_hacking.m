@@ -27,7 +27,7 @@ dB_list = -40;  % -60:20:40
 
 if use_wav_file
   wav_fn = '../test_data/binaural_test.wav';
-  
+
   wav_fn
   file_signal = wavread(wav_fn);
   file_signal = file_signal(:, 1);  % Mono test only.
@@ -57,29 +57,29 @@ end
 agc_plot_fig_num = 6;
 
 for n_ears = 1:2
-  
+
   CF_struct = CARFAC_Design(n_ears);  % default design
-  
+
   if n_ears == 2
     % For the 2-channel pass, add a silent second channel:
     test_signal = [test_signal, zeros(size(test_signal))];
   end
-  
+
   CF_struct = CARFAC_Init(CF_struct);
-  
+
   [CF_struct, nap_decim, nap] = CARFAC_Run(CF_struct, test_signal, ...
     agc_plot_fig_num);
-    
+
   smoothed = filter(1, [1, -0.995], nap(:, :, :));
-  
+
   % only ear 1:
   smoothed = max(0, smoothed(50:50:end, :, 1));
   MultiScaleSmooth(smoothed.^0.5, 1);
-  
+
   figure(1)
   starti = 0;  % Adjust if you want to plot a later part.
   imagesc(nap(starti+(1:15000), :)');
-  
+
   % Display results for 1 or 2 ears:
   for ear = 1:n_ears
     smooth_nap = nap_decim(:, :, ear);
@@ -91,13 +91,13 @@ for n_ears = 1:2
     title('smooth nap from nap decim')
     colormap(1 - gray);
   end
-  
+
   % Show resulting data, even though M-Lint complains:
   CF_struct
   CF_struct.ears(1).CAR_state
   CF_struct.ears(1).AGC_state
   min_max_decim = [min(nap_decim(:)), max(nap_decim(:))]
-  
+
 end
 
 % Expected result:  Figure 3 looks like figure 2, a tiny bit darker.

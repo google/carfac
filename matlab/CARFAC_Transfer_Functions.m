@@ -46,11 +46,11 @@ if nargin >= 2
   end
   z_row = exp((i * 2 * pi / CF.fs) * freqs);  % z = exp(sT)
   gains = Rational_Eval(stage_numerators, stage_denominators, z_row);
-  
+
   % Now multiply gains from input to output places; use logs?
   log_gains = log(gains);
   cum_log_gains = cumsum(log_gains);  % accum across cascaded stages
-  
+
   % And figure out which cascade products we want:
   n_ch = CF.n_ch;
   if nargin < 3
@@ -71,7 +71,7 @@ if nargin >= 2
   from_cum(not_input, :) = cum_log_gains(from_channels(not_input), :);
   log_transfns = cum_log_gains(to_channels, :) - from_cum;
   complex_transfns_freqs = exp(log_transfns);
-  
+
   if nargout >= 4
     phases = imag(log_gains);  % no wrapping problem on single stages
     cum_phases = cumsum(phases);  % so no wrapping here either

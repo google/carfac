@@ -54,7 +54,7 @@ right_overlap = 10;
 first_window_width = seglen;  % Less would be a problem.
 min_window_width = 1*width_per_layer;  % or somewhere on that order
 window_exponent = 1.4;
-alpha_max = 1; 
+alpha_max = 1;
 
 width_first_layer = future_lags + 2 * width_per_layer;
 
@@ -78,7 +78,7 @@ lag_period_samples = lag_period_samples - lag_period_samples(end - future_lags);
 % Layer 1, rightmost, representing recent, current and near-future (negative
 % lag) relative to trigger time, has 1 NAP sample per SAI sample.  Other
 % layers map more than one NAP sample into 1 SAI sample.  Layer 2 is
-% computed as 2X decimated, 2 NAP samples per SAI sample, but then gets 
+% computed as 2X decimated, 2 NAP samples per SAI sample, but then gets
 % interpolated to between 1 and 2 (and outside that range in the overlap
 % regions) to connect up smoothly.  Each layer is another 2X decimated.
 % The last layer limits out at 1 (representing 2^(n_layers) SAI samples)
@@ -107,24 +107,24 @@ for layer = n_layers:-1:1
   width = layer_array(layer).width;
   left = layer_array(layer).left_overlap;
   right = layer_array(layer).right_overlap;
-  
+
   % Size of the vectors needed.
   n_final_lags = left + width + right;
   layer_array(layer).n_final_lags = n_final_lags;
-  
+
   % Integer indices into the final composite SAI for this layer.
   target_indices = ((1 - left):(width + right)) + offset;
   layer_array(layer).target_indices = target_indices;
-    
+
   % Make a blending coefficient alpha, ramped in the overlap zone.
   alpha = ones(1, n_final_lags);
   alpha(1:left) = alpha(1:left) .* (1:left)/(left + 1);
   alpha(end + 1 - (1:right)) = ...
     alpha(end + 1 - (1:right)) .* (1:right)/(right + 1);
   layer_array(layer).alpha = alpha * alpha_max;
-  
+
   offset = offset + width;  % total width from left through this layer.
-  
+
   % Smooth across channels a little before picking triggers:
   layer_array(layer).channel_smoothing_scale = 0.25*(layer-1);
 end
@@ -135,7 +135,7 @@ for layer = 1:n_layers
   width = layer_array(layer).width;
   left = layer_array(layer).left_overlap;
   right = layer_array(layer).right_overlap;
-  
+
   % Still need to adjust this to make lags match at edges:
   target_indices = layer_array(layer).target_indices;
   samples_per = NAP_samples_per_SAI_sample(target_indices);
@@ -159,14 +159,14 @@ for layer = 1:n_layers
   layer_array(layer).frame_width = ceil(1 + lag_curve(1));
   if layer < n_layers  % to avoid the left = 0 unused end case.
     % A point to align next layer to.
-    last_left_lag = lag_curve(left) - layer_array(layer).future_lags;  
+    last_left_lag = lag_curve(left) - layer_array(layer).future_lags;
   end
-  
-  % Specify a good window width (in history buffer, for picking triggers) 
+
+  % Specify a good window width (in history buffer, for picking triggers)
   % in samples for this layer, exponentially approaching minimum.
   layer_array(layer).window_width = round(min_window_width + ...
     first_window_width / window_exponent^(layer - 1));
-  
+
   % Say about how long the history buffer needs to be to shift any trigger
   % location in the range of the window to a fixed location.  Assume
   % using two window placements overlapped 50%.

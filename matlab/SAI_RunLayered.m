@@ -88,13 +88,13 @@ for seg_num = 1:n_segs
     seg_range = seglen*(seg_num - 1) + (1:seglen);
   end
   [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(seg_range, :));
-  
+
   seg_naps = max(0, seg_naps);  % Rectify
-  
+
   if seg_num == n_segs  % pad out the last result
     seg_naps = [seg_naps; zeros(seglen - size(seg_naps,1), size(seg_naps, 2))];
   end
- 
+
   % Shift new data into some or all of the layer buffers:
   layer_array = SAI_UpdateBuffers(layer_array, seg_naps, seg_num);
 
@@ -106,10 +106,10 @@ for seg_num = 1:n_segs
         layer_array(layer), composite_frame);
     end
   end
-  
+
   average_composite = average_composite + ...
     0.01 * (composite_frame - average_composite);
- 
+
   if isempty(marginals)
     marginals = zeros(n_marginal_rows, total_width);
   end
@@ -120,33 +120,33 @@ for seg_num = 1:n_segs
   end
   lag_marginal = mean(composite_frame, 1);  % means max out near 1 or 2
   lag_marginal = lag_marginal - 0.75*smooth1d(lag_marginal, 30)';
-  
+
   freq_marginal = mean(layer_array(1).nap_buffer);
   % emphasize local peaks:
   freq_marginal = freq_marginal - 0.5*smooth1d(freq_marginal, 5)';
-  
-  
+
+
 %   marginals_frame = [marginals_frame(:, 2:end), ...
 %     [lag_marginal(1:(end - future_lags)), freq_marginal(ceil((1:(2*end))/2))]'];
   marginals_frame = [marginals_frame(:, 2:end), freq_marginal(1:end)'];
-  
+
   for row = 10:-1:1
     marginals(row, :) = lag_marginal - (10 - row) / 40;
   end
-    
+
   if 0 == mod(seg_num, update_interval) || seg_num == 1
     coc_gram = layer_array(end).nap_buffer';
     [n_ch, n_width] = size(composite_frame);
     coc_gram = [coc_gram, zeros(n_ch, n_width - size(coc_gram, 2))];
     coc_gram = coc_gram(:, (end-total_width+1):end);
   end
-  
+
   display_frame = [ ...  % coc_gram; ...
     4 * marginals_frame; ...
     composite_frame(ceil((1:(2*end))/2), :); ...
     piano; ...
     10*max(0,marginals)];
-  
+
   cmap = jet;
   cmap = 1 - gray;  % jet
   figure(10)
