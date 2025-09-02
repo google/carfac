@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2013 The CARFAC Authors. All Rights Reserved.
 % Author: Richard F. Lyon
 %
@@ -39,7 +40,7 @@ wav_fn
 %   file_signal = (file_signal(1:2:end-1, :) + file_signal(2:2:end, :)) / 2;
 %   fs = fs / 2;
 % end
-% 
+%
 % if fs ~= 22050
 %   error('unexpected sample rate')
 % end

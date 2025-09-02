@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2013 The CARFAC Authors. All Rights Reserved.
 % Author: Richard F. Lyon
 %
@@ -52,10 +53,10 @@ for seg_num = 1:n_segs
 
   % Rectify.
   % NOTE: This might not be necessary.
-  seg_naps = max(0, seg_naps);  
+  seg_naps = max(0, seg_naps);
 
   sai_struct = SAI_Run_Segment(sai_struct, seg_naps);
-  
+
   cmap = 1 - gray;  % jet
   figure(10)
   imagesc(32 * sai_struct.frame);
