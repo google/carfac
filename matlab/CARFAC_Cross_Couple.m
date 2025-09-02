@@ -22,10 +22,10 @@ function ears = CARFAC_Cross_Couple(ears);
 n_ears = length(ears);
 if n_ears > 1
   n_stages = ears(1).AGC_coeffs.n_AGC_stages;
-  % now cross-ear mix the stages that updated (leading stages at phase 0):
+  % now cross-ear mix the stages that updated (leading stages at phase 0,
+  % which is all or none in the simpler_decimating case.
   for stage = 1:n_stages
-    if ears(1).AGC_coeffs.non_decimating || ...
-        (ears(1).AGC_state.decim_phase(stage) == 0)
+    if ears(1).AGC_state.decim_phase(stage) == 0
       mix_coeff = ears(1).AGC_coeffs.mix_coeffs(stage);
       if mix_coeff > 0  % Non-critical optimization, typically for stage 1.
         this_stage_sum = 0;

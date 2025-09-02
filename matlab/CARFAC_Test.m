@@ -35,6 +35,7 @@ status = status | test_IHC1(do_plots);  % one_cap, v1
 status = status | test_IHC2(do_plots);  % two_cap, v2
 status = status | test_IHC3(do_plots);  % do_syn, v3
 status = status | test_AGC_steady_state(do_plots);
+status = status | test_AGC_steady_state_simpler_decimating(do_plots);
 status = status | test_AGC_steady_state_non_decimating(do_plots);
 status = status | test_stage_g_calculation(do_plots);
 status = status | test_whole_carfac1(do_plots);
@@ -46,6 +47,7 @@ status = status | test_whole_carfac3_non_decimating(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
 status = status | test_multiaural_silent_channel(do_plots);
+status = status | test_multiaural_silent_channel_simpler_decimating(do_plots);
 status = status | test_multiaural_silent_channel_non_decimating(do_plots);
 status = status | test_multiaural_carfac(do_plots);
 status = status | test_spike_rates(do_plots);
@@ -402,29 +404,41 @@ return
 function status = test_AGC_steady_state(do_plots)
 % Test: Make sure that the AGC adapts to an appropriate steady state,
 % like figure 19.7
-status = test_AGC_steady_state_core(do_plots, 0);
+CF = CARFAC_Design(1, 22050);  % With default [8, 2, 2, 2] decimation.
+status = test_AGC_steady_state_core(do_plots, CF);
+report_status(status, 'test_AGC_steady_state')
+return
+
+
+function status = test_AGC_steady_state_simpler_decimating(do_plots)
+% Test: Make sure that the AGC adapts to an appropriate steady state,
+% like figure 19.7
+CAR_params = CAR_params_default;
+AGC_params = AGC_params_default;
+AGC_params.decimation = [8, 1, 1, 1];  % Override default, simpler.
+CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
+status = test_AGC_steady_state_core(do_plots, CF);
+report_status(status, 'test_AGC_steady_state_simpler_decimating')
 return
 
 
 function status = test_AGC_steady_state_non_decimating(do_plots)
 % Test: Make sure that the AGC adapts to an appropriate steady state,
 % like figure 19.7
-status = test_AGC_steady_state_core(do_plots, 1);
+CAR_params = CAR_params_default;
+AGC_params = AGC_params_default;
+AGC_params.decimation = [1, 1, 1, 1];  % Override default.
+CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
+status = test_AGC_steady_state_core(do_plots, CF);
+report_status(status, 'test_AGC_steady_state_non_decimating')
 return
 
-function status = test_AGC_steady_state_core(do_plots, non_decimating)
+
+function status = test_AGC_steady_state_core(do_plots, CF)
 % Test: Make sure 2025 non-decimating changes is "close enough" to same.
 
 status = 0;
 
-if non_decimating
-  CAR_params = CAR_params_default;
-  AGC_params = AGC_params_default;
-  AGC_params.decimation = [1, 1, 1, 1];  % Override default.
-  CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
-else
-  CF = CARFAC_Design(1, 22050);  % With default [8, 2, 2, 2] decimation.
-end
 CF = CARFAC_Init(CF);
 agc_input = zeros(CF.n_ch, 1);
 test_channel = 40;
@@ -455,16 +469,25 @@ if do_plots
   drawnow
 end
 
-if CF.ears(1).AGC_coeffs.non_decimating
-  % 2025 non-decimating way is higher/sharper near the peak.
-  expected_ch_amp_bws = [ ...
-    [39.680614, 9.160676, 8.470642];
-    [39.760187, 4.531205, 7.819946];
-    [39.828831, 2.117139, 6.951839];
-    [39.896631, 0.833373, 5.552264];
-    ];
+if CF.ears(1).AGC_coeffs.simpler_decimating
+  % 2025 decimating way is a little higher/sharper near the peak.
+  if CF.ears(1).AGC_coeffs.decimation(1) == 1
+    expected_ch_amp_bws = [ ...  % [1, 1, 1, 1] non-decimating
+      [39.680614, 9.160676, 8.470642];
+      [39.760187, 4.531205, 7.819946];
+      [39.828831, 2.117139, 6.951839];
+      [39.896631, 0.833373, 5.552264];
+      ];
+  else
+    expected_ch_amp_bws = [ ...  % [8, 1, 1, 1] simpler decimating
+      [39.057409, 8.530716, 9.337657];
+      [39.630745, 4.300441, 8.401784];
+      [39.793843, 2.058044, 7.248180];
+      [39.886956, 0.819509, 5.714414];
+      ];
+  end
 else
-  expected_ch_amp_bws = [ ...
+  expected_ch_amp_bws = [ ...  % [8, 2, 2, 2] classic v1/v2
     [39.033166, 8.359763, 9.598703];
     [39.201534, 4.083376, 9.019020];
     [39.374404, 1.878256, 8.219043];
@@ -520,7 +543,6 @@ else
   fprintf(1, '        %d: [%f, %f, %f],\n', ...
     [(0:(num_stages-1))', ch_amp_bws]')
 end
-report_status(status, 'test_AGC_steady_state')
 return
 
 
@@ -870,14 +892,21 @@ return
 
 
 function status = test_multiaural_silent_channel(do_plots)
-status = test_multiaural_silent_core(do_plots, 0);
+status = test_multiaural_silent_core(do_plots, [8, 2, 2, 2]);
+report_status(status, 'test_multiaural_silent_channel_carfac');
+
+
+function status = test_multiaural_silent_channel_simpler_decimating(do_plots)
+status = test_multiaural_silent_core(do_plots, [8, 1, 1, 1]);
+report_status(status, 'test_multiaural_silent_channel_simpler_decimating');
 
 
 function status = test_multiaural_silent_channel_non_decimating(do_plots)
-status = test_multiaural_silent_core(do_plots, 1);
+status = test_multiaural_silent_core(do_plots, [1, 1, 1, 1]);
+report_status(status, 'test_multiaural_silent_channel_non_decimating');
 
 
-function status = test_multiaural_silent_core(do_plots, non_decimating)
+function status = test_multiaural_silent_core(do_plots, decimation)
 % Test multiaural functionality with 2 ears. Runs a 50ms sample of a pair of
 % C Major chords, and tests a binaural carfac, with 1 silent ear against
 % a simple monoaural carfac with only the chords.
@@ -898,17 +927,11 @@ c_chord = amplitude * sum(sin(2 * pi * t * freqs), 2);
 binaural_audio = [c_chord, zeros(size(t))];
 
 version_string = 'one_cap';  % Legacy test.
-if non_decimating
-  CAR_params = CAR_params_default;
-  AGC_params = AGC_params_default;
-  AGC_params.decimation = [1, 1, 1, 1];  % Override default.
-  CF = CARFAC_Design(2, 22050, CAR_params, AGC_params, version_string);
-  MONO_CF = CARFAC_Design(1, fs, CAR_params, AGC_params, version_string);
-else
-  CF = CARFAC_Design(2, 22050, version_string);
-  MONO_CF = CARFAC_Design(1, fs, version_string);
-end
-
+CAR_params = CAR_params_default;
+AGC_params = AGC_params_default;
+AGC_params.decimation = decimation;  % Override default.
+CF = CARFAC_Design(2, 22050, CAR_params, AGC_params, version_string);
+MONO_CF = CARFAC_Design(1, fs, CAR_params, AGC_params, version_string);
 CF = CARFAC_Init(CF);
 MONO_CF = CARFAC_Init(MONO_CF);
 [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
@@ -918,7 +941,7 @@ rms_good_ear = rms(good_ear_bm);
 rms_mono = rms(mono_bm_baseline);
 tf_ratio = rms_good_ear ./ rms_mono;
 
-if ~non_decimating
+if decimation(2) > 1  % Classic case
   % Data from non_decimating case is not used as golden.
   fprintf(1, 'for python, tf_ratio = [');
   for ch = 1:size(tf_ratio')
@@ -951,7 +974,7 @@ expected_tf_ratio = [1.0000, 1.0000, 1.0000, 1.0000, 1.0000, ...
   1.0556, 1.0659, 1.0739, 1.0745, 1.0762, ...
   1.0597, 1.0200, 1.0151, 1.0138, 1.0129, ...
   1.0182, ];
-if non_decimating
+if decimation(2) == 1
   % Later channels are dominated by aliasing effects, which are different
   % with the 2025 non-decimating version, so ignore the tiny responses
   % there.
@@ -967,7 +990,6 @@ if any(tf_ratio < 0.999) | any(tf_ratio > 1.25)
   status = 1;
   fprintf(1, 'bm ratio is expected to be between 1 and 1.2 for noise\n');
 end
-report_status(status, 'test_multiaural_silent_channel_carfac');
 return
 
 
