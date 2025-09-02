@@ -1,3 +1,4 @@
+% // clang-format off
 function SYN_params = SYN_params_default(do_syn)
 n_classes = 3;
 IHCs_per_channel = 10;

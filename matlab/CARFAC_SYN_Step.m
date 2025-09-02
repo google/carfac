@@ -1,3 +1,4 @@
+% // clang-format off
 function [syn_out, firings, state] = CARFAC_SYN_Step(v_recep, coeffs, state)
 % Drive multiple synapse classes with receptor potential from IHC,
 % returning instantaneous spike rates per class, for a group of neurons

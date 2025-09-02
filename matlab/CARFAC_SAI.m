@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2012 The CARFAC Authors. All Rights Reserved.
 % Author: Richard F. Lyon
 %
@@ -21,7 +22,7 @@ function [sai_frame, sai_state, naps] = CARFAC_SAI(naps, k, sai_state, SAI_param
 %
 % ...work in progress...
 %
-% Calculate the Stabilized Auditory Image from naps; 
+% Calculate the Stabilized Auditory Image from naps;
 % I think this is a binaural SAI by Steven Ness
 %
 % k seems to be a time index; it's an incremental update of the images...
@@ -56,24 +57,24 @@ for ear = 1:n_ears
   sai_state(ear).thresholds(~above_threshold) = ...
     sai_state(ear).thresholds(~above_threshold) * threshold_alpha;
   sai_state(ear).lastdata = data;
-  
+
   % Update SAI image with strobe data.
   otherear = 3 - ear;
-  
+
   % Channels that are above the threhsold
   above_ch = find(above_threshold);
-  
+
   % If we are above the threshold, set the trigger index and reset the
   % sai_index
   sai_state(ear).trigger_index(above_ch) = k;
   sai_state(ear).sai_index(above_ch) = 1;
-  
+
   % Copy the right data from the nap to the sai
   chans = (1:n_ch)';
   fromindices = sai_state(ear).trigger_index() + (chans - 1) * n_samp;
   toindices = min((sai_state(ear).sai_index() + (chans - 1) * sai_params.sai_width), sai_params.sai_width * n_ch);
   sai2(toindices,ear) = naps2(fromindices, otherear);
-  
+
   sai_state(ear).trigger_index(:) = sai_state(ear).trigger_index(:) + 1;
   sai_state(ear).sai_index(:) = sai_state(ear).sai_index(:) + 1;
 end

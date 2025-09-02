@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2012 The CARFAC Authors. All Rights Reserved.
 % Author Richard F. Lyon
 %
@@ -77,21 +78,21 @@ for seg_num = 1:n_segs
   % Process a segment to get a slice of decim_naps, and plot AGC state:
   [seg_naps, CF] = CARFAC_Run_Segment(CF, input_waves(k_range, :), ...
     open_loop);
-  
+
   if ~isempty(naps)
     for ear = 1:n_ears
       % Accumulate segment naps to make full naps
       naps(k_range, :, ear) = seg_naps(:, :, ear);
     end
   end
-  
+
   if ~isempty(decim_naps)
     for ear = 1:n_ears
       decim_naps(seg_num, :, ear) = CF.IHC_state(ear).ihc_accum / seglen;
       CF.IHC_state(ear).ihc_accum = zeros(n_ch,1);
     end
   end
-  
+
   if AGC_plot_fig_num
     figure(AGC_plot_fig_num); hold off; clf
     set(gca, 'Position', [.25, .25, .5, .5])
@@ -107,11 +108,11 @@ for seg_num = 1:n_segs
       maxes(ear) = max(total_state);
       plot(total_state, 'k-', 'LineWidth', 1.1)
     end
-    
+
     axis([0, CF.n_ch+1, 0.0, max(maxes) * 1.01 + 0.002]);
     drawnow
   end
-  
+
 end
 
 
