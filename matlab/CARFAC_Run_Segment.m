@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2012 The CARFAC Authors. All Rights Reserved.
 % Author Richard F. Lyon
 %

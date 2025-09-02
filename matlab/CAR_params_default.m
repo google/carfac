@@ -1,3 +1,4 @@
+% // clang-format off
 function CAR_params = CAR_params_default
 CAR_params = struct( ...
   'velocity_scale', 0.1, ...  % for the velocity nonlinearity

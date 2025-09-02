@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2013 The CARFAC Authors. All Rights Reserved.
 % Author: Richard F. Lyon
 %
@@ -48,5 +49,5 @@ sai_struct.nap_buffer = [sai_struct.nap_buffer((1 + num_shift):end,:); ...
                          input];
 
 sai_struct = SAI_StabilizeLayer(sai_struct);
-  
+
 return

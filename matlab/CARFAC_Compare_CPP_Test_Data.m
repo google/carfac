@@ -1,3 +1,4 @@
+% // clang-format off
 % Copyright 2013 The CARFAC Authors. All Rights Reserved.
 % Author: Alex Brandmeyer
 %
