@@ -1,3 +1,4 @@
+% // clang-format off
 function IHC_params = IHC_params_default(CF_version_keyword)
 if nargin < 1
   CF_version_keyword = 'two_cap';
