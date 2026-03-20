@@ -1250,6 +1250,7 @@ class CarfacCoeffs:
 @dataclasses.dataclass
 class CarfacParams:
   fs: float
+  input_scale_dbspl: float
   max_channels_per_octave: float
   car_params: CarParams
   agc_params: AgcParams
@@ -1262,6 +1263,7 @@ class CarfacParams:
 
 
 def design_carfac(
+    input_scale_dbspl: float = 94,
     n_ears: int = 1,
     fs: float = 22050,
     car_params: Optional[CarParams] = None,
@@ -1290,6 +1292,8 @@ def design_carfac(
   make 96 channels at default fs = 22050, 114 channels at 44100.
 
   Args:
+    input_scale_dbspl: scale in dB SPL for input waves (default: 94 dB SPL). The default value expects input in
+      pascals i.e. 94 dB SPL (for RMS=1), while CARFAC v1 and v2 use an input scale of 107 dB SPL (for RMS=1)
     n_ears: How many ears (1 or 2, in general) in the simulation
     fs: is sample rate (per second)
     car_params: bundles all the pole-zero filter cascade parameters
@@ -1362,6 +1366,7 @@ def design_carfac(
 
   cfp = CarfacParams(
       fs,
+      input_scale_dbspl,
       max_channels_per_octave,
       car_params,
       agc_params,
@@ -1600,6 +1605,9 @@ def run_segment(
   the input_waves are assumed to be sampled at the same rate as the
   CARFAC is designed for; a resampling may be needed before calling this.
 
+  input_waves are considered as being in pascals i.e. their level is
+  94db SPL when their RMS equals 1.
+
   The function works as an outer iteration on time, updating all the
   filters and AGC states concurrently, so that the different channels can
   interact easily.  The inner loops are over filterbank channels, and
@@ -1607,7 +1615,7 @@ def run_segment(
 
   Args:
     cfp: a structure that descirbes everything we know about this CARFAC.
-    input_waves: the audio input
+    input_waves: the audio input in pascals with default input_scale_dbspl.
     open_loop: whether to run CARFAC without the feedback.
     linear_car (new over Matlab): use CAR filters without OHC effects.
 
@@ -1623,6 +1631,10 @@ def run_segment(
 
   if len(input_waves.shape) < 2:
     input_waves = np.reshape(input_waves, (-1, 1))
+
+  # scale input_waves from 94dB SPL @ RMS=1 to 107dB SPL @ RMS=1
+  input_waves = input_waves * 10 ** ((cfp.input_scale_dbspl-107.)/20.)
+
   [n_samp, n_ears] = input_waves.shape
 
   if n_ears != cfp.n_ears:
