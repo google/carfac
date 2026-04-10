@@ -98,6 +98,8 @@ class CarDesignParameters:
   high_f_damping_compression: float = 0.5  # 0 to 1 to compress zeta
   erb_per_step: float = 0.5  # assume G&M's ERB formula
   min_pole_hz: float = 30
+  high_f_factor: float = 0 # factor to include more high frequency channels at <100kHz sampling rate
+  # (0 gives original CARFAC channel arrangement)
   erb_break_freq: float = 165.3  # Greenwood map's break freq.
   erb_q: float = 1000 / (24.7 * 4.37)  # Glasberg and Moore's high-cf ratio
   use_delay_buffer: bool = False
@@ -1246,7 +1248,9 @@ def design_and_init_carfac(
     n_ch = 0
     while pole_hz > ear_params.car.min_pole_hz:
       n_ch = n_ch + 1
-      pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
+      # set factor that increases channel density at high frequencies
+      high_f_chan = 1 - ear_params.car.high_f_factor * (pole_hz / params.fs) ** 2
+      pole_hz = pole_hz - high_f_chan * ear_params.car.erb_per_step * hz_to_erb(
           pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
       )
 
@@ -1259,7 +1263,9 @@ def design_and_init_carfac(
         pole_freqs = pole_freqs.at[ch].set(pole_hz)
       else:
         pole_freqs[ch] = pole_hz
-      pole_hz = pole_hz - ear_params.car.erb_per_step * hz_to_erb(
+      # set factor that increases channel density at high frequencies
+      high_f_chan = 1 - ear_params.car.high_f_factor * (pole_hz / params.fs) ** 2
+      pole_hz = pole_hz - high_f_chan * ear_params.car.erb_per_step * hz_to_erb(
           pole_hz, ear_params.car.erb_break_freq, ear_params.car.erb_q
       )
     # Now we have n_ch, the number of channels, and pole_freqs array.
