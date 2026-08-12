@@ -2,7 +2,7 @@
 name = "carfac"
 version = "0.0.1"
 description = "Python implementation of Cascade of Asymmetric Resonators with Fast-Acting Compression (CARFAC)"
-readme = "../README.md"
+readme = "README.md"
 # The lower bound of these versions come from Colab as of 2025-06-20.
 requires-python = ">=3.11"
 dependencies = [
