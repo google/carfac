@@ -358,8 +358,8 @@ class SynDesignParameters:
   healthy_n_fibers: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.array(
           # pytype does not recognise that this is lazily evaluated.
-          SynDesignParameters._DEFAULT_HEALTHY_N_FIBERS  # pytype: disable=name-error
-          * SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+          SynDesignParameters._DEFAULT_HEALTHY_N_FIBERS
+          * SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL
       )
   )
   spont_rates: jnp.ndarray = dataclasses.field(
@@ -373,8 +373,8 @@ class SynDesignParameters:
   agc_weights: jnp.ndarray = dataclasses.field(
       default_factory=lambda: jnp.array(
           # pytype does not recognise that this is lazily evaluated.
-          SynDesignParameters._DEFAULT_AGC_WEIGHTS  # pytype: disable=name-error
-          / SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL  # pytype: disable=name-error
+          SynDesignParameters._DEFAULT_AGC_WEIGHTS
+          / SynDesignParameters._DEFAULT_IHCS_PER_CHANNEL
       )
   )
 
@@ -774,7 +774,7 @@ def design_and_init_filters(
   # Maybe re-do this at Init time?
   undamping = car_weights.ohc_health
   # Avoid running this model function at Design time; see tests.
-  car_hypers.g0_coeffs = design_stage_g(car_hypers, undamping)  # pytype: disable=wrong-arg-types  # jnp-type
+  car_hypers.g0_coeffs = design_stage_g(car_hypers, undamping)  # pyrefly: ignore[bad-argument-type]
 
   # Init car states
   car_state = CarState(
