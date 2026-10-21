@@ -1535,7 +1535,7 @@ def close_agc_loop(cfp: CarfacParams) -> CarfacParams:
     undamping = 1 - cfp.ears[ear].agc_state[0].agc_memory  # stage 1 result  # pyrefly: ignore[unsupported-operation]
     undamping = undamping * cfp.ears[ear].car_coeffs.ohc_health
     # Update the target stage gain for the new damping:
-    new_g = stage_g(cfp.ears[ear].car_coeffs, undamping)
+    new_g = stage_g(cfp.ears[ear].car_coeffs, undamping)  # pyrefly: ignore[bad-argument-type]
     # set the deltas needed to get to the new damping:
     cfp.ears[ear].car_state.dzb_memory = (  # pyrefly: ignore[missing-attribute]
         cfp.ears[ear].car_coeffs.zr_coeffs * undamping
