@@ -903,11 +903,10 @@ def design_and_init_ihc_syn(
   offsets = jnp.log((1 - s0) / s0)
   spont_p = a2 * w0 * s0  # should match p0; check it; yes it does
   agc_weights = fs * syn_params.agc_weights
-  spont_sub = (syn_params.healthy_n_fibers * spont_p) @ jnp.transpose(
-      agc_weights
-  )
+  n_fibers = jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :]
+  spont_sub = (n_fibers * spont_p) @ jnp.transpose(agc_weights)
   weights = SynWeights(
-      n_fibers=jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :],
+      n_fibers=n_fibers,
       v_widths=v_widths,
       v_halfs=offsets[None, :] * v_widths,
       a1=a1,
@@ -924,6 +923,55 @@ def design_and_init_ihc_syn(
       lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None, :],
   )
   return hypers, weights, state
+
+
+def resolve_syn_rest(
+    weights: CarfacWeights, state: CarfacState
+) -> Tuple[CarfacWeights, CarfacState]:
+  """Re-solves each synapse's resting output for its current weights.
+
+  `spont_sub` and the synapse start state are designed for the healthy
+  `v_halfs` and `n_fibers`. After changing `v_halfs`, `n_fibers` or
+  `agc_weights`, call this so the synapse output rests at 0 in silence again.
+  Pure and differentiable, so safe under `jax.jit`. Ears without a synapse are
+  passed through unchanged.
+
+  Args:
+    weights: The weights, whose synapse `spont_sub` is re-solved.
+    state: The state, whose synapse `reservoirs` and `lpf_state` are re-solved.
+
+  Returns:
+    The updated weights and state.
+  """
+  ears_weights = []
+  ears_state = []
+  for ear_weights, ear_state in zip(weights.ears, state.ears):
+    syn_weights = ear_weights.syn
+    if syn_weights is not None:
+      # Steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
+      # r = (1 - q) * s, so q = a1 * s / (1 + a1 * s).
+      s = jax.nn.sigmoid(-syn_weights.v_halfs / syn_weights.v_widths)
+      q = syn_weights.a1 * s / (1 + syn_weights.a1 * s)
+      p = syn_weights.a2 * (1 - q) * s
+      p = jnp.broadcast_to(p, syn_weights.n_fibers.shape)
+      q = jnp.broadcast_to(q, syn_weights.n_fibers.shape)
+      ear_weights = dataclasses.replace(
+          ear_weights,
+          syn=dataclasses.replace(
+              syn_weights,
+              spont_sub=(syn_weights.n_fibers * p) @ syn_weights.agc_weights,
+          ),
+      )
+      ear_state = dataclasses.replace(
+          ear_state,
+          syn=dataclasses.replace(ear_state.syn, reservoirs=q, lpf_state=p),
+      )
+    ears_weights.append(ear_weights)
+    ears_state.append(ear_state)
+  return (
+      dataclasses.replace(weights, ears=ears_weights),
+      dataclasses.replace(state, ears=ears_state),
+  )
 
 
 def design_and_init_ihc(
