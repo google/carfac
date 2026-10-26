@@ -422,7 +422,9 @@ class SynWeights:
   a1: float | jnp.ndarray  # Feedback gain
   a2: float | jnp.ndarray  # Output gain
   agc_weights: jnp.ndarray  # For making a nap out to agc in.
-  spont_p: jnp.ndarray  # Used only to init the output LPF
+  # The healthy design's resting firing prob and reservoir, kept for parity
+  # with NumPy; `resolve_syn_rest` solves the rest from the current weights.
+  spont_p: jnp.ndarray
   spont_sub: jnp.ndarray
   res_lpf_inits: jnp.ndarray
   res_coeff: float | jnp.ndarray
@@ -861,8 +863,9 @@ def design_and_init_ihc_syn(
     n_ch: How many channels there are in the filterbank.
 
   Returns:
-    A tuple containing the newly created and initialised synapse coefficients,
-    weights and state.
+    A tuple containing the newly created synapse coefficients, weights and
+    state. The weights' `spont_sub` and the state are left at zero for
+    `resolve_syn_rest` to solve.
   """
   ear_params = params.ears[ear]
   ihc_params = ear_params.ihc
@@ -904,7 +907,6 @@ def design_and_init_ihc_syn(
   spont_p = a2 * w0 * s0  # should match p0; check it; yes it does
   agc_weights = fs * syn_params.agc_weights
   n_fibers = jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :]
-  spont_sub = (n_fibers * spont_p) @ jnp.transpose(agc_weights)
   weights = SynWeights(
       n_fibers=n_fibers,
       v_widths=v_widths,
@@ -913,16 +915,68 @@ def design_and_init_ihc_syn(
       a2=a2,
       agc_weights=agc_weights,
       spont_p=spont_p,
-      spont_sub=spont_sub,
+      # Solved with the state by `resolve_syn_rest`, which
+      # `design_and_init_carfac` calls once all ears are designed.
+      spont_sub=jnp.zeros((n_ch,)),
       res_lpf_inits=q0,
       res_coeff=1 - math.exp(-1 / (syn_params.reservoir_tau * fs)),
       lpf_coeff=1 - math.exp(-1 / (syn_params.tau_lpf * fs)),
   )
   state = SynState(
-      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None, :],
-      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None, :],
+      reservoirs=jnp.zeros_like(n_fibers),
+      lpf_state=jnp.zeros_like(n_fibers),
   )
   return hypers, weights, state
+
+
+def resolve_syn_rest(
+    weights: CarfacWeights, state: CarfacState
+) -> Tuple[CarfacWeights, CarfacState]:
+  """Solves each synapse's resting output for its current weights.
+
+  Solves `spont_sub` and the synapse start state at the rest point, where
+  `v_recep` is 0, so the synapse output rests at 0 in silence.
+  `design_and_init_carfac` calls this. After changing `v_halfs`, `n_fibers` or
+  `agc_weights` (e.g. to model synaptopathy or when updating trainable synapse
+  weights inside a training loop), call it again. Pure and differentiable, so
+  safe under `jax.jit`. Ears without a synapse are passed through unchanged.
+
+  Args:
+    weights: The weights, whose synapse `spont_sub` is solved.
+    state: The state, whose synapse `reservoirs` and `lpf_state` are solved.
+
+  Returns:
+    The updated weights and state.
+  """
+  ears_weights = []
+  ears_state = []
+  for ear_weights, ear_state in zip(weights.ears, state.ears):
+    syn_weights = ear_weights.syn
+    if syn_weights is not None:
+      # Steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
+      # r = (1 - q) * s, so q = a1 * s / (1 + a1 * s).
+      s = jax.nn.sigmoid(-syn_weights.v_halfs / syn_weights.v_widths)
+      q = syn_weights.a1 * s / (1 + syn_weights.a1 * s)
+      p = syn_weights.a2 * (1 - q) * s
+      p = jnp.broadcast_to(p, syn_weights.n_fibers.shape)
+      q = jnp.broadcast_to(q, syn_weights.n_fibers.shape)
+      ear_weights = dataclasses.replace(
+          ear_weights,
+          syn=dataclasses.replace(
+              syn_weights,
+              spont_sub=(syn_weights.n_fibers * p) @ syn_weights.agc_weights,
+          ),
+      )
+      ear_state = dataclasses.replace(
+          ear_state,
+          syn=dataclasses.replace(ear_state.syn, reservoirs=q, lpf_state=p),
+      )
+    ears_weights.append(ear_weights)
+    ears_state.append(ear_state)
+  return (
+      dataclasses.replace(weights, ears=ears_weights),
+      dataclasses.replace(state, ears=ears_state),
+  )
 
 
 def design_and_init_ihc(
@@ -1311,6 +1365,7 @@ def design_and_init_carfac(
     )
     state.ears.append(ear_state)
 
+  weights, state = resolve_syn_rest(weights, state)
   return hypers, weights, state
 
 
