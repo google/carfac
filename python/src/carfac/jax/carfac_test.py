@@ -1,5 +1,6 @@
 import collections
 import copy
+import dataclasses
 import numbers
 
 from absl import logging
@@ -318,7 +319,7 @@ class CarfacJaxTest(parameterized.TestCase):
         self.container_comparison(
             weights_jax.ears[ear_idx].syn,
             ear_params_np.syn_coeffs,
-            exclude_keys=['n_fibers', 'v_widths', 'v_halfs'],
+            exclude_keys=['n_fibers', 'v_widths', 'v_halfs', 'spont_sub'],
         )
         self.assertLess(
             jnp.max(
@@ -343,6 +344,15 @@ class CarfacJaxTest(parameterized.TestCase):
                 jnp.abs(
                     weights_jax.ears[ear_idx].syn.v_halfs
                     - ear_params_np.syn_coeffs.v_halfs
+                ),
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.spont_sub
+                    - ear_params_np.syn_coeffs.spont_sub
                 ),
             ),
             self.default_delta,
@@ -690,6 +700,86 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
     n_ch = hypers.ears[0].n_ch
     self.assertEqual(naps.shape, (n_samp, n_ch, 2))
     self.assertTrue(jnp.all(jnp.isfinite(naps)))
+
+  def _design_syn_carfac(self):
+    """Enables the synapse so `resolve_syn_rest` has something to re-solve."""
+    params = carfac_jax.CarfacDesignParameters()
+    params.ears[0].ihc.ihc_style = 'two_cap_with_syn'
+    return carfac_jax.design_and_init_carfac(params)
+
+  def _impair_syn(self, weights):
+    """Shifts v_halfs and removes fibers, moving the synapse off its rest."""
+    weights = copy.deepcopy(weights)
+    syn = weights.ears[0].syn
+    syn.v_halfs = syn.v_halfs + jnp.linspace(0.0, 0.05, syn.v_halfs.shape[1])
+    syn.n_fibers = syn.n_fibers * jnp.array([0.5, 0.8, 1.0])
+    return weights
+
+  @jax.numpy_dtype_promotion('strict')
+  def test_resolve_syn_rest_is_idempotent(self):
+    """A designed model is already at rest, so nothing should change."""
+    _, weights, state = self._design_syn_carfac()
+    new_weights, new_state = carfac_jax.resolve_syn_rest(weights, state)
+    chex.assert_trees_all_close(new_weights, weights, rtol=1e-5)
+    chex.assert_trees_all_close(new_state, state, rtol=1e-5)
+
+  @jax.numpy_dtype_promotion('strict')
+  def test_resolve_syn_rest_is_fixed_point_at_rest(self):
+    """An impaired synapse should hold its re-solved state with 0 output."""
+    hypers, weights, state = self._design_syn_carfac()
+    weights = self._impair_syn(weights)
+    v_recep = jnp.zeros(hypers.ears[0].n_ch)
+
+    # Without the re-solve, the impaired synapse rests below 0.
+    syn_out, _, _ = carfac_jax.syn_step(
+        v_recep, weights.ears[0].syn, copy.deepcopy(state.ears[0].syn)
+    )
+    self.assertLess(float(jnp.min(syn_out)), -1e-3)
+
+    weights_before = copy.deepcopy(weights)
+    new_weights, new_state = carfac_jax.resolve_syn_rest(weights, state)
+    chex.assert_trees_all_equal(weights, weights_before)
+
+    syn_state = copy.deepcopy(new_state.ears[0].syn)
+    for _ in range(100):
+      syn_out, _, syn_state = carfac_jax.syn_step(
+          v_recep, new_weights.ears[0].syn, syn_state
+      )
+    chex.assert_trees_all_close(syn_out, jnp.zeros_like(syn_out), atol=1e-6)
+    chex.assert_trees_all_close(syn_state, new_state.ears[0].syn, atol=1e-7)
+
+  @jax.numpy_dtype_promotion('strict')
+  def test_resolve_syn_rest_silence_nap_is_zero(self):
+    """An impaired model should output a zero NAP in silence."""
+    hypers, weights, state = self._design_syn_carfac()
+    weights, state = carfac_jax.resolve_syn_rest(
+        self._impair_syn(weights), state
+    )
+    naps, *_ = carfac_jax.run_segment(
+        jnp.zeros((1000, 1)), hypers, weights, state
+    )
+    chex.assert_trees_all_close(naps, jnp.zeros_like(naps), atol=1e-5)
+
+  @jax.numpy_dtype_promotion('strict')
+  def test_resolve_syn_rest_grad(self):
+    """Gradients should flow to v_halfs through the re-solve under jit."""
+    hypers, weights, state = self._design_syn_carfac()
+    input_waves = 0.01 * jax.random.normal(jax.random.PRNGKey(0), (100, 1))
+
+    @jax.jit
+    def loss(v_halfs):
+      ear_weights = dataclasses.replace(
+          weights.ears[0],
+          syn=dataclasses.replace(weights.ears[0].syn, v_halfs=v_halfs),
+      )
+      w = dataclasses.replace(weights, ears=[ear_weights])
+      w, s = carfac_jax.resolve_syn_rest(w, state)
+      naps, *_ = carfac_jax.run_segment(input_waves, hypers, w, s)
+      return jnp.sum(naps**2)
+
+    grad = jax.grad(loss)(weights.ears[0].syn.v_halfs)
+    self.assertTrue(jnp.all(jnp.isfinite(grad)))
+    self.assertGreater(float(jnp.max(jnp.abs(grad))), 0.0)
 
 
 if __name__ == '__main__':
