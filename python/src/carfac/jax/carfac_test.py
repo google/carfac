@@ -318,7 +318,7 @@ class CarfacJaxTest(parameterized.TestCase):
         self.container_comparison(
             weights_jax.ears[ear_idx].syn,
             ear_params_np.syn_coeffs,
-            exclude_keys=['n_fibers', 'v_widths', 'v_halfs'],
+            exclude_keys=['n_fibers', 'v_widths', 'v_halfs', 'spont_sub'],
         )
         self.assertLess(
             jnp.max(
@@ -343,6 +343,15 @@ class CarfacJaxTest(parameterized.TestCase):
                 jnp.abs(
                     weights_jax.ears[ear_idx].syn.v_halfs
                     - ear_params_np.syn_coeffs.v_halfs
+                ),
+            ),
+            self.default_delta,
+        )
+        self.assertLess(
+            jnp.max(
+                jnp.abs(
+                    weights_jax.ears[ear_idx].syn.spont_sub
+                    - ear_params_np.syn_coeffs.spont_sub
                 ),
             ),
             self.default_delta,

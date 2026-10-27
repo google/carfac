@@ -903,11 +903,10 @@ def design_and_init_ihc_syn(
   offsets = jnp.log((1 - s0) / s0)
   spont_p = a2 * w0 * s0  # should match p0; check it; yes it does
   agc_weights = fs * syn_params.agc_weights
-  spont_sub = (syn_params.healthy_n_fibers * spont_p) @ jnp.transpose(
-      agc_weights
-  )
+  n_fibers = jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :]
+  spont_sub = (n_fibers * spont_p) @ jnp.transpose(agc_weights)
   weights = SynWeights(
-      n_fibers=jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :],
+      n_fibers=n_fibers,
       v_widths=v_widths,
       v_halfs=offsets[None, :] * v_widths,
       a1=a1,
