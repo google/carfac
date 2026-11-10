@@ -22,6 +22,10 @@ function CF = CARFAC_Init(CF)
 %
 % Initialize state for one or more ears of CF.
 % This allocates and zeros all the state vector storage in the CF struct.
+% The synapse's resting point (spont_p, res_lpf_inits and spont_sub) is
+% first solved from its current coeffs by SYN_Solve_Rest, so after changing
+% v_halfs, n_fibers or agc_weights (e.g. to model synaptopathy) call this
+% again and the synapse starts at its new rest, with output 0 in quiet.
 
 n_ears = CF.n_ears;
 
@@ -31,6 +35,7 @@ for ear = 1:n_ears
   CF.ears(ear).IHC_state = IHC_Init_State(CF.ears(ear).IHC_coeffs);
   CF.ears(ear).AGC_state = AGC_Init_State(CF.ears(ear).AGC_coeffs);
   if CF.do_syn
+     CF.ears(ear).SYN_coeffs = SYN_Solve_Rest(CF.ears(ear).SYN_coeffs);
      CF.ears(ear).SYN_state = SYN_Init_State(CF.ears(ear).SYN_coeffs);
   end
 end
@@ -85,9 +90,20 @@ else
   end
 end
 
+function coeffs = SYN_Solve_Rest(coeffs)
+% Solve the synapse's resting point from its current coeffs, i.e. the
+% steady state of CARFAC_SYN_Step with v_recep at 0: q = a1*r and
+% r = (1 - q)*s, so q = a1*s / (1 + a1*s).  Each is per channel and class,
+% whether v_halfs is per class or per channel and class.
+n_ch = coeffs.n_ch;
+s = 1 ./ (1 + exp(coeffs.v_halfs ./ coeffs.v_widths));
+q = coeffs.a1 .* s ./ (1 + coeffs.a1 .* s);
+coeffs.res_lpf_inits = ones(n_ch, 1) .* q;  % Resting reservoir.
+coeffs.spont_p = ones(n_ch, 1) .* (coeffs.a2 .* (1 - q) .* s);  % Firing prob.
+coeffs.spont_sub = (coeffs.n_fibers .* coeffs.spont_p) * coeffs.agc_weights';
+
 function state = SYN_Init_State(coeffs)
 n_ch = coeffs.n_ch;
-n_cl = coeffs.n_classes;
 state = struct( ...
-  'reservoirs', ones(n_ch, 1) * coeffs.res_lpf_inits, ...  % 0 full, 1 empty.
-  'lpf_state', ones(n_ch, 1) * coeffs.spont_p);
+  'reservoirs', ones(n_ch, 1) .* coeffs.res_lpf_inits, ...  % 0 full, 1 empty.
+  'lpf_state', ones(n_ch, 1) .* coeffs.spont_p);

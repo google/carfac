@@ -25,8 +25,8 @@ state.reservoirs = q + coeffs.res_coeff .* (coeffs.a1 .* r - q);
 
 % Make an output that resembles ihc_out, to go to agc_in (collapse over classes).
 % Includes synaptopathy's presumed effect of reducing feedback via n_fibers.
-% But it's relative to the healthy nominal spont, so could potentially go
-% a bit negative in quiet is there was loss of high-spont or medium-spont units.
+% It's relative to the spont that CARFAC_Init solved from the coeffs, so it
+% rests at 0 in quiet even after loss of high-spont or medium-spont units.
 % The weight multiplication is an inner product, reducing n_classes
 % columns to 1 column (first transpose the agc_weights row to a column).
 syn_out = (coeffs.n_fibers .* firing_probs) * coeffs.agc_weights' - coeffs.spont_sub;
