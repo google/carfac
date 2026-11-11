@@ -46,6 +46,7 @@ status = status | test_whole_carfac2_non_decimating(do_plots);
 status = status | test_whole_carfac3_non_decimating(do_plots);
 status = status | test_delay_buffer(do_plots);
 status = status | test_OHC_health(do_plots);
+status = status | test_syn_rest(do_plots);
 status = status | test_multiaural_silent_channel(do_plots);
 status = status | test_multiaural_silent_channel_simpler_decimating(do_plots);
 status = status | test_multiaural_silent_channel_non_decimating(do_plots);
@@ -1060,6 +1061,45 @@ if any(tf_ratio(half_ch+6:end-2) < 0.35)
   fprintf(1, 'tf_ratio too low in later channels in test_OHC_health\n')
 end
 report_status(status, 'test_OHC_health')
+return
+
+
+function status = test_syn_rest(do_plots)
+% Test: After impairing the synapse, CARFAC_Init re-solves its rest, so the
+% spont rate drops but the output rests at 0 in quiet.
+
+status = 0;
+
+fs = 22050;
+CF = CARFAC_Design(1, fs, 'do_syn');
+healthy_spont_p = CF.ears(1).SYN_coeffs.spont_p;
+
+half_ch = floor(CF.n_ch/2);
+ch = 1:half_ch;
+syn = CF.ears(1).SYN_coeffs;
+syn.n_fibers(ch, :) = syn.n_fibers(ch, :) * 0.3;  % Synaptopathy.
+syn.v_halfs = ones(CF.n_ch, 1) * syn.v_halfs;  % Per channel, to shift some.
+syn.v_halfs(ch, :) = syn.v_halfs(ch, :) + syn.v_widths;  % Lower spont.
+CF.ears(1).SYN_coeffs = syn;
+CF = CARFAC_Init(CF);
+
+spont_p = CF.ears(1).SYN_coeffs.spont_p;
+if any(any(spont_p(ch, :) >= 0.5 * healthy_spont_p))
+  status = 1;
+  fprintf(1, 'spont_p not lowered in impaired channels in test_syn_rest\n')
+end
+if max(max(abs(spont_p(half_ch+1:end, :) - healthy_spont_p))) > 1e-12
+  status = 1;
+  fprintf(1, 'spont_p changed in healthy channels in test_syn_rest\n')
+end
+
+naps = CARFAC_Run_Segment(CF, zeros(round(0.1 * fs), 1));
+max_rest_nap = max(abs(naps(:)));
+if max_rest_nap > 1e-6
+  status = 1;
+  fprintf(1, 'max_rest_nap %g too high in test_syn_rest\n', max_rest_nap);
+end
+report_status(status, 'test_syn_rest')
 return
 
 
