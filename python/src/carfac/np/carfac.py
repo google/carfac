@@ -537,7 +537,7 @@ class IhcSynCoeffs:
   a1: float  # Feedback gain
   a2: float  # Output gain
   agc_weights: np.ndarray  # For making a nap out to agc in.
-  spont_p: np.ndarray  # Used only to init the output LPF
+  spont_p: np.ndarray  # Rest values, re-solved by `carfac_init`.
   spont_sub: np.ndarray
   res_lpf_inits: np.ndarray
   res_coeff: float
@@ -741,6 +741,32 @@ class IhcSynState:
     self.lpf_state = np.ones((n_ch, 1), dtype=dtype) * coeffs.spont_p
 
 
+def syn_solve_rest(coeffs: IhcSynCoeffs) -> IhcSynCoeffs:
+  """Solves the synapse's resting point from its current coeffs.
+
+  The steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
+  r = (1 - q) * s, so q = a1 * s / (1 + a1 * s). `spont_p` and `res_lpf_inits`
+  are per channel and class, whether `v_halfs` is per class or per channel and
+  class, and `spont_sub` is per channel.
+
+  Args:
+    coeffs: The synapse coeffs, possibly changed since design.
+
+  Returns:
+    A copy of `coeffs` with `spont_p`, `res_lpf_inits` and `spont_sub` solved.
+  """
+  ones = np.ones((coeffs.n_ch, 1))
+  s = 1 / (1 + np.exp(coeffs.v_halfs / coeffs.v_widths))
+  q = coeffs.a1 * s / (1 + coeffs.a1 * s)
+  spont_p = ones * (coeffs.a2 * (1 - q) * s)  # Resting firing prob.
+  return dataclasses.replace(
+      coeffs,
+      spont_p=spont_p,
+      spont_sub=(coeffs.n_fibers * spont_p) @ coeffs.agc_weights,
+      res_lpf_inits=ones * q,  # Resting reservoir.
+  )
+
+
 def syn_init_state(coeffs: IhcSynCoeffs):
   return IhcSynState(coeffs)
 
@@ -899,9 +925,8 @@ def syn_step(
   # Make an output that resembles ihc_out, to go to agc_in
   # (collapse over classes).
   # Includes synaptopathy's presumed effect of reducing feedback via n_fibers.
-  # But it's relative to the healthy nominal spont, so could potentially go
-  # a bit negative in quiet is there was loss of high-spont or medium-spont
-  # units.
+  # It's relative to the spont that `carfac_init` solved from the coeffs, so it
+  # rests at 0 in quiet even after loss of high-spont or medium-spont units.
   # The weight multiplication is an inner product, reducing n_classes
   # columns to 1 column (first transpose the agc_weights row to a column).
   syn_out = (
@@ -1385,6 +1410,11 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
   """Initialize state for one or more ears of a CARFAC model.
 
   This allocates and zeros all the state vector storage in the cfp struct.
+  The synapse's resting point (`spont_p`, `res_lpf_inits` and `spont_sub`) is
+  first solved from its current coeffs by `syn_solve_rest`, so after changing
+  `v_halfs`, `n_fibers` or `agc_weights` (e.g. to model synaptopathy) call this
+  again and the synapse starts at its new rest, with output 0 in quiet.
+
   Args:
     cfp: the state structure for the filterbank
 
@@ -1400,7 +1430,8 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
     cfp.ears[ear].ihc_state = ihc_init_state(cfp.ears[ear].ihc_coeffs)
     cfp.ears[ear].agc_state = agc_init_state(cfp.ears[ear].agc_coeffs)
     if cfp.syn_params:
-      cfp.ears[ear].syn_state = syn_init_state(cfp.ears[ear].syn_coeffs)  # pyrefly: ignore[bad-argument-type]
+      cfp.ears[ear].syn_coeffs = syn_solve_rest(cfp.ears[ear].syn_coeffs)  # pyrefly: ignore[bad-argument-type]
+      cfp.ears[ear].syn_state = syn_init_state(cfp.ears[ear].syn_coeffs)
   return cfp
 
 
