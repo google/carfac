@@ -944,14 +944,14 @@ tf_ratio = rms_good_ear ./ rms_mono;
 if decimation(2) > 1  % Classic case
   % Data from non_decimating case is not used as golden.
   fprintf(1, 'for python, tf_ratio = [');
-  for ch = 1:size(tf_ratio')
+  for ch = 1:numel(tf_ratio)
     fprintf(1, ' %.4f,', tf_ratio(ch));
     if mod(ch, 5) == 0
       fprintf(1, '\n');
     end
   end
   fprintf(1, ']\nfor matlab, expected_tf_ratio = [');
-  for ch = 1:size(tf_ratio')
+  for ch = 1:numel(tf_ratio)
     fprintf(1, '%.4f, ', tf_ratio(ch));
     if mod(ch, 5) == 0
       fprintf(1, '...\n');
