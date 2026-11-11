@@ -88,6 +88,18 @@ new_weights = jax.tree.map(lambda x,y: x-0.1*y, weights_jax, grad_jax)
 There is also a helper function `carfac_jax.run_segment_jit` which is the JITted
 version of `carfac_jax.run_segment`.
 
+`design_and_init_carfac` is `design_carfac` followed by `init_carfac`, which
+mirror NumPy's `design_carfac` and `carfac_init`. Call them separately to change
+weights before init, e.g. to model synaptopathy, so that the model starts at its
+new rest:
+
+```python
+hypers_jax, weights_jax = carfac_jax.design_carfac(params_jax)
+syn = weights_jax.ears[0].syn
+syn.n_fibers = syn.n_fibers * 0.5  # Halve the fibers in every class.
+weights_jax, state_jax = carfac_jax.init_carfac(hypers_jax, weights_jax)
+```
+
 ## Relation with the numpy version
 
 Compared with the numpy version, necessary differences have been made,

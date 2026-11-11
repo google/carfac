@@ -808,6 +808,68 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
     self.assertTrue(jnp.all(jnp.isfinite(grad)))
     self.assertGreater(float(jnp.max(jnp.abs(grad))), 0.0)
 
+  @parameterized.parameters(
+      'just_hwr', 'one_cap', 'two_cap', 'two_cap_with_syn'
+  )
+  @jax.numpy_dtype_promotion('strict')
+  def test_init_carfac(self, ihc_style):
+    """`design_carfac` then `init_carfac` should match, also under jit."""
+    params = carfac_jax.CarfacDesignParameters.with_n_ears(2)
+    for ear_params in params.ears:
+      ear_params.ihc.ihc_style = ihc_style
+    _, expected_weights, expected_state = carfac_jax.design_and_init_carfac(
+        params
+    )
+    hypers, weights = carfac_jax.design_carfac(params)
+
+    weights, state = carfac_jax.init_carfac(hypers, weights)
+    chex.assert_trees_all_equal(weights, expected_weights)
+    chex.assert_trees_all_equal(state, expected_state)
+
+    init_jit = jax.jit(carfac_jax.init_carfac, static_argnames=('hypers',))
+    jit_weights, jit_state = init_jit(hypers=hypers, weights=weights)
+    chex.assert_trees_all_close(jit_weights, weights, rtol=1e-6)
+    chex.assert_trees_all_close(jit_state, state, rtol=1e-6)
+
+    # The weights are already at rest, so init again should change nothing.
+    new_weights, new_state = carfac_jax.init_carfac(hypers, weights)
+    chex.assert_trees_all_close(new_weights, weights, rtol=1e-6)
+    chex.assert_trees_all_close(new_state, state, rtol=1e-6)
+
+  @jax.numpy_dtype_promotion('strict')
+  def test_syn_rest(self):
+    """After impairing the synapse, `init_carfac` re-solves its rest.
+
+    The same test as NumPy's and MATLAB's `test_syn_rest`: the spont rate
+    drops in the impaired channels but the output rests at 0 in quiet.
+    """
+    params = carfac_jax.CarfacDesignParameters()
+    params.ears[0].ihc.ihc_style = 'two_cap_with_syn'
+    hypers, weights = carfac_jax.design_carfac(params)
+    healthy_spont_p = weights.ears[0].syn.spont_p
+
+    n_ch = hypers.ears[0].n_ch
+    half_ch = n_ch // 2
+    syn = weights.ears[0].syn
+    syn.n_fibers = syn.n_fibers.at[:half_ch].multiply(0.3)  # Synaptopathy.
+    v_halfs = jnp.ones((n_ch, 1)) * syn.v_halfs  # Per channel.
+    syn.v_halfs = v_halfs.at[:half_ch].add(syn.v_widths[0])  # Lower spont.
+    weights, state = carfac_jax.init_carfac(hypers, weights)
+
+    spont_p = weights.ears[0].syn.spont_p
+    self.assertLess(
+        float(jnp.max(spont_p[:half_ch] / healthy_spont_p[:half_ch])), 0.5
+    )
+    chex.assert_trees_all_close(
+        spont_p[half_ch:], healthy_spont_p[half_ch:], rtol=1e-5
+    )
+
+    fs = params.fs
+    naps, *_ = carfac_jax.run_segment(
+        jnp.zeros((int(0.1 * fs), 1)), hypers, weights, state
+    )
+    chex.assert_trees_all_close(naps, jnp.zeros_like(naps), atol=1e-5)
+
 
 if __name__ == '__main__':
   absltest.main()
