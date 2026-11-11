@@ -55,8 +55,10 @@ import numpy as np
 #    one can use arbitrary python code in it.
 #    Normally, users only need to use the `design_and_init_carfac` function to
 #    obtained the hyperparameters, trainable weights (initalized) and states
-#    (initalized). All the other design and init functions are called by
-#    `design_and_init_carfac` function.
+#    (initalized). It calls `design_carfac` and then `init_carfac`, which can
+#    also be called separately, as NumPy's `design_carfac` and `carfac_init`,
+#    e.g. to change weights between them. All the other design and init
+#    functions are called by those two.
 # 3. Model functions.
 #    Third, the model functions for each step and the `run_segment` function are
 #    defined. These functions are meant to be used after being JITted so one
@@ -422,7 +424,7 @@ class SynWeights:
   a1: float | jnp.ndarray  # Feedback gain
   a2: float | jnp.ndarray  # Output gain
   agc_weights: jnp.ndarray  # For making a nap out to agc in.
-  spont_p: jnp.ndarray  # Used only to init the output LPF
+  spont_p: jnp.ndarray  # Rest values, re-solved by `resolve_syn_rest`.
   spont_sub: jnp.ndarray
   res_lpf_inits: jnp.ndarray
   res_coeff: float | jnp.ndarray
@@ -679,13 +681,13 @@ def hz_to_erb(
   return (erb_break_freq + cf_hz) / erb_q
 
 
-def design_and_init_filters(
+def design_filters(
     ear: int, params: CarfacDesignParameters, pole_freqs: jnp.ndarray
-) -> Tuple[CarHypers, CarWeights, CarState]:
+) -> Tuple[CarHypers, CarWeights]:
   """Design the actual CAR filters.
 
   Args:
-    ear: the index of the ear to be designed and initialised.
+    ear: the index of the ear to be designed.
     params: The design parameters.
     pole_freqs: Where to put the poles for each channel.
 
@@ -776,8 +778,20 @@ def design_and_init_filters(
   # Avoid running this model function at Design time; see tests.
   car_hypers.g0_coeffs = design_stage_g(car_hypers, undamping)  # pyrefly: ignore[bad-argument-type]
 
-  # Init car states
-  car_state = CarState(
+  return car_hypers, car_weights
+
+
+def init_car_state(car_hypers: CarHypers) -> CarState:
+  """Init the CAR filters' state.
+
+  Args:
+    car_hypers: The CAR hyperparameters, from `design_filters`.
+
+  Returns:
+    The newly initialised CAR state.
+  """
+  n_ch = car_hypers.n_ch
+  return CarState(
       z1_memory=jnp.zeros((n_ch,)),
       z2_memory=jnp.zeros((n_ch,)),
       za_memory=jnp.zeros((n_ch,)),
@@ -788,7 +802,6 @@ def design_and_init_filters(
       dg_memory=jnp.zeros((n_ch,)),
       ac_coupler=jnp.zeros((n_ch,)),
   )
-  return car_hypers, car_weights, car_state
 
 
 def design_stage_g(
@@ -847,13 +860,12 @@ def ihc_detect(x: float | jnp.ndarray) -> float | jnp.ndarray:
   return conductance
 
 
-def design_and_init_ihc_syn(
+def design_ihc_syn(
     ear: int, params: CarfacDesignParameters, n_ch: int
-) -> Tuple[SynHypers, Optional[SynWeights], Optional[SynState]]:
-  """Design the IHC Synapse Hypers/Weights/State.
+) -> Tuple[SynHypers, Optional[SynWeights]]:
+  """Design the IHC Synapse Hypers/Weights.
 
-  Only returns State and Weights if Params and CarfacHypers are set up to use
-  synapse.
+  Only returns Weights if Params and CarfacHypers are set up to use synapse.
 
   Args:
     ear: the index of the ear.
@@ -861,15 +873,14 @@ def design_and_init_ihc_syn(
     n_ch: How many channels there are in the filterbank.
 
   Returns:
-    A tuple containing the newly created and initialised synapse coefficients,
-    weights and state.
+    A tuple containing the newly created synapse coefficients and weights.
   """
   ear_params = params.ears[ear]
   ihc_params = ear_params.ihc
   syn_params = ear_params.syn
   if ihc_params.ihc_style != 'two_cap_with_syn':
     hypers = SynHypers(do_syn=False)
-    return hypers, None, None
+    return hypers, None
 
   hypers = SynHypers(do_syn=True)
   fs = params.fs
@@ -904,6 +915,9 @@ def design_and_init_ihc_syn(
   spont_p = a2 * w0 * s0  # should match p0; check it; yes it does
   agc_weights = fs * syn_params.agc_weights
   n_fibers = jnp.ones((n_ch, 1)) * syn_params.healthy_n_fibers[None, :]
+  # Per channel, the shapes `resolve_syn_rest` solves them in.
+  spont_p = jnp.ones((n_ch, 1)) * spont_p[None, :]
+  res_lpf_inits = jnp.ones((n_ch, 1)) * q0[None, :]
   spont_sub = (n_fibers * spont_p) @ jnp.transpose(agc_weights)
   weights = SynWeights(
       n_fibers=n_fibers,
@@ -914,20 +928,92 @@ def design_and_init_ihc_syn(
       agc_weights=agc_weights,
       spont_p=spont_p,
       spont_sub=spont_sub,
-      res_lpf_inits=q0,
+      res_lpf_inits=res_lpf_inits,
       res_coeff=1 - math.exp(-1 / (syn_params.reservoir_tau * fs)),
       lpf_coeff=1 - math.exp(-1 / (syn_params.tau_lpf * fs)),
   )
-  state = SynState(
-      reservoirs=jnp.ones((n_ch, 1)) * weights.res_lpf_inits[None, :],
-      lpf_state=jnp.ones((n_ch, 1)) * weights.spont_p[None, :],
+  return hypers, weights
+
+
+def init_syn_state(syn_weights: Optional[SynWeights]) -> Optional[SynState]:
+  """Init the IHC synapse state at its rest values in `syn_weights`.
+
+  Args:
+    syn_weights: The synapse weights, or None if there's no synapse.
+
+  Returns:
+    The newly initialised synapse state, or None if there's no synapse.
+  """
+  if syn_weights is None:
+    return None
+  # "States" will be donated.
+  return SynState(
+      reservoirs=jnp.copy(syn_weights.res_lpf_inits),
+      lpf_state=jnp.copy(syn_weights.spont_p),
   )
-  return hypers, weights, state
 
 
-def design_and_init_ihc(
+def resolve_syn_rest(
+    weights: CarfacWeights, state: CarfacState
+) -> Tuple[CarfacWeights, CarfacState]:
+  """Solves each synapse's resting output for its current weights.
+
+  Solves `spont_p`, `res_lpf_inits`, `spont_sub` and the synapse start state
+  at the rest point, where `v_recep` is 0, so the synapse output rests at 0 in
+  silence, as NumPy's `carfac_init` and MATLAB's `CARFAC_Init` do.
+  `init_carfac` calls this. After changing `v_halfs`, `n_fibers` or
+  `agc_weights` (e.g. to model synaptopathy or when updating trainable synapse
+  weights inside a training loop), call it again. Pure and differentiable, so
+  safe under `jax.jit`. Ears without a synapse are passed through unchanged.
+
+  Args:
+    weights: The weights, whose synapse `spont_p`, `res_lpf_inits` and
+      `spont_sub` are solved.
+    state: The state, whose synapse `reservoirs` and `lpf_state` are solved.
+
+  Returns:
+    The updated weights and state.
+  """
+  ears_weights = []
+  ears_state = []
+  for ear_weights, ear_state in zip(weights.ears, state.ears):
+    syn_weights = ear_weights.syn
+    if syn_weights is not None:
+      # Steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
+      # r = (1 - q) * s, so q = a1 * s / (1 + a1 * s).
+      s = jax.nn.sigmoid(-syn_weights.v_halfs / syn_weights.v_widths)
+      q = syn_weights.a1 * s / (1 + syn_weights.a1 * s)
+      p = syn_weights.a2 * (1 - q) * s
+      p = jnp.broadcast_to(p, syn_weights.n_fibers.shape)
+      q = jnp.broadcast_to(q, syn_weights.n_fibers.shape)
+      ear_weights = dataclasses.replace(
+          ear_weights,
+          syn=dataclasses.replace(
+              syn_weights,
+              spont_p=p,
+              spont_sub=(syn_weights.n_fibers * p) @ syn_weights.agc_weights,
+              res_lpf_inits=q,
+          ),
+      )
+      ear_state = dataclasses.replace(
+          ear_state,
+          syn=dataclasses.replace(
+              ear_state.syn,
+              reservoirs=jnp.copy(q),  # "States" will be donated.
+              lpf_state=jnp.copy(p),
+          ),
+      )
+    ears_weights.append(ear_weights)
+    ears_state.append(ear_state)
+  return (
+      dataclasses.replace(weights, ears=ears_weights),
+      dataclasses.replace(state, ears=ears_state),
+  )
+
+
+def design_ihc(
     ear: int, params: CarfacDesignParameters, n_ch: int
-) -> Tuple[IhcHypers, IhcWeights, IhcState]:
+) -> Tuple[IhcHypers, IhcWeights]:
   """Design the inner hair cell implementation from parameters.
 
   Args:
@@ -936,8 +1022,7 @@ def design_and_init_ihc(
     n_ch: How many channels there are in the filterbank.
 
   Returns:
-    A tuple containing the newly created and initialised IHC coefficients,
-    weights and state.
+    A tuple containing the newly created IHC coefficients and weights.
   """
   ear_params = params.ears[ear]
 
@@ -958,7 +1043,6 @@ def design_and_init_ihc(
   ihc_hypers = IhcHypers(n_ch=n_ch, ihc_style=ihc_style_num)
   if ihc_params.ihc_style == 'just_hwr':
     ihc_weights = IhcWeights()
-    ihc_state = IhcState(ihc_accum=jnp.zeros((n_ch,)))
   elif ihc_params.ihc_style == 'one_cap':
     ro = 1 / ihc_detect(10)  # output resistance at a very high level
     c = ihc_params.tau_out / ro
@@ -976,12 +1060,6 @@ def design_and_init_ihc(
     ihc_weights.output_gain = 1 / (saturation_output - current)
     ihc_weights.rest_output = current / (saturation_output - current)
     ihc_weights.rest_cap = cap_voltage
-    ihc_state = IhcState(
-        ihc_accum=jnp.zeros((n_ch,)),
-        cap_voltage=ihc_weights.rest_cap * jnp.ones((n_ch,)),
-        lpf1_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
-        lpf2_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
-    )
   elif (
       ihc_params.ihc_style == 'two_cap'
       or ihc_params.ihc_style == 'two_cap_with_syn'
@@ -1025,8 +1103,33 @@ def design_and_init_ihc(
     )
     ihc_weights.rest_cap2 = cap2_voltage
     ihc_weights.rest_cap1 = cap1_voltage
+  else:
+    raise NotImplementedError
+  return ihc_hypers, ihc_weights
 
-    ihc_state = IhcState(
+
+def init_ihc_state(ihc_hypers: IhcHypers, ihc_weights: IhcWeights) -> IhcState:
+  """Init the inner hair cell state at its rest values in `ihc_weights`.
+
+  Args:
+    ihc_hypers: The IHC hyperparameters, from `design_ihc`.
+    ihc_weights: The IHC weights, from `design_ihc`.
+
+  Returns:
+    The newly initialised IHC state.
+  """
+  n_ch = ihc_hypers.n_ch
+  if ihc_hypers.ihc_style == 0:
+    return IhcState(ihc_accum=jnp.zeros((n_ch,)))
+  elif ihc_hypers.ihc_style == 1:
+    return IhcState(
+        ihc_accum=jnp.zeros((n_ch,)),
+        cap_voltage=ihc_weights.rest_cap * jnp.ones((n_ch,)),
+        lpf1_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
+        lpf2_state=ihc_weights.rest_output * jnp.ones((n_ch,)),
+    )
+  elif ihc_hypers.ihc_style == 2:
+    return IhcState(
         ihc_accum=jnp.zeros((n_ch,)),
         cap1_voltage=ihc_weights.rest_cap1 * jnp.ones((n_ch,)),
         cap2_voltage=ihc_weights.rest_cap2 * jnp.ones((n_ch,)),
@@ -1035,7 +1138,6 @@ def design_and_init_ihc(
     )
   else:
     raise NotImplementedError
-  return ihc_hypers, ihc_weights, ihc_state
 
 
 def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
@@ -1094,9 +1196,9 @@ def design_fir_coeffs(n_taps, delay_variance, mean_delay, n_iter):
   return fir, ok
 
 
-def design_and_init_agc(
+def design_agc(
     ear: int, params: CarfacDesignParameters, n_ch: int
-) -> Tuple[List[AgcHypers], List[AgcWeights], List[AgcState]]:
+) -> Tuple[List[AgcHypers], List[AgcWeights]]:
   """Design the AGC implementation from the parameters.
 
   This has not been updated with MATLAB's `new_way` branch, which enforces a
@@ -1129,17 +1231,9 @@ def design_and_init_agc(
   # Convert to vector of AGC coeffs
   agc_hypers = []
   agc_weights = []
-  agc_states = []
   for stage in range(n_agc_stages):
     agc_hypers.append(AgcHypers(n_ch=n_ch, n_agc_stages=n_agc_stages))
     agc_weights.append(AgcWeights())
-    agc_states.append(
-        AgcState(
-            decim_phase=0,
-            agc_memory=jnp.zeros((n_ch,)),
-            input_accum=jnp.zeros((n_ch,)),
-        )
-    )
 
     agc_hypers[stage].decimation = ear_params.agc.decimation[stage]
     tau = ear_params.agc.time_constants[stage]
@@ -1222,24 +1316,44 @@ def design_and_init_agc(
   # adjust stage 1 detect_scale to be the reciprocal DC gain of the AGC filters:
   agc_weights[0].detect_scale = 1 / total_dc_gain
 
-  return agc_hypers, agc_weights, agc_states
+  return agc_hypers, agc_weights
 
 
-def design_and_init_carfac(
+def init_agc_state(agc_hypers: List[AgcHypers]) -> List[AgcState]:
+  """Init the AGC state for all the stages.
+
+  Args:
+    agc_hypers: The AGC hyperparameters for all the stages, from `design_agc`.
+
+  Returns:
+    The newly initialised AGC state for all the stages.
+  """
+  return [
+      AgcState(
+          decim_phase=0,
+          agc_memory=jnp.zeros((stage_hypers.n_ch,)),
+          input_accum=jnp.zeros((stage_hypers.n_ch,)),
+      )
+      for stage_hypers in agc_hypers
+  ]
+
+
+def design_carfac(
     params: CarfacDesignParameters,
-) -> Tuple[CarfacHypers, CarfacWeights, CarfacState]:
-  """Design and init the CARAFAC model.
+) -> Tuple[CarfacHypers, CarfacWeights]:
+  """Design the CARFAC model.
+
+  Mirrors NumPy's `design_carfac`. To make a state to run it with, call
+  `init_carfac`, after changing any weights (e.g. to model impairment).
 
   Args:
     params: all the design params. Won't be changed in this function.
 
   Returns:
-    Newly created and initialised hypers, trainable weights and state of
-    CARFAC model.
+    Newly created hypers and trainable weights of CARFAC model.
   """
   hypers = CarfacHypers()
   weights = CarfacWeights()
-  state = CarfacState()
 
   for ear, ear_params in enumerate(params.ears):
     # first figure out how many filter stages (PZFC/CARFAC channels):
@@ -1274,15 +1388,11 @@ def design_and_init_carfac(
     # Now we have n_ch, the number of channels, and pole_freqs array.
     max_channels_per_octave = 1 / math.log(pole_freqs[0] / pole_freqs[1], 2)
 
-    # Convert to include an ear_array, each w coeffs and state...
-    car_hypers, car_weights, car_state = design_and_init_filters(
-        ear, params, pole_freqs
-    )
-    agc_hypers, agc_weights, agc_state = design_and_init_agc(ear, params, n_ch)
-    ihc_hypers, ihc_weights, ihc_state = design_and_init_ihc(ear, params, n_ch)
-    syn_hypers, syn_weights, syn_state = design_and_init_ihc_syn(
-        ear, params, n_ch
-    )
+    # Convert to include an ear_array, each w coeffs...
+    car_hypers, car_weights = design_filters(ear, params, pole_freqs)
+    agc_hypers, agc_weights = design_agc(ear, params, n_ch)
+    ihc_hypers, ihc_weights = design_ihc(ear, params, n_ch)
+    syn_hypers, syn_weights = design_ihc_syn(ear, params, n_ch)
 
     ear_hypers = EarHypers(
         n_ch=n_ch,
@@ -1303,14 +1413,56 @@ def design_and_init_carfac(
     )
     weights.ears.append(ear_weights)
 
+  return hypers, weights
+
+
+def init_carfac(
+    hypers: CarfacHypers, weights: CarfacWeights
+) -> Tuple[CarfacWeights, CarfacState]:
+  """Init the CARFAC model's state for its current weights.
+
+  Mirrors NumPy's `carfac_init`: the synapse's rest is solved from the current
+  weights by `resolve_syn_rest`, so after changing weights (e.g. `v_halfs` or
+  `n_fibers` to model synaptopathy) call this again and the model starts at its
+  new rest. Pure, so it can be JITed with `hypers` static.
+
+  Args:
+    hypers: The hypers, from `design_carfac`.
+    weights: The weights, from `design_carfac` and possibly changed since.
+
+  Returns:
+    The weights, with the synapse rest solved, and the newly initialised state
+    of CARFAC model.
+  """
+  state = CarfacState()
+  for ear_hypers, ear_weights in zip(hypers.ears, weights.ears):
+    syn_state = init_syn_state(ear_weights.syn)
     ear_state = EarState(
-        car=car_state,
-        agc=agc_state,
-        ihc=ihc_state,
+        car=init_car_state(ear_hypers.car),
+        agc=init_agc_state(ear_hypers.agc),
+        ihc=init_ihc_state(ear_hypers.ihc, ear_weights.ihc),
         syn=syn_state,  # pyrefly: ignore[bad-argument-type]
     )
     state.ears.append(ear_state)
+  return resolve_syn_rest(weights, state)
 
+
+def design_and_init_carfac(
+    params: CarfacDesignParameters,
+) -> Tuple[CarfacHypers, CarfacWeights, CarfacState]:
+  """Design and init the CARAFAC model.
+
+  The same as `design_carfac` followed by `init_carfac`.
+
+  Args:
+    params: all the design params. Won't be changed in this function.
+
+  Returns:
+    Newly created and initialised hypers, trainable weights and state of
+    CARFAC model.
+  """
+  hypers, weights = design_carfac(params)
+  weights, state = init_carfac(hypers, weights)
   return hypers, weights, state
 
 
@@ -1754,7 +1906,7 @@ def spatial_smooth_jit(
   1 iteration 3-tap FIR.
 
   This also does not support a 5-tap filter in the non-`new_way` branch, despite
-  the code in `design_and_init_agc` and `design_fir_coeffs` to support it.
+  the code in `design_agc` and `design_fir_coeffs` to support it.
 
   Args:
     agc_hypers: The AGC coefficients for this state.
