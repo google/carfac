@@ -934,8 +934,8 @@ def resolve_syn_rest(
   """Solves each synapse's resting output for its current weights.
 
   Solves `spont_p`, `res_lpf_inits`, `spont_sub` and the synapse start state
-  at the rest point, where `v_recep` is 0, so the synapse output rests at 0 in
-  silence, as NumPy's `carfac_init` and MATLAB's `CARFAC_Init` do.
+  at the rest point, where `v_recep` is 0, so `syn_out` is 0 in silence, as
+  NumPy's `carfac_init` and MATLAB's `CARFAC_Init` do.
   `design_and_init_carfac` calls this. After changing `v_halfs`, `n_fibers` or
   `agc_weights` (e.g. to model synaptopathy or when updating trainable synapse
   weights inside a training loop), call it again. Pure and differentiable, so
