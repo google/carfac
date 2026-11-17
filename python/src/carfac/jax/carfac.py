@@ -955,12 +955,16 @@ def resolve_syn_rest(
     syn_weights = ear_weights.syn
     if syn_weights is not None:
       # Steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
-      # r = (1 - q) * s, so q = a1 * s / (1 + a1 * s).
-      s = jax.nn.sigmoid(-syn_weights.v_halfs / syn_weights.v_widths)
-      q = syn_weights.a1 * s / (1 + syn_weights.a1 * s)
-      p = syn_weights.a2 * (1 - q) * s
-      p = jnp.broadcast_to(p, syn_weights.n_fibers.shape)
-      q = jnp.broadcast_to(q, syn_weights.n_fibers.shape)
+      # p = a2 * r, where r = (1 - q) * s = s / (1 + a1 * s)
+      # = 1 / (1 + a1 + exp(v_halfs / v_widths)).
+      r = 1 / (
+          1
+          + syn_weights.a1
+          + jnp.exp(syn_weights.v_halfs / syn_weights.v_widths)
+      )
+      r = jnp.broadcast_to(r, syn_weights.n_fibers.shape)
+      q = syn_weights.a1 * r
+      p = syn_weights.a2 * r
       ear_weights = dataclasses.replace(
           ear_weights,
           syn=dataclasses.replace(
