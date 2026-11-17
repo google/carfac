@@ -1540,9 +1540,9 @@ def syn_step(
   # Make an output that resembles ihc_out, to go to agc_in
   # (collapse over classes).
   # Includes synaptopathy's presumed effect of reducing feedback via n_fibers.
-  # But it's relative to the healthy nominal spont, so could potentially go
-  # a bit negative in quiet is there was loss of high-spont or medium-spont
-  # units.
+  # Since `spont_sub` is solved from the weights in `resolve_syn_rest`,
+  # `syn_out` is 0 in quiet even after loss of high-spont or medium-spont
+  # units, or loss of sensitivity to IHC receptor potential.
   # The weight multiplication is an inner product, reducing n_classes
   # columns to 1 column (first transpose the agc_weights row to a column).
   syn_out = (
