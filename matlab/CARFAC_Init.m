@@ -92,14 +92,14 @@ end
 
 function coeffs = SYN_Solve_Rest(coeffs)
 % Solve the synapse's resting point from its current coeffs, i.e. the
-% steady state of CARFAC_SYN_Step with v_recep at 0: q = a1*r and
-% r = (1 - q)*s, so q = a1*s / (1 + a1*s).  Each is per channel and class,
-% whether v_halfs is per class or per channel and class.
-n_ch = coeffs.n_ch;
-s = 1 ./ (1 + exp(coeffs.v_halfs ./ coeffs.v_widths));
-q = coeffs.a1 .* s ./ (1 + coeffs.a1 .* s);
-coeffs.res_lpf_inits = ones(n_ch, 1) .* q;  % Resting reservoir.
-coeffs.spont_p = ones(n_ch, 1) .* (coeffs.a2 .* (1 - q) .* s);  % Firing prob.
+% steady state of CARFAC_SYN_Step with v_recep at 0: q = a1*r and p = a2*r,
+% where r = (1 - q)*s = s / (1 + a1*s) = 1 / (1 + a1 + exp(v_halfs/v_widths)).
+% Each is per channel and class, whether v_halfs is per class or per channel
+% and class.
+r = ones(coeffs.n_ch, 1) ./ ...
+  (1 + coeffs.a1 + exp(coeffs.v_halfs ./ coeffs.v_widths));
+coeffs.res_lpf_inits = coeffs.a1 .* r;  % Resting reservoir.
+coeffs.spont_p = coeffs.a2 .* r;  % Resting firing prob.
 coeffs.spont_sub = (coeffs.n_fibers .* coeffs.spont_p) * coeffs.agc_weights';
 
 function state = SYN_Init_State(coeffs)
