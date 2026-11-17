@@ -745,8 +745,9 @@ def syn_solve_rest(coeffs: IhcSynCoeffs) -> IhcSynCoeffs:
   """Solves the synapse's resting point from its current coeffs.
 
   The steady state of `syn_step` with `v_recep` at 0: q = a1 * r and
-  r = (1 - q) * s, so q = a1 * s / (1 + a1 * s). `spont_p` and `res_lpf_inits`
-  are per channel and class, whether `v_halfs` is per class or per channel and
+  p = a2 * r, where r = (1 - q) * s = s / (1 + a1 * s)
+  = 1 / (1 + a1 + exp(v_halfs / v_widths)). `spont_p` and `res_lpf_inits` are
+  per channel and class, whether `v_halfs` is per class or per channel and
   class, and `spont_sub` is per channel.
 
   Args:
@@ -755,15 +756,15 @@ def syn_solve_rest(coeffs: IhcSynCoeffs) -> IhcSynCoeffs:
   Returns:
     A copy of `coeffs` with `spont_p`, `res_lpf_inits` and `spont_sub` solved.
   """
-  ones = np.ones((coeffs.n_ch, 1))
-  s = 1 / (1 + np.exp(coeffs.v_halfs / coeffs.v_widths))
-  q = coeffs.a1 * s / (1 + coeffs.a1 * s)
-  spont_p = ones * (coeffs.a2 * (1 - q) * s)  # Resting firing prob.
+  r = np.ones((coeffs.n_ch, 1)) / (
+      1 + coeffs.a1 + np.exp(coeffs.v_halfs / coeffs.v_widths)
+  )
+  spont_p = coeffs.a2 * r  # Resting firing prob.
   return dataclasses.replace(
       coeffs,
       spont_p=spont_p,
       spont_sub=(coeffs.n_fibers * spont_p) @ coeffs.agc_weights,
-      res_lpf_inits=ones * q,  # Resting reservoir.
+      res_lpf_inits=coeffs.a1 * r,  # Resting reservoir.
   )
 
 
