@@ -1065,8 +1065,8 @@ return
 
 
 function status = test_syn_rest(do_plots)
-% Test: After impairing the synapse, CARFAC_Init re-solves its rest, so the
-% spont rate drops but the output rests at 0 in quiet.
+% Test: After synapse impairment and CARFAC_Init, the spont rate is lower
+% and syn_out is 0 in quiet.
 
 status = 0;
 
