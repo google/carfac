@@ -1415,7 +1415,8 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
   The synapse's resting point (`spont_p`, `res_lpf_inits` and `spont_sub`) is
   first solved from its current coeffs by `syn_solve_rest`, so after changing
   `v_halfs`, `n_fibers` or `agc_weights` (e.g. to model synaptopathy) call this
-  again and the synapse starts at its new rest, with output 0 in quiet.
+  again so the synapse state starts at the new rest values, with `syn_out` 0
+  in quiet.
 
   Args:
     cfp: the state structure for the filterbank

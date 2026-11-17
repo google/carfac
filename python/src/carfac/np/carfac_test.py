@@ -901,8 +901,8 @@ class CarfacTest(parameterized.TestCase):
       self.assertGreater(tf_ratio[ch], 0.35)
 
   def test_syn_rest(self):
-    # Test: After impairing the synapse, carfac_init re-solves its rest, so the
-    # spont rate drops but the output rests at 0 in quiet.
+    # Test: After synapse impairment and `carfac_init`, the spont rate is lower
+    # and `syn_out` is 0 in quiet.
     fs = 22050.0
     cfp = carfac.design_carfac(fs=fs, ihc_style='two_cap_with_syn')
     healthy_spont_p = cfp.ears[0].syn_coeffs.spont_p
