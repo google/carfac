@@ -1275,7 +1275,7 @@ def design_carfac(
     syn_params: Optional[IhcSynParams] = None,
     ihc_style: str = 'two_cap',
     use_delay_buffer: bool = False,
-    input_scale_dbspl: float = 94,
+    input_scale_dbspl: float = 94.0,
 ) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
@@ -1613,7 +1613,7 @@ def run_segment(
   CARFAC is designed for; a resampling may be needed before calling this.
 
   input_waves are considered as being in pascals i.e. their level is
-  94db SPL when their RMS equals 1.
+  94 dB SPL when their RMS equals 1.
 
   The function works as an outer iteration on time, updating all the
   filters and AGC states concurrently, so that the different channels can
@@ -1639,8 +1639,9 @@ def run_segment(
   if len(input_waves.shape) < 2:
     input_waves = np.reshape(input_waves, (-1, 1))
 
-  # scale input_waves from 94dB SPL @ RMS=1 to 107dB SPL @ RMS=1
-  input_waves = input_waves * 10 ** ((cfp.input_scale_dbspl-107.)/20.)
+  # Scale input_waves from input_scale_dbspl to CARFAC's native 107 dB SPL, both
+  # for RMS=1.
+  input_waves = input_waves * 10 ** ((cfp.input_scale_dbspl - 107.0) / 20.0)
 
   [n_samp, n_ears] = input_waves.shape
 

@@ -11,8 +11,9 @@ import numpy as np
 from carfac.np import carfac
 
 # Note some of these tests create plots for easier comparison to the results
-# in Dick Lyon's Human and Machine Hearing. All stimuli are presented at native CARFAC v1/v2
-# input scaling of 107 dB SPL for RMS = 1. The plots are stored in /tmp, and
+# in Dick Lyon's Human and Machine Hearing. All stimuli are presented at the
+# native CARFAC v1/v2 input scaling of 107 dB SPL for RMS = 1. The plots are
+# stored in /tmp, and
 # the easiest way to see them is to run the test on your machine; or in a
 # Colab such as google3/third_party/carfac/python/np/CARFAC_Testing.ipynb
 
@@ -168,7 +169,7 @@ class CarfacTest(parameterized.TestCase):
     carfac.design_fir_coeffs(5, 1, 1, 1)
 
   def test_car_freq_response(self):
-    cfp = carfac.design_carfac(input_scale_dbspl=107.0,)
+    cfp = carfac.design_carfac(input_scale_dbspl=107.0)
     carfac.carfac_init(cfp)
 
     # Show impulse response for just the CAR Filter bank.
@@ -601,7 +602,9 @@ class CarfacTest(parameterized.TestCase):
     impulse = np.zeros(t.shape)
     impulse[0] = 1e-4
 
-    cfp = carfac.design_carfac(fs=fs, input_scale_dbspl=107.0, ihc_style=ihc_style)
+    cfp = carfac.design_carfac(
+        fs=fs, input_scale_dbspl=107.0, ihc_style=ihc_style
+    )
     cfp = carfac.carfac_init(cfp)
 
     _, cfp, bm_initial, _, _ = carfac.run_segment(
@@ -919,7 +922,9 @@ class CarfacTest(parameterized.TestCase):
     two_chan_noise = np.zeros((len(t), 2))
     two_chan_noise[:, 0] = noise
     two_chan_noise[:, 1] = noise
-    cfp = carfac.design_carfac(fs=fs, input_scale_dbspl=107.0, n_ears=2, ihc_style='one_cap')
+    cfp = carfac.design_carfac(
+        fs=fs, input_scale_dbspl=107.0, n_ears=2, ihc_style='one_cap'
+    )
     cfp = carfac.carfac_init(cfp)
     naps, _, _, _, _ = carfac.run_segment(cfp, two_chan_noise)
     max_abs_diff = np.amax(np.abs(naps[:, :, 0] - naps[:, :, 1]))
@@ -956,9 +961,13 @@ class CarfacTest(parameterized.TestCase):
     two_chan_noise = np.zeros((len(t), 2))
     two_chan_noise[:, 0] = c_major_chord
     # Leave the audio in channel 1 as silence.
-    cfp = carfac.design_carfac(fs=fs, input_scale_dbspl=107.0, n_ears=2, ihc_style='one_cap')
+    cfp = carfac.design_carfac(
+        fs=fs, input_scale_dbspl=107.0, n_ears=2, ihc_style='one_cap'
+    )
     cfp = carfac.carfac_init(cfp)
-    mono_cfp = carfac.design_carfac(fs=fs, input_scale_dbspl=107.0, n_ears=1, ihc_style='one_cap')
+    mono_cfp = carfac.design_carfac(
+        fs=fs, input_scale_dbspl=107.0, n_ears=1, ihc_style='one_cap'
+    )
     mono_cfp = carfac.carfac_init(mono_cfp)
 
     _, _, bm_binaural, _, _ = carfac.run_segment(cfp, two_chan_noise)

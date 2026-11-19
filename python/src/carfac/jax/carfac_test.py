@@ -16,7 +16,9 @@ from jax.tree_util import tree_unflatten
 from carfac.jax import carfac as carfac_jax
 from carfac.np import carfac as carfac_np
 
-# All stimuli are presented at native CARFAC v1/v2 input scaling of 107 dB SPL for RMS = 1.
+# All stimuli are presented at the native CARFAC v1/v2 input scaling of
+# 107 dB SPL for RMS = 1.
+
 
 class CarfacJaxTest(parameterized.TestCase):
 
@@ -104,7 +106,7 @@ class CarfacJaxTest(parameterized.TestCase):
     hypers = carfac_jax.CarfacHypers()
     hypers.ears = [
         carfac_jax.EarHypers(
-            input_scale_dbspl=94., # use default value of 94 dB SPL
+            input_scale_dbspl=94.0,  # The default, for input in pascals.
             n_ch=0,
             pole_freqs=jnp.array([]),
             max_channels_per_octave=0.0,
@@ -200,11 +202,11 @@ class CarfacJaxTest(parameterized.TestCase):
   )
   def test_equal_design(self, ihc_style):
     # Test: the designs are similar.
-    cfp = carfac_np.design_carfac(input_scale_dbspl=107., ihc_style=ihc_style)
+    cfp = carfac_np.design_carfac(input_scale_dbspl=107.0, ihc_style=ihc_style)
     carfac_np.carfac_init(cfp)
     cfp.ears[0].car_coeffs.linear = False
 
-    params_jax = carfac_jax.CarfacDesignParameters(input_scale_dbspl=107.)
+    params_jax = carfac_jax.CarfacDesignParameters(input_scale_dbspl=107.0)
     params_jax.ears[0].ihc.ihc_style = ihc_style
     params_jax.ears[0].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
@@ -390,7 +392,7 @@ class CarfacJaxTest(parameterized.TestCase):
   def test_chunked_naps_same_as_jit(self, random_seed, ihc_style):
     """Tests whether `run_segment` produces the same results as np version."""
     # Inits JAX version
-    params_jax = carfac_jax.CarfacDesignParameters(input_scale_dbspl=107.)
+    params_jax = carfac_jax.CarfacDesignParameters(input_scale_dbspl=107.0)
     params_jax.ears[0].ihc.ihc_style = ihc_style
     params_jax.ears[0].car.linear_car = False
     hypers_jax, weights_jax, state_jax = carfac_jax.design_and_init_carfac(
@@ -444,7 +446,7 @@ class CarfacJaxTest(parameterized.TestCase):
     """Tests whether `run_segment` produces the same results as np version."""
     # Inits JAX version
     params_jax = carfac_jax.CarfacDesignParameters.with_n_ears(
-        n_ears, input_scale_dbspl=107.
+        n_ears, input_scale_dbspl=107.0
     )
     for ear in range(n_ears):
       params_jax.ears[ear].ihc.ihc_style = ihc_style
@@ -455,7 +457,10 @@ class CarfacJaxTest(parameterized.TestCase):
     )
     # Inits numpy version
     cfp = carfac_np.design_carfac(
-        input_scale_dbspl=107., ihc_style=ihc_style, n_ears=n_ears, use_delay_buffer=delay_buffer
+        input_scale_dbspl=107.0,
+        ihc_style=ihc_style,
+        n_ears=n_ears,
+        use_delay_buffer=delay_buffer,
     )
 
     carfac_np.carfac_init(cfp)
