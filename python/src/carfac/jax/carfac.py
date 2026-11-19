@@ -586,13 +586,14 @@ class CarfacDesignParameters:
   """All the parameters set manually for designing CARFAC."""
 
   fs: float = 22050.0
-  # Scale in dB SPL for input waves (default: 94). The default value expects
-  # input in pascals i.e. 94 dB SPL (for RMS=1), while CARFAC v1 and v2 use an
-  # input scale of 107 dB SPL (for RMS=1).
-  input_scale_dbspl: float = 94.0
   ears: List[EarDesignParameters] = dataclasses.field(
       default_factory=lambda: [EarDesignParameters()]
   )
+  # Scale in dB SPL for input waves (default: 94). The default value expects
+  # input in pascals i.e. 94 dB SPL (for RMS=1), while CARFAC v1 and v2 use an
+  # input scale of 107 dB SPL (for RMS=1). Last, so positional calls keep their
+  # meaning.
+  input_scale_dbspl: float = 94.0
 
   @classmethod
   def with_n_ears(

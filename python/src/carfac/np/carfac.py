@@ -1265,7 +1265,6 @@ class CarfacParams:
 
 
 def design_carfac(
-    input_scale_dbspl: float = 94,
     n_ears: int = 1,
     fs: float = 22050,
     car_params: Optional[CarParams] = None,
@@ -1276,6 +1275,7 @@ def design_carfac(
     syn_params: Optional[IhcSynParams] = None,
     ihc_style: str = 'two_cap',
     use_delay_buffer: bool = False,
+    input_scale_dbspl: float = 94,
 ) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
@@ -1294,8 +1294,6 @@ def design_carfac(
   make 96 channels at default fs = 22050, 114 channels at 44100.
 
   Args:
-    input_scale_dbspl: scale in dB SPL for input waves (default: 94 dB SPL). The default value expects input in
-      pascals i.e. 94 dB SPL (for RMS=1), while CARFAC v1 and v2 use an input scale of 107 dB SPL (for RMS=1)
     n_ears: How many ears (1 or 2, in general) in the simulation
     fs: is sample rate (per second)
     car_params: bundles all the pole-zero filter cascade parameters
@@ -1307,6 +1305,9 @@ def design_carfac(
       'just_hwr' for the simpler HWR model.
     use_delay_buffer: Whether to use the delay buffer implementation in the CAR
       step.
+    input_scale_dbspl: scale in dB SPL for input waves (default: 94 dB SPL).
+      The default value expects input in pascals i.e. 94 dB SPL (for RMS=1),
+      while CARFAC v1 and v2 use an input scale of 107 dB SPL (for RMS=1)
 
   Returns:
     A Carfac filter structure (for running the calcs.)
