@@ -522,6 +522,7 @@ class EarDesignParameters:
 class EarHypers:
   """Hyperparameters (tagged as static in `jax.jit`) of 1 ear."""
 
+  input_scale_dbspl: float
   n_ch: int
   pole_freqs: jnp.ndarray
   max_channels_per_octave: float
@@ -537,6 +538,7 @@ class EarHypers:
     # assigned to a different array with exactly the same value. We think such
     # case should be very rare in usage.
     return (
+        self.input_scale_dbspl,
         self.n_ch,
         id(self.pole_freqs),
         self.max_channels_per_octave,
@@ -584,21 +586,34 @@ class CarfacDesignParameters:
   """All the parameters set manually for designing CARFAC."""
 
   fs: float = 22050.0
+  # Scale in dB SPL for input waves (default: 94). The default value expects
+  # input in pascals i.e. 94 dB SPL (for RMS=1), while CARFAC v1 and v2 use an
+  # input scale of 107 dB SPL (for RMS=1).
+  input_scale_dbspl: float = 94.0
   ears: List[EarDesignParameters] = dataclasses.field(
       default_factory=lambda: [EarDesignParameters()]
   )
 
   @classmethod
-  def with_n_ears(cls, n_ears: int, fs: Optional[float] = None):
+  def with_n_ears(
+      cls,
+      n_ears: int,
+      fs: Optional[float] = None,
+      input_scale_dbspl: Optional[float] = None,
+  ):
     """Initialize the Design Parameters dataclass with the number of given ears.
 
     Args:
       n_ears: Number of ears to design for.
       fs: Samples per second.
+      input_scale_dbspl: Scale in dB SPL for input waves (default: 94), see
+        the `input_scale_dbspl` field.
     """
     fs = fs or cls.fs
+    if input_scale_dbspl is None:
+      input_scale_dbspl = cls.input_scale_dbspl
     ears = [EarDesignParameters() for _ in range(n_ears)]
-    return cls(fs=fs, ears=ears)
+    return cls(fs=fs, input_scale_dbspl=input_scale_dbspl, ears=ears)
 
   @property
   def n_ears(self) -> int:
@@ -1285,6 +1300,7 @@ def design_and_init_carfac(
     )
 
     ear_hypers = EarHypers(
+        input_scale_dbspl=params.input_scale_dbspl,
         n_ch=n_ch,
         pole_freqs=pole_freqs,
         max_channels_per_octave=max_channels_per_octave,
@@ -2008,13 +2024,16 @@ def run_segment(
   the input_waves are assumed to be sampled at the same rate as the
   CARFAC is designed for; a resampling may be needed before calling this.
 
+  input_waves are considered as being in pascals i.e. their level is
+  94 dB SPL when their RMS equals 1.
+
   The function works as an outer iteration on time, updating all the
   filters and AGC states concurrently, so that the different channels can
   interact easily.  The inner loops are over filterbank channels, and
   this level should be kept efficient.
 
   Args:
-    input_waves: the audio input.
+    input_waves: the audio input in pascals with default input_scale_dbspl.
     hypers: all the coefficients of the model. It will be passed to all the
       JIT'ed functions as static variables.
     weights: all the trainable weights. It will not be changed.
@@ -2032,6 +2051,12 @@ def run_segment(
   """
   if len(input_waves.shape) < 2:
     input_waves = jnp.reshape(input_waves, (-1, 1))
+
+  # Scale input_waves from input_scale_dbspl to CARFAC's native 107 dB SPL, both
+  # for RMS=1.
+  input_waves = input_waves * 10 ** (
+      (hypers.ears[0].input_scale_dbspl - 107.0) / 20.0
+  )
 
   # A 2022 addition to make open-loop running behave:
   if open_loop:
@@ -2102,7 +2127,7 @@ def run_segment_jit(
   the cache when needed.
 
   Args:
-    input_waves: the audio input.
+    input_waves: the audio input in pascals with default input_scale_dbspl.
     hypers: all the coefficients of the model. It will be passed to all the
       JIT'ed functions as static variables.
     weights: all the trainable weights. It will not be changed.
@@ -2142,7 +2167,7 @@ def run_segment_jit_in_chunks_notraceable(
   20 percent on a regular CPU.
 
   Args:
-    input_waves: The audio input.
+    input_waves: The audio input in pascals with default input_scale_dbspl.
     hypers: All the coefficients of the model. It will be passed to all the
       JIT'ed functions as static variables.
     weights: All the trainable weights. It will not be changed.
