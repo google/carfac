@@ -917,6 +917,8 @@ class CarfacTest(parameterized.TestCase):
 
     fs = 22050.0
     t = np.arange(0, 1, 1 / fs)  # A second of noise.
+    # Levels assume the v1/v2 input scale of 107 dB SPL at RMS 1, as in MATLAB.
+    # TODO(JasonMH17): Use the default input_scale_dbspl once MATLAB has it.
     amplitude = 1e-3  # -70 dBFS, around 30 or 40 dB SPL
     noise = amplitude * np.random.randn(len(t))
     two_chan_noise = np.zeros((len(t), 2))
