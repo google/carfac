@@ -1252,6 +1252,7 @@ class CarfacCoeffs:
 @dataclasses.dataclass
 class CarfacParams:
   fs: float
+  input_scale_dbspl: float
   max_channels_per_octave: float
   car_params: CarParams
   agc_params: AgcParams
@@ -1274,6 +1275,7 @@ def design_carfac(
     syn_params: Optional[IhcSynParams] = None,
     ihc_style: str = 'two_cap',
     use_delay_buffer: bool = False,
+    input_scale_dbspl: float = 94.0,
 ) -> CarfacParams:
   """This function designs the CARFAC filterbank.
 
@@ -1303,6 +1305,9 @@ def design_carfac(
       'just_hwr' for the simpler HWR model.
     use_delay_buffer: Whether to use the delay buffer implementation in the CAR
       step.
+    input_scale_dbspl: scale in dB SPL for input waves (default: 94 dB SPL).
+      The default value expects input in pascals i.e. 94 dB SPL (for RMS=1),
+      while CARFAC v1 and v2 use an input scale of 107 dB SPL (for RMS=1)
 
   Returns:
     A Carfac filter structure (for running the calcs.)
@@ -1368,6 +1373,7 @@ def design_carfac(
 
   cfp = CarfacParams(
       fs,
+      input_scale_dbspl,
       max_channels_per_octave,
       car_params,
       agc_params,
@@ -1606,6 +1612,9 @@ def run_segment(
   the input_waves are assumed to be sampled at the same rate as the
   CARFAC is designed for; a resampling may be needed before calling this.
 
+  input_waves are considered as being in pascals with the default
+  input_scale_dbspl, i.e. their level is 94 dB SPL when their RMS equals 1.
+
   The function works as an outer iteration on time, updating all the
   filters and AGC states concurrently, so that the different channels can
   interact easily.  The inner loops are over filterbank channels, and
@@ -1613,7 +1622,7 @@ def run_segment(
 
   Args:
     cfp: a structure that descirbes everything we know about this CARFAC.
-    input_waves: the audio input
+    input_waves: the audio input in pascals with default input_scale_dbspl.
     open_loop: whether to run CARFAC without the feedback.
     linear_car (new over Matlab): use CAR filters without OHC effects.
 
@@ -1629,6 +1638,11 @@ def run_segment(
 
   if len(input_waves.shape) < 2:
     input_waves = np.reshape(input_waves, (-1, 1))
+
+  # Scale input_waves from input_scale_dbspl to CARFAC's native 107 dB SPL, both
+  # for RMS=1.
+  input_waves = input_waves * 10 ** ((cfp.input_scale_dbspl - 107.0) / 20.0)
+
   [n_samp, n_ears] = input_waves.shape
 
   if n_ears != cfp.n_ears:
