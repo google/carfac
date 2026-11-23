@@ -1612,8 +1612,8 @@ def run_segment(
   the input_waves are assumed to be sampled at the same rate as the
   CARFAC is designed for; a resampling may be needed before calling this.
 
-  input_waves are considered as being in pascals i.e. their level is
-  94 dB SPL when their RMS equals 1.
+  input_waves are considered as being in pascals with the default
+  input_scale_dbspl, i.e. their level is 94 dB SPL when their RMS equals 1.
 
   The function works as an outer iteration on time, updating all the
   filters and AGC states concurrently, so that the different channels can
