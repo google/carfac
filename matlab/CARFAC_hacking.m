@@ -60,6 +60,7 @@ agc_plot_fig_num = 6;
 for n_ears = 1:2
 
   CF_struct = CARFAC_Design(n_ears);  % default design
+  CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 
   if n_ears == 2
     % For the 2-channel pass, add a silent second channel:

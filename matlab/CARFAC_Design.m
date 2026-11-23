@@ -37,6 +37,11 @@ function CF = CARFAC_Design(n_ears, fs, ...
 % it will be interpreted as a CF_version_keyword ('just_hwr' or 'one_cap';
 % omit or 'two_cap' for default v2 two-cap IHC model; or 'do_syn')
 %
+% CF.input_scale_dbspl is the level in dB SPL of an input with RMS 1.  The
+% default of 94 expects input in pascals, while CARFAC v1 and v2 used an input
+% scale of 107 dB SPL for RMS 1 (104 dB SPL for a peak-1 sine).  Set it after
+% design to run input in other units.
+%
 % See other functions for designing and characterizing the CARFAC:
 % [naps, CF] = CARFAC_Run(CF, input_waves)
 % transfns = CARFAC_Transfer_Functions(CF, to_channels, from_channels)
@@ -136,6 +141,7 @@ end
 
 CF = struct( ...
   'fs', fs, ...
+  'input_scale_dbspl', 94, ...  % Input in pascals; see above.
   'max_channels_per_octave', max_channels_per_octave, ...
   'CAR_params', CF_CAR_params, ...
   'AGC_params', CF_AGC_params, ...
