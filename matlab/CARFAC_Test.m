@@ -22,6 +22,10 @@ function status = CARFAC_Test(do_plots)
 % and prints messages about tests and failures.  Argument do_plots is
 % optional, defaults to 1 (as when executing the file as a script).
 % Run CARFAC_Test(0) to suppress plotting.
+%
+% The tests set CF.input_scale_dbspl = 107, the native CARFAC v1/v2 input
+% scaling of 107 dB SPL for RMS 1, so their stimuli and golden data are
+% unchanged by the input scale.
 
 if nargin < 1,
   do_plots = 1;
@@ -52,6 +56,7 @@ status = status | test_multiaural_silent_channel_simpler_decimating(do_plots);
 status = status | test_multiaural_silent_channel_non_decimating(do_plots);
 status = status | test_multiaural_carfac(do_plots);
 status = status | test_spike_rates(do_plots);
+status = status | test_input_scale(do_plots);
 report_status(status, 'CARFAC_Test', 1)
 return
 
@@ -62,6 +67,7 @@ function status = test_CAR_freq_response(do_plots)
 status = 0;
 
 CF = CARFAC_Design(1, 22050);  % 1 ear; use old test fs.
+CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 n_points = 2^14;
 fft_len = n_points * 2;  % Lots of zero padding for good freq. resolution.
@@ -159,6 +165,7 @@ quad_cos = present .* cos(omega * t);
 x_in = quad_sin .* amplitude;
 
 CF = CARFAC_Design(1, fs, version);
+CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 
 neuro_output = zeros(size(x_in));
@@ -406,6 +413,7 @@ function status = test_AGC_steady_state(do_plots)
 % Test: Make sure that the AGC adapts to an appropriate steady state,
 % like figure 19.7
 CF = CARFAC_Design(1, 22050);  % With default [8, 2, 2, 2] decimation.
+CF.input_scale_dbspl = 107;
 status = test_AGC_steady_state_core(do_plots, CF);
 report_status(status, 'test_AGC_steady_state')
 return
@@ -418,6 +426,7 @@ CAR_params = CAR_params_default;
 AGC_params = AGC_params_default;
 AGC_params.decimation = [8, 1, 1, 1];  % Override default, simpler.
 CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
+CF.input_scale_dbspl = 107;
 status = test_AGC_steady_state_core(do_plots, CF);
 report_status(status, 'test_AGC_steady_state_simpler_decimating')
 return
@@ -430,6 +439,7 @@ CAR_params = CAR_params_default;
 AGC_params = AGC_params_default;
 AGC_params.decimation = [1, 1, 1, 1];  % Override default.
 CF = CARFAC_Design(1, 22050, CAR_params, AGC_params);
+CF.input_scale_dbspl = 107;
 status = test_AGC_steady_state_core(do_plots, CF);
 report_status(status, 'test_AGC_steady_state_non_decimating')
 return
@@ -554,6 +564,7 @@ status = 0;
 
 fs = 22050;
 CF = CARFAC_Design(1, fs);
+CF.input_scale_dbspl = 107;
 % CF = CARFAC_Init(CF);
 
 if do_plots
@@ -639,8 +650,10 @@ if non_decimating
   AGC_params = AGC_params_default;
   AGC_params.decimation = [1, 1, 1, 1];  % Override default.
   CF = CARFAC_Design(1, 22050, CAR_params, AGC_params, version_string);
+  CF.input_scale_dbspl = 107;
 else
   CF = CARFAC_Design(1, 22050, version_string);  % With default decimation.
+  CF.input_scale_dbspl = 107;
 end
 CF = CARFAC_Init(CF);
 
@@ -836,6 +849,7 @@ impulse = zeros(round(impulse_dur*fs), 1);
 impulse(1) = 1e-4;
 
 CF = CARFAC_Design(1, fs);
+CF.input_scale_dbspl = 107;
 
 CF = CARFAC_Init(CF);
 CF.open_loop = 1;  % For measuring impulse response.
@@ -919,6 +933,8 @@ function status = test_multiaural_silent_core(do_plots, decimation)
 status = 0;
 fs = 22050;
 t = (0:(1/fs):(0.05 - 1/fs))';  % 50ms
+% Levels assume the v1/v2 input scale of 107 dB SPL at RMS 1.
+% TODO(JasonMH17): Use the default input_scale_dbspl once tests use pascals.
 amplitude = 1e-3;  % -70 dBFS, around 30-40 dB SPL
 
 % c major chord of c-e-g at 523.25, 659.25 and 783.99
@@ -932,7 +948,9 @@ CAR_params = CAR_params_default;
 AGC_params = AGC_params_default;
 AGC_params.decimation = decimation;  % Override default.
 CF = CARFAC_Design(2, 22050, CAR_params, AGC_params, version_string);
+CF.input_scale_dbspl = 107;
 MONO_CF = CARFAC_Design(1, fs, CAR_params, AGC_params, version_string);
+MONO_CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 MONO_CF = CARFAC_Init(MONO_CF);
 [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_audio);
@@ -1004,6 +1022,7 @@ amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
 noise = amplitude * randn(size(t));
 binaural_noise = [noise noise];
 CF = CARFAC_Design(2, fs, 'one_cap');  % Legacy
+CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 [naps, CF, bm_baseline] = CARFAC_Run_Segment(CF, binaural_noise);
 ear_one_naps = naps(:, :, 1);
@@ -1028,6 +1047,7 @@ amplitude = 1e-4;  % -80 dBFS, around 20 or 30 dB SPL
 noise = amplitude * randn(size(t));
 
 CF = CARFAC_Design(1, fs, 'one_cap');  % Legacy
+CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 [~, CF, bm_baseline] = CARFAC_Run_Segment(CF, noise);
 
@@ -1158,7 +1178,9 @@ fs = 22050;
 fp = 1000;  % Probe tone frequency
 duration = 0.25;
 dbstep = 10;   % 10 is good
-dbfs = -104:dbstep:6;  % 0 to 110 dB SPL
+dbfs = -104:dbstep:6;  % RMS levels in dB re 1.
+% CARFAC's nominal scale is 107 dB SPL for RMS 1 (104 for a peak-1 sine).
+dbspl = dbfs + 107;  % 3 to 113 dB SPL.
 
 t = (0:(1/fs):(duration - 1/fs))';  % Sample times for short duration
 sinusoid = sin(2 * pi * t * fp);
@@ -1173,6 +1195,7 @@ for db = dbfs  % Levels spanning a huge range
 end
 
 CF = CARFAC_Design(1, fs, 'do_syn');  % v3 3-class synapse model
+CF.input_scale_dbspl = 107;
 CF = CARFAC_Init(CF);
 [nap, CF, bm, ohc, agc, firings] = CARFAC_Run_Segment(CF, signal);  % nap has 3 columns of firings
 
@@ -1186,19 +1209,23 @@ if do_plots
   figure();
   plot(time, chan_firings);
   title('Instantaneous rates of 3 fiber-group classes')
-  xlabel('time in seconds, with 10 dB steps from -100 to 0 dB FS')
+  xlabel(sprintf( ...
+    'time in seconds, with %d dB steps from %d to %d dB SPL rms', ...
+    dbstep, dbspl(1), dbspl(end)))
   ylabel('firings per sample')
-  for db = dbfs + 104
-    text(duration * (db/dbstep + 0.4), 12, num2str(db))
+  for k = 1:numel(dbspl)
+    text(duration * (k - 1 + 0.4), 12, num2str(dbspl(k)))
   end
 
   figure();
   plot(time, fs*smooth1d(rates, fs*0.005)) % Per fiber
   title('Mean rates of 3 fiber classes')
-  xlabel('time in seconds, with 10 dB steps from 0 to 110 dB SPL rms')
+  xlabel(sprintf( ...
+    'time in seconds, with %d dB steps from %d to %d dB SPL rms', ...
+    dbstep, dbspl(1), dbspl(end)))
   ylabel('firings per second per fiber')
-  for db = dbfs + 104
-    text(duration * (db/dbstep + 0.4), 100, num2str(db))
+  for k = 1:numel(dbspl)
+    text(duration * (k - 1 + 0.4), 100, num2str(dbspl(k)))
   end
   octave_basal_chan = find(CF.pole_freqs * 1.06 < fp*2, 1);
   half_octave_basal_chan = find(CF.pole_freqs * 1.06 < fp*sqrt(2), 1);
@@ -1212,12 +1239,43 @@ if do_plots
   text(2.55, 0.5, [num2str(channels(3)), ': best'])
   text(2.58, 0.74, [num2str(channels(2)), ': basal 0.5'])
   text(2.45, 0.93, [num2str(channels(1)), ': basal 1'])
-  for db = dbfs + 104
-    text(duration * (db/dbstep + 0.4), 0.4, num2str(db))
+  for k = 1:numel(dbspl)
+    text(duration * (k - 1 + 0.4), 0.4, num2str(dbspl(k)))
   end
 end
 
 report_status(status, 'test_spike_rates')
+return
+
+
+function status = test_input_scale(do_plots)
+% Test: Input in pascals at the default input_scale_dbspl of 94 matches the
+% same sound at the native scale of 107 dB SPL for RMS 1.
+
+status = 0;
+
+fs = 22050;
+noise = 1e-3 * randn(4096, 1);  % RMS 1e-3 at the native scale, 47 dB SPL.
+in_pascals = noise * 10^((107 - 94) / 20);
+
+CF = CARFAC_Design(1, fs);
+if CF.input_scale_dbspl ~= 94
+  status = 1;
+  fprintf(1, 'default input_scale_dbspl %g is not 94\n', CF.input_scale_dbspl);
+end
+CF = CARFAC_Init(CF);
+native = CF;
+native.input_scale_dbspl = 107;
+
+[naps, ~, bm] = CARFAC_Run_Segment(CF, in_pascals);
+[expected_naps, ~, expected_bm] = CARFAC_Run_Segment(native, noise);
+max_err = max([abs(naps(:) - expected_naps(:)); abs(bm(:) - expected_bm(:))]);
+if max_err > 1e-10
+  status = 1;
+  fprintf(1, 'max_err %g too high in test_input_scale\n', max_err);
+end
+
+report_status(status, 'test_input_scale')
 return
 
 

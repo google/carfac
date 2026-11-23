@@ -57,6 +57,7 @@ end
 
 %%
 CF_struct = CARFAC_Design(1, fs);  % default design
+CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 
 CF_struct = CARFAC_Init(CF_struct);
 

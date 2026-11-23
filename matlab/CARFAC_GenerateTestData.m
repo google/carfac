@@ -50,6 +50,7 @@ itd_offset = 22;  % about 1 ms
 signal = [signal((itd_offset+1):end), signal(1:(end-itd_offset))] / 10;
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears);
+CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 WriteTestData(test_data_dir, 'binaural_test', signal, CF_struct, sai_struct);
 
 test_name = 'long_test';
@@ -58,6 +59,7 @@ samples_to_read = [80001, 82000];  % Trim for a faster test.
 assert(size(signal, 2) == 2, 'Expected stereo signal.');
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears, fs);
+CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 WriteTestData(test_data_dir, 'long_test', signal, CF_struct, sai_struct);
 
 % We explicitly initialize parameter structures using defaults in order to
@@ -125,6 +127,7 @@ assert(size(signal, 2) == 2, 'Expected stereo signal.');
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, ...
             CF_IHC_params);
+CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 WriteTestData(test_data_dir, 'agc_test', signal, CF_struct, sai_struct, open_loop);
 
 % The next test verifies that the 'just_hwr' option in the IHC stage works.
@@ -137,6 +140,7 @@ assert(size(signal, 2) == 2, 'Expected stereo signal.');
 n_ears = size(signal, 2);
 CF_struct = CARFAC_Design(n_ears, fs, CF_CAR_params, CF_AGC_params, ...
             CF_IHC_params);
+CF_struct.input_scale_dbspl = 107;  % Native scale of the wav files.
 WriteTestData(test_data_dir, 'ihc_just_hwr_test', signal, CF_struct, sai_struct, open_loop);
 
 function WriteTestData(test_data_dir, test_name, signal, CF_struct, sai_struct, open_loop)

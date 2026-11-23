@@ -23,7 +23,8 @@ function [naps, CF] = CARFAC_Run_Linear(CF, input_waves, relative_undamping)
 % This function runs the CARFAC; that is, filters a 1 or more channel
 % sound input to make one or more neural activity patterns (naps);
 % however, unlike CARFAC_Run, it forces it to be linear, and gives a
-% linear (not detected) output.
+% linear (not detected) output.  As in CARFAC_Run_Segment, input_waves are
+% considered as being in pascals with the default CF.input_scale_dbspl.
 
 % only saving one of these, really:
 velocity_scale = CF.ears(1).CAR_coeffs.velocity_scale;
@@ -42,6 +43,10 @@ end
 if n_ears ~= CF.n_ears
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
+
+% Scale input_waves from input_scale_dbspl to CARFAC's native 107 dB SPL, both
+% for RMS=1.
+input_waves = input_waves * 10^((CF.input_scale_dbspl - 107) / 20);
 
 for ear = 1:CF.n_ears
   coeffs = CF.ears(ear).CAR_coeffs;

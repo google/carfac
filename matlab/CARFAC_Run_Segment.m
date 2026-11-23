@@ -37,6 +37,8 @@ function [naps, CF, BM, seg_ohc, seg_agc, firings_all] = ...
 %
 % the input_waves are assumed to be sampled at the same rate as the
 % CARFAC is designed for; a resampling may be needed before calling this.
+% input_waves are considered as being in pascals with the default
+% CF.input_scale_dbspl, i.e. their level is 94 dB SPL when their RMS equals 1.
 %
 % The function works as an outer iteration on time, updating all the
 % filters and AGC states concurrently, so that the different channels can
@@ -57,6 +59,10 @@ end
 if n_ears ~= CF.n_ears
   error('bad number of input_waves channels passed to CARFAC_Run')
 end
+
+% Scale input_waves from input_scale_dbspl to CARFAC's native 107 dB SPL, both
+% for RMS=1.
+input_waves = input_waves * 10^((CF.input_scale_dbspl - 107) / 20);
 
 if ~isfield(CF, 'open_loop')  % Find open_loop in CF or default it.
   CF.open_loop = 0;

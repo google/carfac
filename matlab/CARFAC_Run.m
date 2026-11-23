@@ -37,6 +37,8 @@ function [CF, decim_naps, naps, BM, ohc, agc] = CARFAC_Run ...
 %
 % the input_waves are assumed to be sampled at the same rate as the
 % CARFAC is designed for; a resampling may be needed before calling this.
+% input_waves are considered as being in pascals with the default
+% CF.input_scale_dbspl, i.e. their level is 94 dB SPL when their RMS equals 1.
 %
 % ohc and agc are optional extra outputs for diagnosing internals.
 
