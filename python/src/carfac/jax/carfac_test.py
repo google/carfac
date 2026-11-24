@@ -726,7 +726,7 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
     params.ears[0].ihc.ihc_style = 'two_cap_with_syn'
     return carfac_jax.design_and_init_carfac(params)
 
-  def _impair_syn(self, weights):
+  def _reduce_syn_fibers_and_spont(self, weights):
     """Shifts v_halfs and removes fibers, moving the synapse off its rest."""
     weights = copy.deepcopy(weights)
     syn = weights.ears[0].syn
@@ -744,12 +744,12 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
 
   @jax.numpy_dtype_promotion('strict')
   def test_resolve_syn_rest_is_fixed_point_at_rest(self):
-    """An impaired synapse should hold its re-solved state with 0 output."""
+    """A changed synapse should hold its re-solved state with 0 output."""
     hypers, weights, state = self._design_syn_carfac()
-    weights = self._impair_syn(weights)
+    weights = self._reduce_syn_fibers_and_spont(weights)
     v_recep = jnp.zeros(hypers.ears[0].n_ch)
 
-    # Without the re-solve, the impaired synapse rests below 0.
+    # Without the re-solve, the changed synapse rests below 0.
     syn_out, _, _ = carfac_jax.syn_step(
         v_recep, weights.ears[0].syn, copy.deepcopy(state.ears[0].syn)
     )
@@ -777,10 +777,10 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
 
   @jax.numpy_dtype_promotion('strict')
   def test_resolve_syn_rest_silence_nap_is_zero(self):
-    """An impaired model should output a zero NAP in silence."""
+    """A model with a changed synapse should output a zero NAP in silence."""
     hypers, weights, state = self._design_syn_carfac()
     weights, state = carfac_jax.resolve_syn_rest(
-        self._impair_syn(weights), state
+        self._reduce_syn_fibers_and_spont(weights), state
     )
     naps, *_ = carfac_jax.run_segment(
         jnp.zeros((1000, 1)), hypers, weights, state
