@@ -318,8 +318,27 @@ class CarfacJaxTest(parameterized.TestCase):
         self.container_comparison(
             weights_jax.ears[ear_idx].syn,
             ear_params_np.syn_coeffs,
-            exclude_keys=['n_fibers', 'v_widths', 'v_halfs', 'spont_sub'],
+            exclude_keys=[
+                'n_fibers',
+                'v_widths',
+                'v_halfs',
+                'spont_sub',
+                'spont_p',
+                'res_lpf_inits',
+            ],
         )
+        # NumPy's carfac_init solves these per channel; JAX keeps them per
+        # class, so compare by broadcasting.
+        for key in ('spont_p', 'res_lpf_inits'):
+          self.assertLess(
+              jnp.max(
+                  jnp.abs(
+                      getattr(weights_jax.ears[ear_idx].syn, key)
+                      - getattr(ear_params_np.syn_coeffs, key)
+                  )
+              ),
+              self.default_delta,
+          )
         self.assertLess(
             jnp.max(
                 jnp.abs(

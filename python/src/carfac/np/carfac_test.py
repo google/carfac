@@ -900,6 +900,35 @@ class CarfacTest(parameterized.TestCase):
     for ch in np.arange(half_ch + 5, n_ch - 2):
       self.assertGreater(tf_ratio[ch], 0.35)
 
+  def test_syn_rest(self):
+    # Test: With fewer fibers (all classes equally) and raised v_halfs in half
+    # the channels, running `carfac_init` lowers their spont rate and keeps
+    # `syn_out` at 0 in quiet.
+    fs = 22050.0
+    cfp = carfac.design_carfac(fs=fs, ihc_style='two_cap_with_syn')
+    healthy_spont_p = cfp.ears[0].syn_coeffs.spont_p
+
+    half_ch = int(np.floor(cfp.n_ch / 2))
+    ch = range(half_ch)
+    syn = cfp.ears[0].syn_coeffs
+    syn.n_fibers = syn.n_fibers.copy()
+    syn.n_fibers[ch, :] *= 0.3  # Fewer fibers, all classes equally.
+    syn.v_halfs = np.ones((cfp.n_ch, 1)) * syn.v_halfs  # Per channel.
+    syn.v_halfs[ch, :] += syn.v_widths  # Lower spont.
+    cfp = carfac.carfac_init(cfp)
+
+    spont_p = cfp.ears[0].syn_coeffs.spont_p
+    self.assertLess(np.max(spont_p[ch, :] / healthy_spont_p), 0.5)
+    np.testing.assert_allclose(
+        spont_p[half_ch:, :],
+        np.broadcast_to(healthy_spont_p, spont_p[half_ch:, :].shape),
+        rtol=0,
+        atol=1e-12,
+    )
+
+    naps, _, _, _, _ = carfac.run_segment(cfp, np.zeros(int(0.1 * fs)))
+    self.assertLess(np.max(np.abs(naps)), 1e-6)
+
   def test_multiaural_carfac(self):
     """Test multiaural functionality with 2 ears.
 
