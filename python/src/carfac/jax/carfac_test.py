@@ -328,8 +328,10 @@ class CarfacJaxTest(parameterized.TestCase):
                 'res_lpf_inits',
             ],
         )
-        # NumPy's carfac_init solves these per channel; JAX keeps them per
-        # class, so compare by broadcasting.
+        # JAX solves these per channel; NumPy still keeps them per class, so
+        # compare by broadcasting.
+        # TODO(JasonMH17): Compare them with container_comparison once NumPy's
+        # carfac_init also solves them per channel.
         for key in ('spont_p', 'res_lpf_inits'):
           self.assertLess(
               jnp.max(
