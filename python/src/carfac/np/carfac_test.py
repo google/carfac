@@ -901,8 +901,9 @@ class CarfacTest(parameterized.TestCase):
       self.assertGreater(tf_ratio[ch], 0.35)
 
   def test_syn_rest(self):
-    # Test: After synapse impairment and `carfac_init`, the spont rate is lower
-    # and `syn_out` is 0 in quiet.
+    # Test: With fewer fibers (all classes equally) and raised v_halfs in half
+    # the channels, running `carfac_init` lowers their spont rate and keeps
+    # `syn_out` at 0 in quiet.
     fs = 22050.0
     cfp = carfac.design_carfac(fs=fs, ihc_style='two_cap_with_syn')
     healthy_spont_p = cfp.ears[0].syn_coeffs.spont_p
@@ -911,7 +912,7 @@ class CarfacTest(parameterized.TestCase):
     ch = range(half_ch)
     syn = cfp.ears[0].syn_coeffs
     syn.n_fibers = syn.n_fibers.copy()
-    syn.n_fibers[ch, :] *= 0.3  # Synaptopathy.
+    syn.n_fibers[ch, :] *= 0.3  # Fewer fibers, all classes equally.
     syn.v_halfs = np.ones((cfp.n_ch, 1)) * syn.v_halfs  # Per channel.
     syn.v_halfs[ch, :] += syn.v_widths  # Lower spont.
     cfp = carfac.carfac_init(cfp)
