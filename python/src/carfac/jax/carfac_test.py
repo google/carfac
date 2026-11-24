@@ -166,6 +166,19 @@ class CarfacJaxTest(parameterized.TestCase):
             k not in right_items or right_items[k] == 0,
             'failed comparison on k %s' % (k),
         )
+      elif isinstance(item, jnp.ndarray) and item.ndim > 1:
+        right_item = getattr(right_side, k)
+        self.assertEqual(
+            item.shape,
+            right_item.shape,
+            msg='failed comparison on key item %s' % (k),
+        )
+        self.assertSequenceAlmostEqual(
+            item.ravel(),
+            right_item.ravel(),
+            delta=self.default_delta,
+            msg='failed comparison on key item %s' % (k),
+        )
       elif (
           isinstance(item, collections.abc.Sequence)
           or hasattr(item, '__len__')
@@ -324,24 +337,8 @@ class CarfacJaxTest(parameterized.TestCase):
                 'v_widths',
                 'v_halfs',
                 'spont_sub',
-                'spont_p',
-                'res_lpf_inits',
             ],
         )
-        # JAX solves these per channel; NumPy still keeps them per class, so
-        # compare by broadcasting.
-        # TODO(JasonMH17): Compare them with container_comparison once NumPy's
-        # carfac_init also solves them per channel.
-        for key in ('spont_p', 'res_lpf_inits'):
-          self.assertLess(
-              jnp.max(
-                  jnp.abs(
-                      getattr(weights_jax.ears[ear_idx].syn, key)
-                      - getattr(ear_params_np.syn_coeffs, key)
-                  )
-              ),
-              self.default_delta,
-          )
         self.assertLess(
             jnp.max(
                 jnp.abs(
