@@ -1432,9 +1432,11 @@ def carfac_init(cfp: CarfacParams) -> CarfacParams:
     cfp.ears[ear].car_state = car_init_state(cfp.ears[ear].car_coeffs)
     cfp.ears[ear].ihc_state = ihc_init_state(cfp.ears[ear].ihc_coeffs)
     cfp.ears[ear].agc_state = agc_init_state(cfp.ears[ear].agc_coeffs)
-    if cfp.syn_params:
-      cfp.ears[ear].syn_coeffs = syn_solve_rest(cfp.ears[ear].syn_coeffs)  # pyrefly: ignore[bad-argument-type]
-      cfp.ears[ear].syn_state = syn_init_state(cfp.ears[ear].syn_coeffs)
+    syn_coeffs = cfp.ears[ear].syn_coeffs
+    if cfp.syn_params and syn_coeffs is not None:
+      syn_coeffs = syn_solve_rest(syn_coeffs)
+      cfp.ears[ear].syn_coeffs = syn_coeffs
+      cfp.ears[ear].syn_state = syn_init_state(syn_coeffs)
   return cfp
 
 
