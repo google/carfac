@@ -1065,8 +1065,9 @@ return
 
 
 function status = test_syn_rest(do_plots)
-% Test: After synapse impairment and CARFAC_Init, the spont rate is lower
-% and syn_out is 0 in quiet.
+% Test: With fewer fibers (all classes equally) and raised v_halfs in half the
+% channels, running CARFAC_Init lowers their spont rate and keeps syn_out at 0
+% in quiet.
 
 status = 0;
 
@@ -1077,7 +1078,7 @@ healthy_spont_p = CF.ears(1).SYN_coeffs.spont_p;
 half_ch = floor(CF.n_ch/2);
 ch = 1:half_ch;
 syn = CF.ears(1).SYN_coeffs;
-syn.n_fibers(ch, :) = syn.n_fibers(ch, :) * 0.3;  % Synaptopathy.
+syn.n_fibers(ch, :) = syn.n_fibers(ch, :) * 0.3;  % Fewer fibers, all classes.
 syn.v_halfs = ones(CF.n_ch, 1) * syn.v_halfs;  % Per channel, to shift some.
 syn.v_halfs(ch, :) = syn.v_halfs(ch, :) + syn.v_widths;  % Lower spont.
 CF.ears(1).SYN_coeffs = syn;
@@ -1086,7 +1087,7 @@ CF = CARFAC_Init(CF);
 spont_p = CF.ears(1).SYN_coeffs.spont_p;
 if any(any(spont_p(ch, :) >= 0.5 * healthy_spont_p))
   status = 1;
-  fprintf(1, 'spont_p not lowered in impaired channels in test_syn_rest\n')
+  fprintf(1, 'spont_p not lowered in the changed channels in test_syn_rest\n')
 end
 if max(max(abs(spont_p(half_ch+1:end, :) - healthy_spont_p))) > 1e-12
   status = 1;
