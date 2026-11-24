@@ -837,10 +837,11 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
 
   @jax.numpy_dtype_promotion('strict')
   def test_syn_rest(self):
-    """After impairing the synapse, `init_carfac` re-solves its rest.
+    """After changing the synapse, `init_carfac` re-solves its rest.
 
-    The same test as NumPy's and MATLAB's `test_syn_rest`: the spont rate
-    drops in the impaired channels but the output rests at 0 in quiet.
+    The same test as NumPy's and MATLAB's `test_syn_rest`: with fewer fibers
+    (all classes equally) and raised v_halfs in half the channels, running
+    `init_carfac` lowers their spont rate and keeps `syn_out` at 0 in quiet.
     """
     params = carfac_jax.CarfacDesignParameters()
     params.ears[0].ihc.ihc_style = 'two_cap_with_syn'
@@ -850,7 +851,8 @@ class CarfacStrictPromotionTest(parameterized.TestCase):
     n_ch = hypers.ears[0].n_ch
     half_ch = n_ch // 2
     syn = weights.ears[0].syn
-    syn.n_fibers = syn.n_fibers.at[:half_ch].multiply(0.3)  # Synaptopathy.
+    # Fewer fibers, all classes equally.
+    syn.n_fibers = syn.n_fibers.at[:half_ch].multiply(0.3)
     v_halfs = jnp.ones((n_ch, 1)) * syn.v_halfs  # Per channel.
     syn.v_halfs = v_halfs.at[:half_ch].add(syn.v_widths[0])  # Lower spont.
     weights, state = carfac_jax.init_carfac(hypers, weights)

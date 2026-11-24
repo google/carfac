@@ -1348,7 +1348,7 @@ def design_carfac(
   """Design the CARFAC model.
 
   Mirrors NumPy's `design_carfac`. To make a state to run it with, call
-  `init_carfac`, after changing any weights (e.g. to model impairment).
+  `init_carfac`, after changing any weights (e.g. `ohc_health` or the synapse).
 
   Args:
     params: all the design params. Won't be changed in this function.
